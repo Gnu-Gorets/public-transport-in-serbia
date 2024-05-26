@@ -54,12 +54,6 @@ input[type="checkbox"] {
   transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
 }
 
-#sort-data-wrapper{
-  text-align: center;
-  margin: auto 20px;
-  display: flex;
-}
-
 select:focus,
 input:focus,
 button:focus {
@@ -76,10 +70,6 @@ button:focus {
   height: 30vw;
   margin: auto;
   border: 2px solid black;
-}
-
-#sortLines, #dataSaver {
-  color: black;
 }
 
 #result {

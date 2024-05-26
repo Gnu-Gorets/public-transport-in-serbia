@@ -111,26 +111,6 @@ const formatSeconds = (seconds) => {
   return `${minutes} minutes`;
 };
 
-const checkDataSaver = () => {
-  return $("#dataSaver").is(":checked");
-};
-
-const checkLineSorting = () => {
-  return $("#sort-lines").is(":checked");
-};
-
-const handleTabOut = () => {
-  if (!checkDataSaver()) return;
-  console.log("tab out");
-  clearInterval(currInterval);
-};
-
-const handleTabIn = () => {
-  if (!checkDataSaver()) return;
-  console.log("tab in");
-  spawnInterval();
-};
-
 const updateArrivals = (response, recenter) => {
   let date = new Date();
 
