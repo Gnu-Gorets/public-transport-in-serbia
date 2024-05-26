@@ -147,8 +147,6 @@ const updateArrivals = (response, recenter) => {
       return `<tr>
                     <td>${value.lineNumber}</td>
                     <td>${formatSeconds(value.secondsLeft)}</td>
-                    <td>${value.stationsBetween}</td>
-                    <td>${value.stationName}</td>
                     <td>${value.garageNo}</td>
                 </tr>`;
     })
