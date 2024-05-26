@@ -88,11 +88,6 @@
       </div>
 
       <div class="coords-search" style="display: none">
-        <button type="button" onclick="searchByGPS()">
-          Find the nearest stations
-        </button>
-        <br />
-        <br />
         <label id="stationsMaxDistance-label">Distance (350m):</label> <br />
         <input
           type="range"
@@ -102,7 +97,7 @@
           max="1000"
           value="350"
           step="50"
-          onchange="$('#stationsMaxDistance-label').html(`Distance (${this.value}m):`)"
+          onchange="onRangeChange()"
         />
         <br />
         <br />

@@ -98,6 +98,7 @@ const onCityChange = async () => {
 const onSearchModeChange = () => {
   let searchMode = $("#searchMode").val();
   if (searchMode == "name") {$(`#submit`).hide()} else {$(`#submit`).show()};
+  if (searchMode == "coords") searchByGPS();
   $("#searchMode option")
     .toArray()
     .map((option) => {
@@ -232,6 +233,11 @@ const toggleTable = () => {
 function onNameChange() {
   toggleTable();
   submitByName();
+}
+
+function onRangeChange() {
+    $('#stationsMaxDistance-label').html(`Distance (${$('#stationsMaxDistance-input').val()}m):`)
+    searchByGPS();
 }
 
 const getUserLocation = async () => {
