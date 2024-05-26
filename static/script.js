@@ -97,6 +97,7 @@ const onCityChange = async () => {
 
 const onSearchModeChange = () => {
   let searchMode = $("#searchMode").val();
+  if (searchMode == "name") {$(`#submit`).hide()} else {$(`#submit`).show()};
   $("#searchMode option")
     .toArray()
     .map((option) => {
@@ -203,6 +204,7 @@ const submitByID = () => {
 };
 
 const submitByName = () => {
+  if (!$("#name-input").val()) return
   let uid = encodeURIComponent($("#name-input").val().trim());
   currQuery = { uid: uid };
   spawnInterval(currQuery);
@@ -226,6 +228,11 @@ const toggleTable = () => {
     }
   }
 };
+
+function onNameChange() {
+  toggleTable();
+  submitByName();
+}
 
 const getUserLocation = async () => {
   return new Promise((resolve, reject) => {
