@@ -16,7 +16,7 @@ h1, h3 {
 }
 
 form {
-  max-width: 600px;
+  width: 30vw;
   margin: 20px auto;
   background-color: rgba(53, 53, 53, 0.9);
   padding: 20px;
@@ -112,9 +112,14 @@ thead {
   color: #fff;
 }
 
-@media screen and (max-width: 600px) {
+@media screen and (max-width: 1400px) {
+  form {
+    box-sizing: border-box;
+    width: 94vw;
+  }
   #map {
-    width: 100vw;
+    box-sizing: border-box;
+    width: 90vw;
     height: 50vh;
   }
   #submit {
