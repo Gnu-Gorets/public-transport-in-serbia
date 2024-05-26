@@ -132,13 +132,11 @@ const updateArrivals = (response, recenter) => {
   markers = [];
   markers.push(createMarker(response.coords, "", "yellow", name));
 
-  if (checkLineSorting() && response.vehicles.length > 0) {
-    response.vehicles.sort((a, b) => {
-      return a.lineNumber != b.lineNumber && a.lineName !== b.lineName
-        ? a.lineNumber - b.lineNumber
-        : a.secondsLeft - b.secondsLeft;
-    });
-  } else response.vehicles.reverse();
+  response.vehicles.sort((a, b) => {
+    return a.lineNumber != b.lineNumber && a.lineName !== b.lineName
+      ? a.lineNumber - b.lineNumber
+      : a.secondsLeft - b.secondsLeft;
+      });
 
   const tableData = response.vehicles
     .map((value) => {
