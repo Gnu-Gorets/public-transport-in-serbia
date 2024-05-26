@@ -108,7 +108,7 @@ const onSearchModeChange = () => {
 
 const formatSeconds = (seconds) => {
   let minutes = Math.floor(seconds / 60);
-  return `${minutes} minutes`;
+  return `${minutes} min`;
 };
 
 const updateArrivals = (response, recenter) => {
@@ -117,7 +117,7 @@ const updateArrivals = (response, recenter) => {
   let name = `${response.name} (${response.id})`;
   $("#stationName").html(`Station: ${name}`);
   $("#lastUpdated").html(
-    `Last updated: ${date.toLocaleTimeString()}`
+    `Last updated: ${date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} (auto refresh - 10 seconds)`
   );
   $("#stationName").show();
   $("#lastUpdated").show();
@@ -165,7 +165,7 @@ const fetchArrivals = async (city, query, recenter) => {
     console.error("Error sending request:", error);
     $("#updateInProgress").hide();
     $("#error").html(
-      `Greška pri ažuriranju podataka: ${error.responseJSON.message}`
+      `Error updating data: ${error?.responseJSON?.message}`
     );
     $("#error").show();
   });
