@@ -140,9 +140,9 @@ const updateArrivals = (response, recenter) => {
   let date = new Date();
 
   let name = `${response.name} (${response.id})`;
-  $("#stationName").html(`Stanica: ${name}`);
+  $("#stationName").html(`Station: ${name}`);
   $("#lastUpdated").html(
-    `Poslednji put ažurirano: ${date.toLocaleTimeString()}`
+    `Last updated: ${date.toLocaleTimeString()}`
   );
   $("#stationName").show();
   $("#lastUpdated").show();

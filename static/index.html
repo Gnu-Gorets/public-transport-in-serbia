@@ -2,7 +2,7 @@
 <meta charset="UTF-8" />
 <html>
   <head>
-    <title>BG++</title>
+    <title>Serbia++</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="static/index.css" />
 
@@ -47,28 +47,27 @@
     </script>
   </head>
   <body class="body" onload="toggleTable()">
-    <h1>BG++</h1>
-    <h3 id="motto">Fixamo fix ideje since 2023</h3>
+    <h1>Serbia++</h1>
 
     <form id="myForm">
-      <label for="city">Grad:</label>
+      <label for="city">City:</label>
       <select id="city" name="city" onchange="onCityChange()"></select>
       <br />
       <br />
 
-      <label for="searchMode">Tip pretrage:</label>
+      <label for="searchMode">Search type:</label>
       <select id="searchMode" name="searchMode" onchange="onSearchModeChange()">
-        <option value="id">ID stanice</option>
-        <option value="name">Ime stanice</option>
-        <option value="coords">Lokacija</option>
-        <option value="address" disabled>Adresa (USKORO)</option>
-        <option value="favorites" disabled>Omiljene stanice (USKORO)</option>
+        <option value="id">Station ID</option>
+        <option value="name">Station name</option>
+        <option value="coords">Location</option>
+<!--        <option value="address" disabled>Adresa (future)</option>-->
+<!--        <option value="favorites" disabled>Omiljene stanice (future)</option>-->
       </select>
       <br />
       <br />
 
       <div class="id-search" style="display: none">
-        <label class="id-search" for="id-input">ID stanice:</label>
+        <label class="id-search" for="id-input">Station ID:</label>
         <input
           type="text"
           id="id-input"
@@ -79,7 +78,7 @@
       </div>
 
       <div class="name-search" style="display: none">
-        <label for="name-input">Ime/ID stanice:</label>
+        <label for="name-input">Station name/ID:</label>
         <select
           class="select2"
           id="name-input"
@@ -91,11 +90,11 @@
 
       <div class="coords-search" style="display: none">
         <button type="button" onclick="searchByGPS()">
-          Pronadji najbliže stanice
+          Find the nearest stations
         </button>
         <br />
         <br />
-        <label id="stationsMaxDistance-label">Najveća udaljenost (350m):</label> <br />
+        <label id="stationsMaxDistance-label">Distance (350m):</label> <br />
         <input
           type="range"
           id="stationsMaxDistance-input"
@@ -104,11 +103,11 @@
           max="1000"
           value="350"
           step="50"
-          onchange="$('#stationsMaxDistance-label').html(`Najveća udaljenost (${this.value}m):`)"
+          onchange="$('#stationsMaxDistance-label').html(`Distance (${this.value}m):`)"
         />
         <br />
         <br />
-        <label for="coords-input">Stanica:</label>
+        <label for="coords-input">Station:</label>
         <select
           class="select2"
           id="coords-input"
@@ -119,13 +118,12 @@
         <br />
       </div>
 
-      <input id="submit" type="submit" value="Kad će mi bus?" />
+      <input id="submit" type="submit" value="View buses" />
       <div id="sort-data-wrapper">
-        <label for="dataSaver">Ušteda podataka:</label>
+        <label for="dataSaver">Data saving:</label>
         <input type="checkbox" id="dataSaver" name="dataSaver" checked /> <br />
         <br />
-
-        <label for="sort-lines">Sortiranje linija:</label>
+        <label for="sort-lines">Sort buses:</label>
         <input
           type="checkbox"
           id="sort-lines"
@@ -142,18 +140,17 @@
     <div id="result">
       <p id="stationName"></p>
       <p id="lastUpdated"></p>
-      <p id="updateInProgress" style="display: none">Ažuriranje u toku...</p>
-      <p id="error" style="display: none">Greška pri ažuriranju!</p>
+      <p id="error" style="display: none">Error!</p>
       <br />
 
       <table id="tabela" border="2">
         <thead id="thead" class="thead-dark">
           <tr>
-            <th scope="col">Linija</th>
-            <th scope="col">ETA</th>
-            <th scope="col">Stanice</th>
-            <th scope="col">Trenutna stanica</th>
-            <th scope="col">ID vozila</th>
+            <th scope="col">Bus number</th>
+            <th scope="col">Will be here in</th>
+            <th scope="col">Stations before you</th>
+            <th scope="col">Current station</th>
+            <th scope="col">Bus ID</th>
           </tr>
         </thead>
         <tbody id="tableBody"></tbody>
