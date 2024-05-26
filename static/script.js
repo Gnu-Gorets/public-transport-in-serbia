@@ -111,9 +111,7 @@ const onSearchModeChange = () => {
 
 const formatSeconds = (seconds) => {
   let minutes = Math.floor(seconds / 60);
-  let secondsLeft = seconds % 60;
-  if (secondsLeft < 10) secondsLeft = `0${secondsLeft}`;
-  return `${minutes}:${secondsLeft}`;
+  return `${minutes} minutes`;
 };
 
 const checkDataSaver = () => {
