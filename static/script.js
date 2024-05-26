@@ -58,7 +58,6 @@ const doAsyncRequest = async (url, type, data, errorHandler) => {
 const fetchCityStations = async (city) => {
   let response = await doAsyncRequest(`/api/stations/${city}/all`);
   allStations[city] = response;
-  console.log(allStations);
   fillNameSearch(city);
 };
 
@@ -69,7 +68,6 @@ const moveMapToCityCentre = (city) => {
     nis: [43.3209, 21.8958],
   };
 
-  console.log(`Moving map to ${city} centre`);
   if (!currInterval) map.setView(cityCentres[city], 13, { animation: true });
 };
 
@@ -78,7 +76,6 @@ const fillNameSearch = (city) => {
   let names = stations.map((station) => {
     return `<option value="${station.uid}">${station.name} (${station.id})</option>`;
   });
-  console.log(names);
   $("#name-input").html(names);
 };
 
@@ -148,7 +145,6 @@ const updateArrivals = (response, recenter) => {
   toggleTable();
 
   layerGroup.clearLayers();
-  console.log(response.coords);
   if (recenter) map.setView(response.coords, 13, { animation: true });
 
   markers = [];
@@ -379,9 +375,6 @@ const submitHandlers = {
 };
 
 $(document).ready(async () => {
-  $(window).on("blur", handleTabOut);
-  $(window).on("focus", handleTabIn);
-
   initMap();
   $(".select2").select2({ width: "resolve" });
 
