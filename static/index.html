@@ -58,23 +58,12 @@
       <label for="searchMode">Search type:</label>
       <select id="searchMode" name="searchMode" onchange="onSearchModeChange()">
         <option value="name">Station name</option>
-        <option value="id">Station ID</option>
         <option value="coords">Location</option>
 <!--        <option value="address" disabled>Adresa (future)</option>-->
 <!--        <option value="favorites" disabled>Omiljene stanice (future)</option>-->
       </select>
       <br />
       <br />
-
-      <div class="id-search" style="display: none">
-        <label class="id-search" for="id-input">Station ID:</label>
-        <input
-          type="text"
-          id="id-input"
-          inputmode="numeric"
-        /><br />
-        <br />
-      </div>
 
       <div class="name-search" style="display: none">
         <label for="name-input">Station name/ID:</label>
