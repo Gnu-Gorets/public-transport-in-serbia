@@ -133,10 +133,16 @@ const updateArrivals = (response, recenter) => {
   markers.push(createMarker(response.coords, "", "yellow", name));
 
   response.vehicles.sort((a, b) => {
-    return a.lineNumber != b.lineNumber && a.lineName !== b.lineName
-      ? a.lineNumber - b.lineNumber
-      : a.secondsLeft - b.secondsLeft;
-      });
+    const [aNum, aLetter] = a.lineNumber.match(/^(\d+)(\D*)/).slice(1);
+    const [bNum, bLetter] = b.lineNumber.match(/^(\d+)(\D*)/).slice(1);
+    if (aNum !== bNum) {
+      return parseInt(aNum) - parseInt(bNum);
+    }
+    if (aLetter !== bLetter) {
+      return aLetter.localeCompare(bLetter);
+    }
+    return a.secondsLeft - b.secondsLeft;
+  });
 
   const tableData = response.vehicles
     .map((value) => {
