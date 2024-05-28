@@ -1,39 +1,23 @@
-# syntax = docker/dockerfile:1
+# Use the base image Ubuntu 24.04
+FROM ubuntu:24.04
 
-# Adjust NODE_VERSION as desired
-ARG NODE_VERSION=20.4.0
-FROM node:${NODE_VERSION}-slim as base
+# Update and install necessary packages
+RUN apt-get update && apt-get install -y \
+    git \
+    curl
 
-LABEL fly_launch_runtime="Node.js"
+# Install Node.js
+RUN curl -sL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs
 
-# Node.js app lives here
+# Clone the repository
+RUN git clone https://gitlab.com/Gor_ets/public-transport-in-serbia.git /app
+
+# Set the working directory
 WORKDIR /app
 
-# Set production environment
-ENV NODE_ENV=production
-
-
-# Throw-away build stage to reduce size of final image
-FROM base as build
-
-# Install packages needed to build node modules
-RUN apt-get update -qq && \
-    apt-get install -y python-is-python3 pkg-config build-essential 
-
-# Install node modules
-COPY --link package-lock.json package.json ./
+# Install project dependencies
 RUN npm ci
 
-# Copy application code
-COPY --link . .
-
-
-# Final stage for app image
-FROM base
-
-# Copy built application
-COPY --from=build /app /app
-
-# Start the server by default, this can be overwritten at runtime
-EXPOSE 3000
-CMD [ "node", "server/server.js" ]
+# Run the project
+CMD ["npm", "run", "dev"]
