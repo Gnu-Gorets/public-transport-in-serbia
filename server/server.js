@@ -55,6 +55,7 @@ function transformStationResponse(response, city) {
     vehicle.lineName = value.line_title;
     vehicle.secondsLeft = value.seconds_left;
     vehicle.stationsBetween = value.stations_between;
+    vehicle.main_line_title = value.main_line_title;
     vehicle.stationName = value.vehicles[0].station_name;
     vehicle.garageNo = value.vehicles[0].garageNo;
     vehicle.coords = [value.vehicles[0].lat, value.vehicles[0].lng];

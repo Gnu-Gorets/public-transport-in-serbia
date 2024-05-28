@@ -147,13 +147,13 @@ const updateArrivals = (response, recenter) => {
   const tableData = response.vehicles
     .map((value) => {
       markers.push(
-        createMarker(value.coords, value.lineNumber, "blue", value.garageNo)
+        createMarker(value.coords, value.lineNumber, "blue", value.main_line_title)
       );
       if (!value.stationName) value.stationName = "¯\\_(ツ)_/¯";
       return `<tr>
                     <td>${value.lineNumber}</td>
                     <td>${formatSeconds(value.secondsLeft)}</td>
-                    <td>${value.garageNo}</td>
+                    <td>${value.main_line_title}</td>
                 </tr>`;
     })
     .join("");
