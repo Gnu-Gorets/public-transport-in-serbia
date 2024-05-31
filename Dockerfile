@@ -1,15 +1,7 @@
-# Use the base image Ubuntu 24.04
-FROM ubuntu:24.04
+FROM alpine:3.19
 
 # Update and install necessary packages
-RUN apt-get update && apt-get install -y \
-    git \
-    curl
-
-# Install Node.js
-RUN curl -sL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs
-
+RUN apk add --no-cache git curl nodejs npm
 # Clone the repository
 RUN git clone https://gitlab.com/Gor_ets/public-transport-in-serbia.git /app
 
@@ -19,5 +11,5 @@ WORKDIR /app
 # Install project dependencies
 RUN npm ci
 
-# Run the project
+# Run the project<
 CMD ["npm", "run", "dev"]
