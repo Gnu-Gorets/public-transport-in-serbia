@@ -149,9 +149,10 @@ const updateArrivals = (response, recenter) => {
       markers.push(
         createMarker(value.coords, value.lineNumber, "blue", value.main_line_title)
       );
+      const formattedTime = formatSeconds(value.secondsLeft);
       return `<tr>
                     <td>${value.lineNumber}</td>
-                    <td>${formatSeconds(value.secondsLeft)}</td>
+                    <td>${formattedTime === "0 min" ? "At stop" : formattedTime}</td>
                     <td>${value.main_line_title}</td>
                 </tr>`;
     })
