@@ -113,18 +113,21 @@
       <p id="stationName"></p>
       <p id="lastUpdated"></p>
       <p id="error" style="display: none">Error!</p>
-      <br />
 
-      <table id="tabela" border="2">
-        <thead id="thead" class="thead-dark">
-          <tr>
-            <th scope="col">#</th>
-            <th scope="col">eta</th>
-            <th scope="col">Route</th>
-          </tr>
-        </thead>
-        <tbody id="tableBody"></tbody>
-      </table>
+      <div id="noBusesMessage">Currently, there are no buses scheduled to arrive at this stop.</div>
+      <div id="tableContainer">
+        <table id="tabela" border="2">
+          <thead id="thead" class="thead-dark">
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">eta</th>
+              <th scope="col">Route</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
 
       <div id="map"></div>
     </div>

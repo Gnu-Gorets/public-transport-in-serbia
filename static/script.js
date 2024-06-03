@@ -2,6 +2,7 @@ let currInterval;
 let map, layerGroup;
 let currQuery;
 let allStations = {};
+let mapInitialized = false;
 
 const coloredIcon = (color) => {
   return new L.Icon({
@@ -124,13 +125,21 @@ const updateArrivals = (response, recenter) => {
   $("#stationName").show();
   $("#lastUpdated").show();
   $("#updateInProgress").hide();
-  toggleTable();
 
   layerGroup.clearLayers();
   if (recenter) map.setView(response.coords, 13, { animation: true });
 
   markers = [];
   markers.push(createMarker(response.coords, "", "yellow", name));
+
+  if (response.vehicles.length === 0) {
+    $("#tableContainer").hide();
+    $("#noBusesMessage").show();
+    return;
+  }
+
+  $("#noBusesMessage").hide();
+  $("#tableContainer").show();
 
   response.vehicles.sort((a, b) => {
     const [aNum, aLetter] = a.lineNumber.match(/^(\d+)(\D*)/).slice(1);
@@ -192,14 +201,18 @@ const spawnInterval = (query = undefined) => {
 };
 
 const initMap = () => {
-  map = L.map("map", {
-    center: [44.81254796404323, 20.46145496621977],
-    zoom: 13,
-  });
-  layerGroup = L.layerGroup().addTo(map);
+  if (!mapInitialized) {
+    map = L.map("map", {
+      center: [44.81254796404323, 20.46145496621977],
+      zoom: 13,
+    });
+    layerGroup = L.layerGroup().addTo(map);
 
-  L.control.layers(mapLayers).addTo(map);
-  mapLayers.Transport.addTo(map);
+    L.control.layers(mapLayers).addTo(map);
+    mapLayers.Transport.addTo(map);
+
+    mapInitialized = true;
+  }
 };
 
 const submitByName = () => {
@@ -363,7 +376,9 @@ const submitHandlers = {
 };
 
 $(document).ready(async () => {
-  initMap();
+  if (!mapInitialized) {
+    initMap();
+  }
   $(".select2").select2({ width: "resolve" });
 
   let response = await doAsyncRequest("/api/cities");
@@ -379,4 +394,12 @@ $(document).ready(async () => {
     event.preventDefault(); // Prevent form from being submitted
     submitHandlers[getSearchMode()]();
   });
+
+  // Initially hide the message and table
+  if ($("#noBusesMessage").length > 0) {
+    $("#noBusesMessage").after("<br />");
+  }
+
+  $("#noBusesMessage").hide();
+  $("#tableContainer").hide();
 });
