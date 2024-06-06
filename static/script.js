@@ -114,6 +114,14 @@ const formatSeconds = (seconds) => {
   return `${minutes} min`;
 };
 
+const handleTabOut = () => {
+  clearInterval(currInterval);
+};
+
+const handleTabIn = () => {
+  spawnInterval();
+};
+
 const updateArrivals = (response, recenter) => {
   let date = new Date();
 
@@ -376,6 +384,9 @@ const submitHandlers = {
 };
 
 $(document).ready(async () => {
+  $(window).on("blur", handleTabOut);
+  $(window).on("focus", handleTabIn);
+
   if (!mapInitialized) {
     initMap();
   }
