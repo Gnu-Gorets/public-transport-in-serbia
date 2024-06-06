@@ -242,8 +242,8 @@ const toggleTable = () => {
 };
 
 function onNameChange() {
-  toggleTable();
   submitByName();
+  toggleTable();
 }
 
 function onRangeChange() {
