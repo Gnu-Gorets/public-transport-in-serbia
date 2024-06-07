@@ -375,7 +375,11 @@ const searchByCoords = async (
 const searchByGPS = async () => {
   $("#error").hide();
   const userLocation = await getUserLocation();
-  searchByCoords(userLocation, "#stationsMaxDistance-input", "#coords-input");
+  await searchByCoords(userLocation, "#stationsMaxDistance-input", "#coords-input");
+  if ($("#coords-input").val()) {
+    currQuery = { uid: $("#coords-input").val().trim() };
+    toggleTable();
+  }
 };
 
 const submitHandlers = {
