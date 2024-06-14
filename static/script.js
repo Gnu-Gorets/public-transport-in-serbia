@@ -3,6 +3,8 @@ let map, layerGroup;
 let currQuery;
 let allStations = {};
 let mapInitialized = false;
+let lastClickedBus = null;
+let currentPolyline = null;
 
 const coloredIcon = (color) => {
   return new L.Icon({
@@ -167,8 +169,12 @@ const updateArrivals = (response, recenter) => {
         createMarker(value.coords, value.lineNumber, "blue", value.main_line_title)
       );
       const formattedTime = formatSeconds(value.secondsLeft);
-      return `<tr>
-                    <td>${value.lineNumber}</td>
+      const stationsJson = JSON.stringify(value.allStations)
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+      
+      return `<tr onclick="handleBusClick('${value.lineNumber}', ${stationsJson})">
+                    <td><a href="#" onclick="event.preventDefault();">${value.lineNumber}</a></td>
                     <td>${formattedTime === "0 min" ? "At stop" : formattedTime}</td>
                     <td>${value.main_line_title}</td>
                 </tr>`;
@@ -206,6 +212,21 @@ const spawnInterval = (query = undefined) => {
   currInterval = setInterval(() => {
     fetchArrivals(city, query, false);
   }, 10 * 1000);
+};
+
+const handleBusClick = (busNumber, stations) => {
+  lastClickedBus = busNumber;
+  addRouteToMap(stations);
+};
+
+const addRouteToMap = (stations) => {
+  if (currentPolyline) {
+    layerGroup.removeLayer(currentPolyline);
+  }
+
+  const latlngs = stations.map(station => [parseFloat(station.latitude), parseFloat(station.longitude)]);
+  currentPolyline = L.polyline(latlngs, { color: 'blue' }).addTo(layerGroup);
+  map.addLayer(currentPolyline);
 };
 
 const initMap = () => {
