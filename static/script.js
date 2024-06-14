@@ -130,7 +130,7 @@ const updateArrivals = (response, recenter) => {
   let name = `${response.name} (${response.id})`;
   $("#stationName").html(`Station: ${name}`);
   $("#lastUpdated").html(
-    `Last updated: ${date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} (auto refresh - 10 seconds)`
+    `Last updated: ${date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} (auto refresh - 30 seconds)`
   );
   $("#stationName").show();
   $("#lastUpdated").show();
@@ -211,7 +211,7 @@ const spawnInterval = (query = undefined) => {
   currInterval = clearInterval(currInterval);
   currInterval = setInterval(() => {
     fetchArrivals(city, query, false);
-  }, 10 * 1000);
+  }, 30 * 1000);
 };
 
 const handleBusClick = (busNumber, stations) => {
