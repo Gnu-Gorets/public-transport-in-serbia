@@ -174,7 +174,7 @@ const updateArrivals = (response, recenter) => {
         .replace(/'/g, '&apos;');
       
       return `<tr onclick="handleBusClick('${value.lineNumber}', ${stationsJson})">
-                    <td><a href="#" onclick="event.preventDefault();">${value.lineNumber}</a></td>
+                    <td><a href="#" style="color: #FFD700;" onclick="event.preventDefault();">${value.lineNumber}</a></td>
                     <td>${formattedTime === "0 min" ? "At stop" : formattedTime}</td>
                     <td>${value.main_line_title}</td>
                 </tr>`;
