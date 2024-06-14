@@ -143,6 +143,7 @@ const updateArrivals = (response, recenter) => {
   markers.push(createMarker(response.coords, "", "yellow", name));
 
   if (response.vehicles.length === 0) {
+    $("#busRouteInfo").hide();
     $("#tableContainer").hide();
     $("#noBusesMessage").show();
     return;
@@ -150,6 +151,7 @@ const updateArrivals = (response, recenter) => {
 
   $("#noBusesMessage").hide();
   $("#tableContainer").show();
+  $("#busRouteInfo").html(`Click on bus number to view its route on map.`).show();
 
   response.vehicles.sort((a, b) => {
     const [aNum, aLetter] = a.lineNumber.match(/^(\d+)(\D*)/).slice(1);
@@ -174,7 +176,7 @@ const updateArrivals = (response, recenter) => {
         .replace(/'/g, '&apos;');
       
       return `<tr onclick="handleBusClick('${value.lineNumber}', ${stationsJson})">
-                    <td><a href="#" style="color: #FFD700;" onclick="event.preventDefault();" title="Click on bus number to view its route on map">${value.lineNumber}</a></td>
+                    <td><a href="#" style="color: #FFD700;" onclick="event.preventDefault();">${value.lineNumber}</a></td>
                     <td>${formattedTime === "0 min" ? "At stop" : formattedTime}</td>
                     <td>${value.main_line_title}</td>
                 </tr>`;
@@ -352,6 +354,7 @@ const cancelInterval = () => {
   toggleTable();
   $("#stationName").hide();
   $("#lastUpdated").hide();
+  $("#busRouteInfo").hide();
 };
 
 const searchByCoords = async (
