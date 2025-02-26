@@ -4,6 +4,6 @@ stages:
 redeploy:
   stage: trigger
   script:
-    - curl -G 'https://onedev.gts.org.ua/~api/trigger-job' --data-urlencode project='gorets/public-transport-in-serbia' --data-urlencode branch=master --data-urlencode job='Commit new build' --data-urlencode access-token=$ONEDEV_TOKEN
+    - curl --fail -G 'https://onedev.gts.org.ua/~api/trigger-job' --data-urlencode project='gorets/public-transport-in-serbia' --data-urlencode branch=master --data-urlencode job='Commit new build' --data-urlencode access-token=$ONEDEV_TOKEN 2>&1
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
