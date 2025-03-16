@@ -140,7 +140,7 @@ const updateArrivals = (response, recenter) => {
   layerGroup.clearLayers();
   if (recenter) map.setView(response.coords, 13, { animation: true });
 
-  markers = [];
+  let markers = [];
   markers.push(createMarker(response.coords, "", "yellow", name));
 
   if (response.vehicles.length === 0) {
@@ -168,9 +168,9 @@ const updateArrivals = (response, recenter) => {
 
   const tableData = response.vehicles
     .map((value) => {
-      markers.push(
-        createMarker(value.coords, value.lineNumber, "blue", value.main_line_title)
-      );
+      let marker = createMarker(value.coords, value.lineNumber, "blue", value.main_line_title);
+      marker.on("click", () => handleBusClick(value.lineNumber, value.allStations));
+      markers.push(marker);
       const formattedTime = formatSeconds(value.secondsLeft);
       const stationsJson = JSON.stringify(value.allStations)
         .replace(/"/g, '&quot;')
