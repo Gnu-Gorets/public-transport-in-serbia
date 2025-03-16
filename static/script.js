@@ -76,10 +76,11 @@ const moveMapToCityCentre = (city) => {
 
 const fillNameSearch = (city) => {
   let stations = allStations[city];
+  let emptyOption = `<option value="" selected disabled>-- Select station --</option>`;
   let names = stations.map((station) => {
     return `<option value="${station.uid}">${station.name} (${station.id})</option>`;
   });
-  $("#name-input").html(names);
+  $("#name-input").html(emptyOption + names.join(""));
 };
 
 const getSearchMode = () => {
@@ -100,7 +101,7 @@ const onCityChange = async () => {
 
 const onSearchModeChange = () => {
   let searchMode = $("#searchMode").val();
-  if (searchMode == "name") {$(`#submit`).hide()} else {$(`#submit`).show()};
+  if (searchMode == "name") { $(`#submit`).hide() } else { $(`#submit`).show() };
   if (searchMode == "coords") searchByGPS();
   $("#searchMode option")
     .toArray()
@@ -174,7 +175,7 @@ const updateArrivals = (response, recenter) => {
       const stationsJson = JSON.stringify(value.allStations)
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&apos;');
-      
+
       return `<tr onclick="handleBusClick('${value.lineNumber}', ${stationsJson})">
                     <td><a href="#" style="color: #FFD700;" onclick="event.preventDefault();">${value.lineNumber}</a></td>
                     <td>${formattedTime === "0 min" ? "At stop (< 1 min)" : formattedTime}</td>
@@ -278,8 +279,8 @@ function onNameChange() {
 }
 
 function onRangeChange() {
-    $('#stationsMaxDistance-label').html(`Distance (${$('#stationsMaxDistance-input').val()}m):`)
-    searchByGPS();
+  $('#stationsMaxDistance-label').html(`Distance (${$('#stationsMaxDistance-input').val()}m):`)
+  searchByGPS();
 }
 
 const getUserLocation = async () => {
@@ -312,9 +313,9 @@ const getDistanceFromCoords = (lat1, lon1, lat2, lon2) => {
   const a =
     Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
     Math.cos(lat1 * (Math.PI / 180)) *
-      Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(deltaLon / 2) *
-      Math.sin(deltaLon / 2);
+    Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(deltaLon / 2) *
+    Math.sin(deltaLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = earthRadiusInMeters * c;
   return distance;
