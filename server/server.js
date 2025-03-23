@@ -60,8 +60,8 @@ function transformStationResponse(response, city) {
     vehicle.garageNo = value.vehicles[0].garageNo;
     vehicle.coords = [value.vehicles[0].lat, value.vehicles[0].lng];
     vehicle.allStations = value.all_stations.map(station => ({
-        latitude: station.coordinates.latitude,
-        longitude: station.coordinates.longitude
+      latitude: station.coordinates.latitude,
+      longitude: station.coordinates.longitude
     }));
     newResp.vehicles.push(vehicle);
   });
