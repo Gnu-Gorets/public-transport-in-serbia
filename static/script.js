@@ -40,23 +40,38 @@ const addMarker = (coords, name = undefined, color = "blue") => {
   createMarker(coords, name, color).addTo(layerGroup);
 };
 
-const doAsyncRequest = async (url, type, data, errorHandler) => {
-  if (!url) throw new Error("No url provided");
+const doAsyncRequest = async (url, type = "GET", data = {}, errorHandler) => {
+  if (!url) throw new Error("No URL provided");
+
   try {
-    return await $.ajax({
+    let response = await $.ajax({
       url: url,
-      type: type || "GET",
-      data: data || {},
+      type: type,
+      data: data,
     });
+    return response;
   } catch (error) {
-    if (errorHandler) {
-      errorHandler(error);
-      return;
+    console.error("Error sending request:", error);
+
+    let errorMessage = "Unknown error";
+    if (error.responseJSON?.message) {
+      errorMessage = error.responseJSON.message;
+    } else if (error.status) {
+      errorMessage = `HTTP ${error.status}: ${error.statusText}`;
     }
 
-    console.error("Error sending request:", error);
+    console.error(`Request failed! URL: ${url}, Status: ${error.status}, Response:`, error.responseText);
+
+    $("#error").html(`Error updating data: ${errorMessage}`);
+    $("#error").show();
+
+    if (errorHandler) {
+      errorHandler(error);
+    }
   }
 };
+
+
 
 const fetchCityStations = async (city) => {
   let response = await doAsyncRequest(`/api/stations/${city}/all`);
@@ -76,11 +91,11 @@ const moveMapToCityCentre = (city) => {
 
 const fillNameSearch = (city) => {
   let stations = allStations[city];
-  let emptyOption = `<option value="" selected disabled>-- Select station --</option>`;
+  let emptyOption = `<option value="" selected disabled>Select or Input Station here</option>`;
   let names = stations.map((station) => {
     return `<option value="${station.uid}">${station.name} (${station.id})</option>`;
   });
-  $("#name-input").html(emptyOption + names.join(""));
+  document.getElementById("name-input").innerHTML = emptyOption + names.join("");
 };
 
 const getSearchMode = () => {
@@ -177,13 +192,14 @@ const updateArrivals = (response, recenter) => {
         .replace(/'/g, '&apos;');
 
       return `<tr onclick="handleBusClick('${value.lineNumber}', ${stationsJson})">
-                    <td><a href="#" style="color: #FFD700;" onclick="event.preventDefault();">${value.lineNumber}</a></td>
-                    <td>${formattedTime === "0 min" ? "At stop (< 1 min)" : formattedTime}</td>
-                    <td>${value.main_line_title}</td>
-                </tr>`;
+                      <td><a href="#" style="color: #FFD700;" onclick="event.preventDefault();">${value.lineNumber}</a></td>
+                      <td>${formattedTime === "0 min" ? "At stop (< 1 min)" : formattedTime}</td>
+                      <td>${value.main_line_title}</td>
+                  </tr>`;
     })
     .join("");
   $("#tableBody").html(tableData);
+  $("#tabela").show();
   let group = L.featureGroup(markers).addTo(layerGroup);
   if (recenter) map.fitBounds(group.getBounds());
 };
@@ -197,10 +213,17 @@ const fetchArrivals = async (city, query, recenter) => {
     console.error("Error sending request:", error);
     $("#updateInProgress").hide();
     $("#error").html(
-      `Error updating data: ${error?.responseJSON?.message}`
+      `Error updating data: ${error?.responseJSON?.message || "Invalid response"}`
     );
     $("#error").show();
   });
+
+  // Проверяем, что response определён
+  if (!response) {
+    $("#updateInProgress").hide();
+    return;
+  }
+
   updateArrivals(response, recenter);
 };
 
@@ -248,9 +271,15 @@ const initMap = () => {
 };
 
 const submitByName = () => {
-  if (!$("#name-input").val()) return
-  let uid = encodeURIComponent($("#name-input").val().trim());
-  currQuery = { uid: uid };
+  if (!$("#name-input").val()) return;
+  let selectedValue = $("#name-input").val().trim();
+  let city = getCity();
+  let station = allStations[city].find(s => s.name === selectedValue || s.id === selectedValue);
+  if (station) {
+    currQuery = { uid: station.uid };
+  } else {
+    currQuery = { uid: selectedValue };
+  }
   spawnInterval(currQuery);
 };
 
@@ -279,7 +308,10 @@ function onNameChange() {
 }
 
 function onRangeChange() {
-  $('#stationsMaxDistance-label').html(`Distance (${$('#stationsMaxDistance-input').val()}m):`)
+  let rangeInput = document.getElementById("stationsMaxDistance-input");
+  let rangeValue = rangeInput.value;
+  document.getElementById("stationsMaxDistance-label").textContent = `Distance (${rangeValue}m):`;
+  localStorage.setItem("stationsMaxDistance", rangeValue);
   searchByGPS();
 }
 
@@ -295,7 +327,7 @@ const getUserLocation = async () => {
           resolve(userLocation);
         },
         (error) => {
-          $("#error").html("Greška pri dobavljanju lokacije.");
+          $("#error").html("Error retrieving location.");
           $("#error").show();
           reject(error.message);
         }
@@ -442,4 +474,77 @@ $(document).ready(async () => {
 
   $("#noBusesMessage").hide();
   $("#tableContainer").hide();
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  let savedDistance = localStorage.getItem("stationsMaxDistance");
+  if (savedDistance) {
+    let rangeInput = document.getElementById("stationsMaxDistance-input");
+    let rangeLabel = document.getElementById("stationsMaxDistance-label");
+
+    rangeInput.value = savedDistance;
+    rangeLabel.textContent = `Distance (${savedDistance}m):`;
+  }
+});
+
+document.addEventListener("DOMContentLoaded", function () {
+  const input = document.getElementById("name-input");
+  const dropdown = document.getElementById("dropdown");
+  let stations = [];
+
+  const fetchStations = async () => {
+    let city = getCity();
+    if (!allStations[city]) await fetchCityStations(city);
+    stations = allStations[city].map(station => ({
+      name: station.name,
+      id: station.id,
+      uid: station.uid
+    }));
+  };
+
+  input.addEventListener("focus", async () => {
+    await fetchStations();
+    showDropdown(stations);
+  });
+
+  input.addEventListener("input", () => {
+    let value = input.value.toLowerCase();
+    let filteredStations = stations.filter(station =>
+      station.name.toLowerCase().includes(value) || station.id.includes(value)
+    );
+    showDropdown(filteredStations);
+  });
+
+  function showDropdown(stationList) {
+    dropdown.innerHTML = "";
+    if (stationList.length === 0) {
+      dropdown.style.display = "none";
+      return;
+    }
+
+    stationList.forEach(station => {
+      let item = document.createElement("div");
+      item.classList.add("dropdown-item");
+      item.textContent = `${station.name} (${station.id})`;
+
+      item.addEventListener("click", () => {
+        input.value = station.name;
+        dropdown.style.display = "none";
+        submitByName(station.uid);
+      });
+
+      dropdown.appendChild(item);
+    });
+
+    dropdown.style.display = "block";
+    dropdown.style.position = "absolute";
+    dropdown.style.left = "0";
+    dropdown.style.top = `${input.offsetHeight + 2}px`;
+  }
+
+  document.addEventListener("click", (e) => {
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.style.display = "none";
+    }
+  });
 });

@@ -1,14 +1,20 @@
 body {
   font-family: 'Arial', sans-serif;
-  text-align: center;
-  background-position: center center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
-  background-image: url("Pics/beograd.jpg");
+  background: url("Pics/beograd.jpg") center center no-repeat fixed;
   background-size: cover;
   margin: 0;
   padding: 0;
+  color: #1abc9c !important;
 }
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 
 h1,
 h3 {
@@ -18,76 +24,135 @@ h3 {
 
 form {
   width: 30vw;
+  max-width: 500px;
   margin: 20px auto;
-  background-color: rgba(53, 53, 53, 0.9);
+  background-color: rgba(53, 53, 53, 0.9) !important;
   padding: 20px;
   border-radius: 10px;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
   transition: background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-form:hover {
-  background-color: #454545;
-  box-shadow: 0 0 25px rgba(0, 0, 0, 0.3);
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+  margin-bottom: 15px;
+  border: 1px solid #555 !important;
+  border-radius: 6px;
+  background-color: rgba(45, 45, 45, 0.9) !important;
+  color: #1abc9c !important;
+  transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+button:focus {
+  outline: none;
+  border-color: #1abc9c !important;
 }
 
 label {
   display: block;
   font-weight: bold;
   margin-bottom: 8px;
-  color: #1abc9c;
+  color: #1abc9c !important;
 }
 
-select,
-input[type="text"],
-input[type="number"],
-input[type="submit"],
-button,
-input[type="checkbox"] {
+select:invalid {
+  color: #1abc9c !important;
+}
+
+select option {
+  color: black !important;
+}
+
+input::placeholder {
+  color: #a0a0a0 !important;
+  opacity: 1;
+}
+
+#dropdown {
+  position: absolute;
   width: 100%;
-  padding: 12px;
-  box-sizing: border-box;
-  margin-bottom: 15px;
-  border: 1px solid #555;
-  border-radius: 6px;
-  background-color: rgba(45, 45, 45, 0.9);
-  color: #1abc9c;
-  transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
+  background-color: #fff;
+  border: 1px solid #dbdbdb;
+  border-radius: 4px;
+  box-shadow: 0 2px 3px rgba(10, 10, 10, 0.1);
+  max-height: 250px;
+  overflow-y: auto;
+  z-index: 1000;
+  display: none;
 }
 
-select:focus,
-input:focus,
-button:focus {
-  outline: none;
-  border-color: #1abc9c;
+#dropdown .dropdown-item {
+  padding: 10px;
+  font-size: 1rem;
+  color: #363636;
+  cursor: pointer;
+  border-bottom: 1px solid #f5f5f5;
+  transition: background-color 0.2s ease;
+}
+
+.dropdown-container {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+#name-input {
+  width: 100% !important;
+  margin-bottom: 0 !important;
+}
+
+button {
+  width: 100%;
+  background-color: rgba(53, 53, 53, 0.9) !important;
+  color: #1abc9c !important;
 }
 
 .button-container {
   text-align: center;
 }
 
+.box {
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
 #map {
-  width: 30vw;
-  height: 30vw;
-  margin: auto;
-  border: 2px solid black;
+  width: 80vw;
+  max-width: 700px;
+  height: 40vh;
+  margin: 5px auto;
+}
+
+#map.box {
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0 !important;
 }
 
 #result {
   color: #1abc9c;
-  /*max-width: 800px;*/
   width: fit-content;
   margin: 20px auto;
-  background-color: rgba(53, 53, 53, 0.9);
+  background-color: rgba(53, 53, 53, 0.9) !important;
   padding: 20px;
   border-radius: 10px;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
   transition: background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
 }
 
-#result:hover {
-  background-color: #454545;
-  box-shadow: 0 0 25px rgba(0, 0, 0, 0.3);
+#result p {
+  text-align: center;
 }
 
 #tabela {
@@ -95,10 +160,8 @@ button:focus {
   margin-top: 20px;
   color: white;
   font-size: large;
-  border: 2px solid black;
   font-weight: bold;
   text-transform: uppercase;
-  margin: auto;
   display: none;
 }
 
@@ -114,19 +177,21 @@ thead {
   color: #fff;
 }
 
-@media screen and (max-width: 1400px) {
-  form {
-    box-sizing: border-box;
-    width: 94vw;
-  }
+@media screen and (max-width: 1024px) {
 
-  #map {
-    box-sizing: border-box;
+  form,
+  #map,
+  #result {
     width: 90vw;
-    height: 50vh;
+    max-width: 100%;
+    margin: 0 auto;
   }
+}
 
-  #submit {
-    width: 35%;
+@media screen and (max-width: 768px) {
+  #map {
+    width: 95vw;
+    height: 50vh;
+    max-height: 400px;
   }
 }
