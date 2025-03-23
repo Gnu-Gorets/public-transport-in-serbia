@@ -548,3 +548,21 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 });
+
+$(document).ready(function () {
+  const $dropdown = $("#dropdown");
+  const $map = $("#map");
+  let overlay = $("<div class='overlay'></div>").hide().appendTo("body");
+
+  $("#name-input").on("focus", function () {
+    $dropdown.show();
+    overlay.show();
+  });
+
+  $(document).on("click", function (event) {
+    if (!$(event.target).closest("#name-input, #dropdown").length) {
+      $dropdown.hide();
+      overlay.hide();
+    }
+  });
+});
