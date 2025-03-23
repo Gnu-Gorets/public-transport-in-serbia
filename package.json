@@ -14,8 +14,7 @@
     "@fastify/static": "^6.10.2",
     "axios": "^1.4.0",
     "crypto-js": "^4.2.0",
-    "fastify": "^4.24.3",
-    "querystring": "^0.2.1"
+    "fastify": "^4.24.3"
   },
   "devDependencies": {
     "@flydotio/dockerfile": "^0.3.3",
