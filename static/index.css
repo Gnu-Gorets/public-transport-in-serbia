@@ -73,6 +73,32 @@ select option {
   color: black !important;
 }
 
+select {
+  background-color: #2d2d2d !important;
+  color: #1abc9c !important;
+}
+
+select option {
+  background-color: #2d2d2d !important;
+  color: #ffffff !important
+}
+
+select option:checked {
+  background-color: #1abc9c !important;
+  color: #2d2d2d !important;
+}
+
+@supports (-webkit-appearance: none) {
+  select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #555;
+  }
+}
+
 input::placeholder {
   color: #a0a0a0 !important;
   opacity: 1;
