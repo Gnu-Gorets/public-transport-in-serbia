@@ -26,12 +26,13 @@ const getKeyByValue = (object, value) => {
 };
 function transformAllStationsResponse(response) {
   let newResp = {};
-  response.stations.map((value) => {
+  response.stations.forEach((value) => {
     let station = new Object();
     station.name = value.name;
     station.uid = value.id;
     station.id = value.station_id;
     station.coords = [value.coordinates.latitude, value.coordinates.longitude];
+    station.lines = value.lines_for_station || [];
     newResp[station.uid] = station;
   });
   return newResp;
@@ -59,9 +60,9 @@ function transformStationResponse(response, city) {
     vehicle.stationName = value.vehicles[0].station_name;
     vehicle.garageNo = value.vehicles[0].garageNo;
     vehicle.coords = [value.vehicles[0].lat, value.vehicles[0].lng];
-    vehicle.allStations = value.all_stations.map(station => ({
+    vehicle.allStations = value.all_stations.map((station) => ({
       latitude: station.coordinates.latitude,
-      longitude: station.coordinates.longitude
+      longitude: station.coordinates.longitude,
     }));
     newResp.vehicles.push(vehicle);
   });
@@ -94,7 +95,7 @@ async function populateMap(force = false) {
 async function getRequest(url, apikey) {
   const headers = {
     "X-Api-Authentication": apikey,
-    'User-Agent': 'okhttp/4.10.0'
+    "User-Agent": "okhttp/4.10.0",
   };
 
   const response = await axios.get(url, { headers, timeout: 5000 });
@@ -104,10 +105,24 @@ async function getRequest(url, apikey) {
   return response.data;
 }
 
+async function getLineTimetable(city, lineNumber, direction, date) {
+  const url = `${apikeys[city].url}/publicapi/v1/timetable/timetable.php`;
+  const payload = `action=get_timetable&line_number_for_display=${encodeURIComponent(lineNumber)}&direction_id_for_display=${encodeURIComponent(direction)}&date=${date}&time=`;
+  const headers = {
+    "X-Api-Authentication": apikeys[city].key,
+    "User-Agent": "okhttp/4.10.0",
+    "Content-Type": "application/x-www-form-urlencoded",
+  };
+  const response = await axios.post(url, payload, { headers, timeout: 10000 });
+  if (response.status !== 200)
+    throw new Error(`Timetable request failed: ${response.status}`);
+  return response.data;
+}
+
 async function postRequest(url, apikey, payload) {
   const headers = {
     "X-Api-Authentication": apikey,
-    'User-Agent': 'okhttp/4.10.0'
+    "User-Agent": "okhttp/4.10.0",
   };
   const response = await axios.post(url, payload, { headers, timeout: 5000 });
   if (response.status != 200)
@@ -139,18 +154,6 @@ async function getStationInfoV1(city, uid) {
   return transformStationResponse(resp, city);
 }
 
-function generateSessionId(length) {
-  let result = 'A';
-  const characters = '0123456789';
-
-  for (let i = 0; i < length - 1; i++) {
-    const randomIndex = Math.floor(Math.random() * characters.length);
-    result += characters.charAt(randomIndex);
-  }
-
-  return result;
-}
-
 async function getStationInfoV2(city, uid) {
   const url = `${apikeys[city].url}/publicapi/v2/api.php`;
 
@@ -158,14 +161,20 @@ async function getStationInfoV2(city, uid) {
     station_uid: uid,
     session_id: `A${Date.now()}`,
   };
-  let base = crypto.encrypt(JSON.stringify(json), apikeys[city].v2_key, apikeys[city].v2_iv);
+  let base = crypto.encrypt(
+    JSON.stringify(json),
+    apikeys[city].v2_key,
+    apikeys[city].v2_iv,
+  );
   let payload = `action=data_bulletin&base=${base}`;
 
   let resp = await postRequest(url, apikeys[city].key, payload);
   if (resp === "")
     throw new Error(`Endpoint returned nothing (perhaps they changed API?)`);
 
-  let decoded = JSON.parse(crypto.decrypt(resp, apikeys[city].v2_key, apikeys[city].v2_iv));
+  let decoded = JSON.parse(
+    crypto.decrypt(resp, apikeys[city].v2_key, apikeys[city].v2_iv),
+  );
   if (decoded["success"] == false)
     throw new Error(`Endpoint returned error (perhaps invalid ID?)`);
 
@@ -173,7 +182,7 @@ async function getStationInfoV2(city, uid) {
 }
 
 async function getStationInfo(city, query) {
-  uid = getStationUid(city, query);
+  const uid = getStationUid(city, query);
   if (apikeys[city].api === "v1") return await getStationInfoV1(city, uid);
   else if (apikeys[city].api === "v2") return await getStationInfoV2(city, uid);
   else throw new Error("Invalid API version");
@@ -188,10 +197,10 @@ async function getAllStations(city) {
   return Object.values(allStations[city]);
 }
 
-async function getAvaliableCities() {
-  populateMap();
+async function getAvailableCities() {
+  await populateMap();
   let cities = new Object();
-  for (id of Object.keys(allStations)) cities[id] = apikeys[id].name;
+  for (const id of Object.keys(allStations)) cities[id] = apikeys[id].name;
   return cities;
 }
 
@@ -217,11 +226,100 @@ fastify.get("/api/stations/:city/all", async (request, reply) => {
 });
 fastify.get("/api/cities", async (request, reply) => {
   try {
-    const response = await getAvaliableCities();
+    const response = await getAvailableCities();
     reply.send(response);
   } catch (err) {
     console.error(err);
     reply.send(err);
+  }
+});
+fastify.get("/api/stations/:city/schedule", async (request, reply) => {
+  const city = request.params.city;
+  const { uid, date } = request.query;
+
+  if (!uid) return reply.status(400).send({ error: "uid is required" });
+
+  const scheduleDate = (() => {
+    if (date) return date;
+    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Belgrade" }));
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  })();
+
+  try {
+    if (!allStations[city]) await getAllStations(city);
+    const station = allStations[city]?.[uid];
+    if (!station) return reply.status(404).send({ error: "Station not found" });
+
+    const lines = station.lines || [];
+    const schedule = {};
+    const nowHHMM = new Date().toLocaleTimeString("en-GB", {
+      timeZone: "Europe/Belgrade",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    await Promise.all(
+      lines.flatMap((line) =>
+        ["A", "B"].map(async (direction) => {
+          try {
+            const timetable = await getLineTimetable(
+              city,
+              line,
+              direction,
+              scheduleDate,
+            );
+            if (!Array.isArray(timetable)) return;
+            const stationEntry = timetable.find(
+              (s) => String(s.station_id) === String(uid),
+            );
+            if (!stationEntry?.departure_time?.length) return;
+
+            const times = stationEntry.departure_time.filter((t) => {
+              if (t.includes("(+24h)")) return true;
+              return t.trim() >= nowHHMM;
+            });
+            if (!times.length) return;
+
+            if (!schedule[line]) schedule[line] = new Set();
+            times.forEach((t) => schedule[line].add(t));
+          } catch (_) {
+            /* skip */
+          }
+        }),
+      ),
+    );
+
+    const result = {};
+    for (const line of Object.keys(schedule).sort()) {
+      result[line] = [...schedule[line]].sort((a, b) => {
+        const aIs24 = a.includes("(+24h)");
+        const bIs24 = b.includes("(+24h)");
+        if (aIs24 !== bIs24) return aIs24 ? 1 : -1;
+        return a.replace("(+24h)", "").trim().localeCompare(b.replace("(+24h)", "").trim());
+      });
+    }
+
+    reply.send({
+      station: { uid: station.uid, name: station.name, id: station.id },
+      schedule: result,
+      date: scheduleDate,
+    });
+  } catch (err) {
+    console.error(err);
+    reply.status(500).send({ error: "Failed to fetch schedule" });
+  }
+});
+fastify.get("/api/route", async (request, reply) => {
+  const { coords } = request.query;
+  try {
+    const response = await axios.get(
+      `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`,
+      { timeout: 10000 },
+    );
+    reply.send(response.data);
+  } catch (err) {
+    console.error(err);
+    reply.status(502).send({ error: "OSRM request failed" });
   }
 });
 fastify.get("/", (request, reply) => reply.sendFile("index.html"));
