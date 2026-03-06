@@ -11,16 +11,12 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
   <link rel="stylesheet" href="static/index.css" />
 
-  <!-- Leaflet (maps) -->
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <!-- jQuery -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-
-  <!-- Select2 -->
-  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
   <!-- Scripts -->
   <script src="static/script.js"></script>
@@ -32,7 +28,6 @@
       ns: "static/Pics/novi-sad.jpg",
       nis: "static/Pics/nis.jpg",
     };
-
     function changeBg(city) {
       document.body.style.backgroundImage = `url('${pics[city]}')`;
     }
@@ -41,101 +36,116 @@
 
 <body onload="toggleTable()">
 
-  <section class="section">
-    <div class="container">
-      <h1 class="title has-text-centered">Serbia++</h1>
+  <header class="app-header">
+    <h1 class="app-title">Serbia++</h1>
+  </header>
 
-      <div class="box">
-        <form id="myForm">
-          <!-- Choosing a city -->
-          <div class="field">
-            <label class="label" for="city">City:</label>
-            <div class="control">
-              <div class="select is-fullwidth">
-                <select id="city" name="city" onchange="onCityChange()"></select>
-              </div>
-            </div>
-          </div>
+  <main class="app-main">
+    <div class="columns is-desktop is-variable is-4">
 
-          <!-- Choosing the type of search -->
-          <div class="field">
-            <label class="label" for="searchMode">Search type:</label>
-            <div class="control">
-              <div class="select is-fullwidth">
-                <select id="searchMode" name="searchMode" onchange="onSearchModeChange()">
-                  <option value="name">Station name</option>
-                  <option value="coords">Location (need browser geolocation permission)</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <!-- Name search -->
-          <div class="name-search" style="display: none">
+      <!-- Left: Search form -->
+      <div class="column is-one-third-desktop">
+        <div class="glass-card form-card">
+          <form id="myForm">
             <div class="field">
-              <label class="label" for="name-input">Station name/ID:</label>
-              <div class="control dropdown-container">
-                <input type="text" id="name-input" class="input" placeholder="Enter station name..." autocomplete="off">
-                <div id="dropdown" class="dropdown-menu"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Search by coordinates -->
-          <div class="coords-search" style="display: none">
-            <div class="field">
-              <label class="label" id="stationsMaxDistance-label">Distance (350m):</label>
-              <div class="control">
-                <input class="input" type="range" id="stationsMaxDistance-input" name="stationsMaxDistance-input"
-                  min="50" max="1000" value="350" step="50" onchange="onRangeChange()" />
-              </div>
-            </div>
-
-            <div class="field">
-              <label class="label" for="coords-input">Station:</label>
+              <label class="label" for="city">City</label>
               <div class="control">
                 <div class="select is-fullwidth">
-                  <select id="coords-input" onchange="toggleTable()"></select>
+                  <select id="city" name="city" onchange="onCityChange()"></select>
                 </div>
               </div>
             </div>
 
-            <!-- The send button -->
             <div class="field">
+              <label class="label" for="searchMode">Search type</label>
               <div class="control">
-                <input id="submit" class="button is-primary is-fullwidth" type="submit" value="View buses" />
+                <div class="select is-fullwidth">
+                  <select id="searchMode" name="searchMode" onchange="onSearchModeChange()">
+                    <option value="name">Station name</option>
+                    <option value="coords">Location (GPS)</option>
+                  </select>
+                </div>
               </div>
             </div>
-        </form>
+
+            <!-- Name search -->
+            <div class="name-search" style="display: none">
+              <div class="field">
+                <label class="label" for="name-input">Station name / ID</label>
+                <div class="control dropdown-container">
+                  <input type="text" id="name-input" class="input" placeholder="Start typing..." autocomplete="off">
+                  <div id="dropdown"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- GPS search -->
+            <div class="coords-search" style="display: none">
+              <div class="field">
+                <label class="label" id="stationsMaxDistance-label">Distance (350m)</label>
+                <div class="control">
+                  <input type="range" id="stationsMaxDistance-input" name="stationsMaxDistance-input"
+                    min="50" max="1000" value="350" step="50" onchange="onRangeChange()" />
+                </div>
+              </div>
+              <div class="field">
+                <label class="label" for="coords-input">Nearby station</label>
+                <div class="control">
+                  <div class="select is-fullwidth">
+                    <select id="coords-input" onchange="toggleTable()"></select>
+                  </div>
+                </div>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <input id="submit" class="button is-primary is-fullwidth" type="submit" value="View buses" />
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
       </div>
 
-      <div id="result" class="box mt-5">
-        <p id="stationName"></p>
-        <p id="lastUpdated"></p>
-        <p id="busRouteInfo"></p>
-        <p id="error" class="has-text-danger" style="display: none">Error!</p>
+      <!-- Right: Results + Map -->
+      <div class="column is-two-thirds-desktop">
+        <div class="glass-card" id="result">
+          <p id="updateInProgress" class="status-text" style="display: none">Updating…</p>
+          <p id="stationName" class="station-name" style="display: none"></p>
+          <p id="lastUpdated" class="status-text" style="display: none"></p>
+          <p id="busRouteInfo" class="status-text" style="display: none"></p>
+          <p id="error" class="error-text" style="display: none">Error!</p>
 
-        <div id="noBusesMessage" class="notification is-info">
-          Currently, there are no buses scheduled to arrive at this stop.
+          <div id="noBusesMessage" class="notification is-info" style="display: none">
+            Currently, there are no buses scheduled to arrive at this stop.
+          </div>
+
+          <div id="tableContainer" style="display: none">
+            <div class="table-scroll">
+              <table id="tabela">
+                <thead id="thead">
+                  <tr>
+                    <th>#</th>
+                    <th>ETA</th>
+                    <th>Route</th>
+                  </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="scheduleSection" style="display: none">
+            <hr class="divider">
+            <p id="scheduleInfo"></p>
+            <div id="scheduleContainer"></div>
+          </div>
+
+          <div id="map"></div>
         </div>
-
-        <div id="tableContainer">
-          <table id="tabela" class="table is-striped is-hoverable is-fullwidth">
-            <thead id="thead">
-              <tr>
-                <th>#</th>
-                <th>ETA</th>
-                <th>Route</th>
-              </tr>
-            </thead>
-            <tbody id="tableBody"></tbody>
-          </table>
-        </div>
-
-        <div id="map" class="box mt-5"></div>
       </div>
+
     </div>
-  </section>
+  </main>
 
 </body>
 
