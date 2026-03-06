@@ -15,7 +15,7 @@ const decrypt = (inputString, b64key, b64iv) => {
       iv: iv,
       mode: CryptoJS.mode.CBC,
       padding: CryptoJS.pad.Pkcs7,
-    }
+    },
   );
 
   return decrypted.toString(CryptoJS.enc.Utf8);

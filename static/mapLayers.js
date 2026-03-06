@@ -6,7 +6,7 @@ const mapLayers = {
         '&copy; <a href="http://www.thunderforest.com/">Thunderforest</a>, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       apikey: "9e9bca8ab3c2417fbe0d0e233c0cfe3d",
       maxZoom: 22,
-    }
+    },
   ),
   TransportDark: L.tileLayer(
     "https://{s}.tile.thunderforest.com/transport-dark/{z}/{x}/{y}.png?apikey={apikey}",
@@ -15,7 +15,7 @@ const mapLayers = {
         '&copy; <a href="http://www.thunderforest.com/">Thunderforest</a>, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       apikey: "9e9bca8ab3c2417fbe0d0e233c0cfe3d",
       maxZoom: 22,
-    }
+    },
   ),
   OpenStreetMap: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
@@ -27,7 +27,7 @@ const mapLayers = {
     {
       attribution:
         "Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community",
-    }
+    },
   ),
   Matrix: L.tileLayer(
     "https://{s}.tile.jawg.io/jawg-matrix/{z}/{x}/{y}{r}.png?access-token={accessToken}",
@@ -39,7 +39,7 @@ const mapLayers = {
       subdomains: "abcd",
       accessToken:
         "kE6fKF5AORjPMSjPl57PBu9FNNQd1crWTUH8o0J5Px8F8bfQXWAIL9PeXB3dicFP",
-    }
+    },
   ),
   SpinalMap: L.tileLayer(
     "https://{s}.tile.thunderforest.com/spinal-map/{z}/{x}/{y}.png?apikey={apikey}",
@@ -48,6 +48,6 @@ const mapLayers = {
         '&copy; <a href="http://www.thunderforest.com/">Thunderforest</a>, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       apikey: "9e9bca8ab3c2417fbe0d0e233c0cfe3d",
       maxZoom: 22,
-    }
+    },
   ),
 };
