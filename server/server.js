@@ -20,6 +20,7 @@ const apikeys = require("./apikeys.json");
 
 let id_uid_map = {};
 let allStations = {};
+let allLines = {};
 
 const getKeyByValue = (object, value) => {
   return Object.keys(object).find((key) => object[key] === value);
@@ -36,6 +37,15 @@ function transformAllStationsResponse(response) {
     newResp[station.uid] = station;
   });
   return newResp;
+}
+
+function transformAllLinesResponse(response) {
+  const result = {};
+  (response.lines || []).forEach((line) => {
+    const key = `${line.line_number_for_display}_${line.direction_id_for_display}`;
+    result[key] = line.all_stations;
+  });
+  return result;
 }
 
 function transformStationResponse(response, city) {
@@ -193,6 +203,7 @@ async function getAllStations(city) {
   if (!allStations[city]) {
     const response = await getRequest(url, apikeys[city].key);
     allStations[city] = transformAllStationsResponse(response);
+    allLines[city] = transformAllLinesResponse(response);
   }
   return Object.values(allStations[city]);
 }
@@ -219,6 +230,16 @@ fastify.get("/api/stations/:city/all", async (request, reply) => {
   try {
     const response = await getAllStations(city);
     reply.send(response);
+  } catch (err) {
+    console.error(err);
+    reply.send(err);
+  }
+});
+fastify.get("/api/lines/:city", async (request, reply) => {
+  const city = request.params.city;
+  try {
+    if (!allLines[city]) await getAllStations(city);
+    reply.send(allLines[city] || {});
   } catch (err) {
     console.error(err);
     reply.send(err);

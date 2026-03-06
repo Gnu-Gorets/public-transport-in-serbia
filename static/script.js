@@ -2,6 +2,7 @@ let currInterval;
 let map, layerGroup;
 let currQuery;
 let allStations = {};
+let allLines = {};
 let mapInitialized = false;
 let currentPolyline = null;
 let scheduleLoadedUid = null;
@@ -75,6 +76,11 @@ const fetchCityStations = async (city) => {
   allStations[city] = response;
 };
 
+const fetchCityLines = async (city) => {
+  const response = await doAsyncRequest(`/api/lines/${city}`);
+  allLines[city] = response;
+};
+
 const moveMapToCityCentre = (city) => {
   const cityCentres = {
     bg: [44.81254796404323, 20.46145496621977],
@@ -97,7 +103,10 @@ const onCityChange = async () => {
   let city = getCity();
   changeBg(city);
   moveMapToCityCentre(city);
-  if (!allStations[city]) await fetchCityStations(city);
+  const promises = [];
+  if (!allStations[city]) promises.push(fetchCityStations(city));
+  if (!allLines[city]) promises.push(fetchCityLines(city));
+  await Promise.all(promises);
 };
 
 const onSearchModeChange = () => {
@@ -243,8 +252,8 @@ const spawnInterval = (query = undefined) => {
   }, 30 * 1000);
 };
 
-const handleBusClick = (_busNumber, stations) => {
-  addRouteToMap(stations);
+const handleBusClick = (busNumber, fallbackStations) => {
+  addRouteToMap(busNumber, fallbackStations);
 };
 
 const toggleSchedule = (city, uid) => {
@@ -316,16 +325,35 @@ const fetchSchedule = async (city, uid, force = false) => {
   scheduleLoadedUid = uid;
 };
 
-const addRouteToMap = async (stations) => {
+const addRouteToMap = async (lineNumber, fallbackStations) => {
   if (currentPolyline) {
     layerGroup.removeLayer(currentPolyline);
     currentPolyline = null;
   }
 
-  const coords = stations
+  const city = getCity();
+  const cityLines = allLines[city];
+  const cityStations = allStations[city];
+
+  if (cityLines && cityStations) {
+    const stationMap = {};
+    cityStations.forEach((s) => { stationMap[String(s.uid)] = s.coords; });
+
+    for (const dir of ["A", "B"]) {
+      const uids = cityLines[`${lineNumber}_${dir}`];
+      if (!uids) continue;
+      const latlngs = uids.map((uid) => stationMap[String(uid)]).filter(Boolean);
+      if (latlngs.length > 1) {
+        currentPolyline = L.polyline(latlngs, { color: "blue", weight: 3, opacity: 0.8 }).addTo(layerGroup);
+        return;
+      }
+    }
+  }
+
+  // Fallback: OSRM (for cities where lines data unavailable)
+  const coords = fallbackStations
     .map((s) => `${parseFloat(s.longitude)},${parseFloat(s.latitude)}`)
     .join(";");
-
   try {
     const res = await fetch(`/api/route?coords=${encodeURIComponent(coords)}`);
     const data = await res.json();
@@ -335,14 +363,9 @@ const addRouteToMap = async (stations) => {
       }).addTo(layerGroup);
       return;
     }
-  } catch (_) {
-    // fall through to straight-line fallback
-  }
+  } catch (_) { /* fall through */ }
 
-  const latlngs = stations.map((s) => [
-    parseFloat(s.latitude),
-    parseFloat(s.longitude),
-  ]);
+  const latlngs = fallbackStations.map((s) => [parseFloat(s.latitude), parseFloat(s.longitude)]);
   currentPolyline = L.polyline(latlngs, { color: "blue" }).addTo(layerGroup);
 };
 
