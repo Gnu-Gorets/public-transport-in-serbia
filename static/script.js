@@ -303,25 +303,32 @@ const fetchSchedule = async (city, uid, force = false) => {
     return `<span style="display:inline-block;background:rgba(255,255,255,0.12);padding:2px 6px;border-radius:4px;margin:1px;white-space:nowrap;font-size:0.82rem;${isNextDay ? "opacity:0.55" : ""}">${clean}${isNextDay ? "*" : ""}</span>`;
   };
 
-  const rows = lines
+  const lineNums = lines
+    .map(
+      (line) =>
+        `<div style="white-space:nowrap;color:#FFD700;font-size:0.85rem;font-weight:700;padding:3px 8px 3px 0;border-bottom:1px solid rgba(255,255,255,0.05)">${line}</div>`,
+    )
+    .join("");
+
+  const chipRows = lines
     .map((line) => {
-      const all = response.schedule[line];
-      const allChips = all.map(makeChip).join("");
-      return `<div style="display:flex;align-items:center;border-bottom:1px solid rgba(255,255,255,0.05);min-width:0">
-        <span style="white-space:nowrap;color:#FFD700;font-size:0.85rem;font-weight:700;width:52px;flex-shrink:0;padding:3px 8px 3px 0">${line}</span>
-        <div style="overflow-x:auto;white-space:nowrap;flex:1;min-width:0;padding:3px 0 5px">${allChips}</div>
-      </div>`;
+      const allChips = response.schedule[line].map(makeChip).join("");
+      return `<div style="white-space:nowrap;padding:3px 0 5px;border-bottom:1px solid rgba(255,255,255,0.05)">${allChips}</div>`;
     })
     .join("");
 
-  const header = `<div style="display:flex;border-bottom:1px solid #333;margin-bottom:2px;padding-bottom:3px">
-    <span style="color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;width:52px;flex-shrink:0">#</span>
-    <span style="color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em">DEPARTURES</span>
-  </div>`;
-
-  $("#scheduleContainer").html(
-    `<div style="color:white;font-size:0.9rem;margin-top:8px">${header}${rows}</div>`,
-  );
+  $("#scheduleContainer").html(`
+    <div style="color:white;font-size:0.9rem;margin-top:8px;display:flex">
+      <div style="flex-shrink:0;width:52px">
+        <div style="color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;padding-bottom:3px;border-bottom:1px solid #333;margin-bottom:2px">#</div>
+        ${lineNums}
+      </div>
+      <div style="overflow-x:auto;flex:1;min-width:0">
+        <div style="color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;padding-bottom:3px;border-bottom:1px solid #333;margin-bottom:2px">DEPARTURES</div>
+        ${chipRows}
+      </div>
+    </div>
+  `);
   scheduleLoadedUid = uid;
 };
 
