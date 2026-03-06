@@ -53,9 +53,14 @@ function transformStationResponse(response, city) {
   newResp.city = city;
   newResp.name = response[0].station_name;
   newResp.uid = response[0].station_uid;
-  newResp.id =
-    getKeyByValue(id_uid_map[city], response[0].station_uid.toString()) || "0";
-  newResp.coords = allStations[city][newResp.uid].coords;
+  newResp.id = newResp.uid
+    ? (getKeyByValue(id_uid_map[city], String(newResp.uid)) || "0")
+    : "0";
+  const cachedStation = newResp.uid ? allStations[city]?.[newResp.uid] : null;
+  newResp.coords = cachedStation?.coords || [
+    parseFloat(response[0].gpsy ?? 0),
+    parseFloat(response[0].gpsx ?? 0),
+  ];
   newResp.vehicles = new Array();
 
   if (response[0].just_coordinates == "1") return newResp;
@@ -67,10 +72,10 @@ function transformStationResponse(response, city) {
     vehicle.secondsLeft = value.seconds_left;
     vehicle.stationsBetween = value.stations_between;
     vehicle.main_line_title = value.main_line_title;
-    vehicle.stationName = value.vehicles[0].station_name;
-    vehicle.garageNo = value.vehicles[0].garageNo;
-    vehicle.coords = [value.vehicles[0].lat, value.vehicles[0].lng];
-    vehicle.allStations = value.all_stations.map((station) => ({
+    vehicle.stationName = value.vehicles?.[0]?.station_name;
+    vehicle.garageNo = value.vehicles?.[0]?.garageNo;
+    vehicle.coords = [value.vehicles?.[0]?.lat, value.vehicles?.[0]?.lng];
+    vehicle.allStations = (value.all_stations || []).map((station) => ({
       latitude: station.coordinates.latitude,
       longitude: station.coordinates.longitude,
     }));
@@ -92,7 +97,9 @@ async function populateMap(force = false) {
       id_uid_map[city] = {};
 
       for (const station of stations) {
-        id_uid_map[city][station.id.toString()] = station.uid.toString();
+        if (station.id != null && station.uid != null) {
+          id_uid_map[city][String(station.id)] = String(station.uid);
+        }
       }
       console.info(`Populating map finished for ${city}`);
     } catch (err) {
@@ -187,6 +194,18 @@ async function getStationInfoV2(city, uid) {
   );
   if (decoded["success"] == false)
     throw new Error(`Endpoint returned error (perhaps invalid ID?)`);
+
+  if (!decoded["data"] || decoded["data"].length === 0) {
+    const station = allStations[city]?.[uid];
+    return {
+      city,
+      name: station?.name,
+      uid: uid,
+      id: getKeyByValue(id_uid_map[city], String(uid)) || "0",
+      coords: station?.coords || [0, 0],
+      vehicles: [],
+    };
+  }
 
   return transformStationResponse(decoded["data"], city);
 }
