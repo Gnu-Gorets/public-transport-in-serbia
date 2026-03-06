@@ -1,4 +1,4 @@
-FROM alpine:3.19
+FROM alpine:3.23.3
 
 # Update and install necessary packages
 RUN apk add --no-cache git curl nodejs npm
@@ -13,4 +13,4 @@ COPY . .
 RUN npm ci
 
 # Run the project
-CMD ["npm", "run", "dev"]
+CMD ["node", "server/server.js"]
