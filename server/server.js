@@ -54,7 +54,7 @@ function transformStationResponse(response, city) {
   newResp.name = response[0].station_name;
   newResp.uid = response[0].station_uid;
   newResp.id = newResp.uid
-    ? (getKeyByValue(id_uid_map[city], String(newResp.uid)) || "0")
+    ? getKeyByValue(id_uid_map[city], String(newResp.uid)) || "0"
     : "0";
   const cachedStation = newResp.uid ? allStations[city]?.[newResp.uid] : null;
   newResp.coords = cachedStation?.coords || [
@@ -281,7 +281,9 @@ fastify.get("/api/stations/:city/schedule", async (request, reply) => {
 
   const scheduleDate = (() => {
     if (date) return date;
-    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Belgrade" }));
+    const now = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "Europe/Belgrade" }),
+    );
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   })();
 
@@ -335,7 +337,10 @@ fastify.get("/api/stations/:city/schedule", async (request, reply) => {
         const aIs24 = a.includes("(+24h)");
         const bIs24 = b.includes("(+24h)");
         if (aIs24 !== bIs24) return aIs24 ? 1 : -1;
-        return a.replace("(+24h)", "").trim().localeCompare(b.replace("(+24h)", "").trim());
+        return a
+          .replace("(+24h)", "")
+          .trim()
+          .localeCompare(b.replace("(+24h)", "").trim());
       });
     }
 
