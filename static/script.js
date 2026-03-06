@@ -3,8 +3,8 @@ let map, layerGroup;
 let currQuery;
 let allStations = {};
 let mapInitialized = false;
-let lastClickedBus = null;
 let currentPolyline = null;
+let scheduleLoadedUid = null;
 
 const coloredIcon = (color) => {
   return new L.Icon({
@@ -22,7 +22,7 @@ const createMarker = (
   coords,
   name = undefined,
   color = "blue",
-  popupText = undefined
+  popupText = undefined,
 ) => {
   let marker = new L.marker(coords, { icon: coloredIcon(color) });
   if (popupText)
@@ -34,10 +34,6 @@ const createMarker = (
       className: "my-labels",
     });
   return marker;
-};
-
-const addMarker = (coords, name = undefined, color = "blue") => {
-  createMarker(coords, name, color).addTo(layerGroup);
 };
 
 const doAsyncRequest = async (url, type = "GET", data = {}, errorHandler) => {
@@ -60,7 +56,10 @@ const doAsyncRequest = async (url, type = "GET", data = {}, errorHandler) => {
       errorMessage = `HTTP ${error.status}: ${error.statusText}`;
     }
 
-    console.error(`Request failed! URL: ${url}, Status: ${error.status}, Response:`, error.responseText);
+    console.error(
+      `Request failed! URL: ${url}, Status: ${error.status}, Response:`,
+      error.responseText,
+    );
 
     $("#error").html(`Error updating data: ${errorMessage}`);
     $("#error").show();
@@ -71,12 +70,9 @@ const doAsyncRequest = async (url, type = "GET", data = {}, errorHandler) => {
   }
 };
 
-
-
 const fetchCityStations = async (city) => {
   let response = await doAsyncRequest(`/api/stations/${city}/all`);
   allStations[city] = response;
-  fillNameSearch(city);
 };
 
 const moveMapToCityCentre = (city) => {
@@ -87,15 +83,6 @@ const moveMapToCityCentre = (city) => {
   };
 
   if (!currInterval) map.setView(cityCentres[city], 13, { animation: true });
-};
-
-const fillNameSearch = (city) => {
-  let stations = allStations[city];
-  let emptyOption = `<option value="" selected disabled>Select or Input Station here</option>`;
-  let names = stations.map((station) => {
-    return `<option value="${station.uid}">${station.name} (${station.id})</option>`;
-  });
-  document.getElementById("name-input").innerHTML = emptyOption + names.join("");
 };
 
 const getSearchMode = () => {
@@ -111,16 +98,19 @@ const onCityChange = async () => {
   changeBg(city);
   moveMapToCityCentre(city);
   if (!allStations[city]) await fetchCityStations(city);
-  else fillNameSearch(city);
 };
 
 const onSearchModeChange = () => {
   let searchMode = $("#searchMode").val();
-  if (searchMode == "name") { $(`#submit`).hide() } else { $(`#submit`).show() };
+  if (searchMode == "name") {
+    $(`#submit`).hide();
+  } else {
+    $(`#submit`).show();
+  }
   if (searchMode == "coords") searchByGPS();
   $("#searchMode option")
     .toArray()
-    .map((option) => {
+    .forEach((option) => {
       let value = $(option).val();
       if (value === searchMode) $(`.${value}-search`).show();
       else $(`.${value}-search`).hide();
@@ -146,7 +136,7 @@ const updateArrivals = (response, recenter) => {
   let name = `${response.name} (${response.id})`;
   $("#stationName").html(`Station: ${name}`);
   $("#lastUpdated").html(
-    `Last updated: ${date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} (auto refresh - 30 seconds)`
+    `Last updated: ${date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Belgrade" })} (auto refresh - 30 seconds)`,
   );
   $("#stationName").show();
   $("#lastUpdated").show();
@@ -167,7 +157,13 @@ const updateArrivals = (response, recenter) => {
 
   $("#noBusesMessage").hide();
   $("#tableContainer").show();
-  $("#busRouteInfo").html(`Click on bus number to view its route on map.`).show();
+  const city = getCity();
+  const uid = response.uid;
+  $("#busRouteInfo")
+    .html(
+      `Click on bus number to view its route on map. &nbsp;|&nbsp; <a id="scheduleToggle" href="#" style="color:#1abc9c" onclick="event.preventDefault();toggleSchedule('${city}','${uid}')">View schedule</a>`,
+    )
+    .show();
 
   response.vehicles.sort((a, b) => {
     const [aNum, aLetter] = a.lineNumber.match(/^(\d+)(\D*)/).slice(1);
@@ -183,13 +179,20 @@ const updateArrivals = (response, recenter) => {
 
   const tableData = response.vehicles
     .map((value) => {
-      let marker = createMarker(value.coords, value.lineNumber, "blue", value.main_line_title);
-      marker.on("click", () => handleBusClick(value.lineNumber, value.allStations));
+      let marker = createMarker(
+        value.coords,
+        value.lineNumber,
+        "blue",
+        value.main_line_title,
+      );
+      marker.on("click", () =>
+        handleBusClick(value.lineNumber, value.allStations),
+      );
       markers.push(marker);
       const formattedTime = formatSeconds(value.secondsLeft);
       const stationsJson = JSON.stringify(value.allStations)
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;");
 
       return `<tr onclick="handleBusClick('${value.lineNumber}', ${stationsJson})">
                       <td><a href="#" style="color: #FFD700;" onclick="event.preventDefault();">${value.lineNumber}</a></td>
@@ -213,7 +216,7 @@ const fetchArrivals = async (city, query, recenter) => {
     console.error("Error sending request:", error);
     $("#updateInProgress").hide();
     $("#error").html(
-      `Error updating data: ${error?.responseJSON?.message || "Invalid response"}`
+      `Error updating data: ${error?.responseJSON?.message || "Invalid response"}`,
     );
     $("#error").show();
   });
@@ -240,19 +243,107 @@ const spawnInterval = (query = undefined) => {
   }, 30 * 1000);
 };
 
-const handleBusClick = (busNumber, stations) => {
-  lastClickedBus = busNumber;
+const handleBusClick = (_busNumber, stations) => {
   addRouteToMap(stations);
 };
 
-const addRouteToMap = (stations) => {
-  if (currentPolyline) {
-    layerGroup.removeLayer(currentPolyline);
+const toggleSchedule = (city, uid) => {
+  const toggle = document.getElementById("scheduleToggle");
+  if ($("#scheduleSection").is(":visible")) {
+    $("#scheduleSection").hide();
+    if (toggle) toggle.textContent = "View schedule";
+  } else {
+    fetchSchedule(city, uid);
+    if (toggle) toggle.textContent = "Hide schedule";
+  }
+};
+
+const fetchSchedule = async (city, uid, force = false) => {
+  if (!force && scheduleLoadedUid === uid) {
+    $("#scheduleSection").show();
+    return;
+  }
+  $("#scheduleSection").hide();
+  $("#scheduleInfo").html("Loading schedule...");
+  $("#scheduleSection").show();
+  $("#scheduleContainer").html("");
+
+  const response = await doAsyncRequest(
+    `/api/stations/${city}/schedule?uid=${encodeURIComponent(uid)}`,
+  );
+  if (!response?.schedule) {
+    $("#scheduleInfo").html("Failed to load schedule.");
+    return;
   }
 
-  const latlngs = stations.map(station => [parseFloat(station.latitude), parseFloat(station.longitude)]);
-  currentPolyline = L.polyline(latlngs, { color: 'blue' }).addTo(layerGroup);
-  map.addLayer(currentPolyline);
+  const lines = Object.keys(response.schedule);
+  if (!lines.length) {
+    $("#scheduleInfo").html("No upcoming departures today.");
+    return;
+  }
+
+  const parts = response.date.split(/[-/]/);
+  const formattedDate = parts.length === 3 && parts[0].length === 4
+    ? `${parseInt(parts[2])}/${parseInt(parts[1])}/${parts[0]}`
+    : response.date;
+  $("#scheduleInfo").html(`Schedule for ${formattedDate}:`);
+
+  const makeChip = (t) => {
+    const isNextDay = t.includes("(+24h)");
+    const clean = t.replace("(+24h)", "").trim();
+    return `<span style="display:inline-block;background:rgba(255,255,255,0.12);padding:2px 6px;border-radius:4px;margin:1px;white-space:nowrap;font-size:0.82rem;${isNextDay ? "opacity:0.55" : ""}">${clean}${isNextDay ? "*" : ""}</span>`;
+  };
+
+  const rows = lines
+    .map((line) => {
+      const all = response.schedule[line];
+      const allChips = all.map(makeChip).join("");
+      return `<div style="display:flex;align-items:center;border-bottom:1px solid rgba(255,255,255,0.05);min-width:0">
+        <span style="white-space:nowrap;color:#FFD700;font-size:0.85rem;font-weight:700;width:52px;flex-shrink:0;padding:3px 8px 3px 0">${line}</span>
+        <div style="overflow-x:auto;white-space:nowrap;flex:1;min-width:0;padding:3px 0 5px">${allChips}</div>
+      </div>`;
+    })
+    .join("");
+
+  const header = `<div style="display:flex;border-bottom:1px solid #333;margin-bottom:2px;padding-bottom:3px">
+    <span style="color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;width:52px;flex-shrink:0">#</span>
+    <span style="color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em">DEPARTURES</span>
+  </div>`;
+
+  $("#scheduleContainer").html(
+    `<div style="color:white;font-size:0.9rem;margin-top:8px">${header}${rows}</div>`,
+  );
+  scheduleLoadedUid = uid;
+};
+
+const addRouteToMap = async (stations) => {
+  if (currentPolyline) {
+    layerGroup.removeLayer(currentPolyline);
+    currentPolyline = null;
+  }
+
+  const coords = stations
+    .map((s) => `${parseFloat(s.longitude)},${parseFloat(s.latitude)}`)
+    .join(";");
+
+  try {
+    const res = await fetch(`/api/route?coords=${encodeURIComponent(coords)}`);
+    const data = await res.json();
+    if (data.code === "Ok" && data.routes.length > 0) {
+      currentPolyline = L.geoJSON(data.routes[0].geometry, {
+        style: { color: "blue" },
+      }).addTo(layerGroup);
+      return;
+    }
+  } catch (_) {
+    // fall through to straight-line fallback
+  }
+
+  const latlngs = stations.map((s) => [
+    parseFloat(s.latitude),
+    parseFloat(s.longitude),
+  ]);
+  currentPolyline = L.polyline(latlngs, { color: "blue" }).addTo(layerGroup);
 };
 
 const initMap = () => {
@@ -274,7 +365,9 @@ const submitByName = () => {
   if (!$("#name-input").val()) return;
   let selectedValue = $("#name-input").val().trim();
   let city = getCity();
-  let station = allStations[city].find(s => s.name === selectedValue || s.id === selectedValue);
+  let station = allStations[city].find(
+    (s) => s.name === selectedValue || s.id === selectedValue,
+  );
   if (station) {
     currQuery = { uid: station.uid };
   } else {
@@ -310,7 +403,8 @@ function onNameChange() {
 function onRangeChange() {
   let rangeInput = document.getElementById("stationsMaxDistance-input");
   let rangeValue = rangeInput.value;
-  document.getElementById("stationsMaxDistance-label").textContent = `Distance (${rangeValue}m):`;
+  document.getElementById("stationsMaxDistance-label").textContent =
+    `Distance (${rangeValue}m):`;
   localStorage.setItem("stationsMaxDistance", rangeValue);
   searchByGPS();
 }
@@ -330,7 +424,7 @@ const getUserLocation = async () => {
           $("#error").html("Error retrieving location.");
           $("#error").show();
           reject(error.message);
-        }
+        },
       );
     } else {
       reject("Geolocation is not available in this browser.");
@@ -345,9 +439,9 @@ const getDistanceFromCoords = (lat1, lon1, lat2, lon2) => {
   const a =
     Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
     Math.cos(lat1 * (Math.PI / 180)) *
-    Math.cos(lat2 * (Math.PI / 180)) *
-    Math.sin(deltaLon / 2) *
-    Math.sin(deltaLon / 2);
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(deltaLon / 2) *
+      Math.sin(deltaLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = earthRadiusInMeters * c;
   return distance;
@@ -356,19 +450,19 @@ const getDistanceFromCoords = (lat1, lon1, lat2, lon2) => {
 const findClosestStations = async (
   userLocation,
   stationsArray,
-  maxDistance = 300
+  maxDistance = 300,
 ) => {
   const stationsWithDistances = stationsArray.map((station) => {
     const distance = getDistanceFromCoords(
       userLocation.latitude,
       userLocation.longitude,
-      ...station.coords
+      ...station.coords,
     );
     return { station, distance };
   });
 
   let closestStations = stationsWithDistances.filter(
-    (item) => item.distance <= maxDistance
+    (item) => item.distance <= maxDistance,
   );
   closestStations.sort((a, b) => a.distance - b.distance);
 
@@ -383,37 +477,39 @@ const findClosestStations = async (
 const cancelInterval = () => {
   currInterval = clearInterval(currInterval);
   currQuery = undefined;
+  scheduleLoadedUid = null;
   layerGroup.clearLayers();
   toggleTable();
   $("#stationName").hide();
   $("#lastUpdated").hide();
   $("#busRouteInfo").hide();
+  $("#scheduleSection").hide();
 };
 
 const searchByCoords = async (
   searchCoords,
   maxDistanceElemID,
-  optionsElemID
+  optionsElemID,
 ) => {
   $("#updateInProgress").show();
   const stationsMaxDistance = $(maxDistanceElemID).val();
   const closestStations = await findClosestStations(
     searchCoords,
     allStations[getCity()],
-    stationsMaxDistance
+    stationsMaxDistance,
   );
   layerGroup.clearLayers();
   cancelInterval();
 
-  markers = [];
+  let markers = [];
   markers.push(
-    createMarker([searchCoords.latitude, searchCoords.longitude], "", "green")
+    createMarker([searchCoords.latitude, searchCoords.longitude], "", "green"),
   );
   let options = closestStations.map((station) => {
     let marker = createMarker(
       station.station.coords,
       station.station.id,
-      "yellow"
+      "yellow",
     );
     marker.on("click", () => {
       $(optionsElemID).val(station.station.uid).trigger("change");
@@ -432,7 +528,11 @@ const searchByCoords = async (
 const searchByGPS = async () => {
   $("#error").hide();
   const userLocation = await getUserLocation();
-  await searchByCoords(userLocation, "#stationsMaxDistance-input", "#coords-input");
+  await searchByCoords(
+    userLocation,
+    "#stationsMaxDistance-input",
+    "#coords-input",
+  );
   if ($("#coords-input").val()) {
     currQuery = { uid: $("#coords-input").val().trim() };
     toggleTable();
@@ -445,75 +545,27 @@ const submitHandlers = {
 };
 
 $(document).ready(async () => {
-  $(window).on("blur", handleTabOut);
-  $(window).on("focus", handleTabIn);
-
-  if (!mapInitialized) {
-    initMap();
-  }
-  $(".select2").select2({ width: "resolve" });
-
-  let response = await doAsyncRequest("/api/cities");
-
-  let cities = Object.entries(response).map(([key, value]) => {
-    return `<option value="${key}">${value}</option>`;
-  });
-  $("#city").html(cities);
-  onCityChange();
-  onSearchModeChange();
-
-  $("#myForm").submit((event) => {
-    event.preventDefault(); // Prevent form from being submitted
-    submitHandlers[getSearchMode()]();
-  });
-
-  // Initially hide the message and table
-  if ($("#noBusesMessage").length > 0) {
-    $("#noBusesMessage").after("<br />");
-  }
-
-  $("#noBusesMessage").hide();
-  $("#tableContainer").hide();
-});
-
-document.addEventListener("DOMContentLoaded", () => {
-  let savedDistance = localStorage.getItem("stationsMaxDistance");
+  // Restore saved distance from localStorage
+  const savedDistance = localStorage.getItem("stationsMaxDistance");
   if (savedDistance) {
-    let rangeInput = document.getElementById("stationsMaxDistance-input");
-    let rangeLabel = document.getElementById("stationsMaxDistance-label");
-
-    rangeInput.value = savedDistance;
-    rangeLabel.textContent = `Distance (${savedDistance}m):`;
+    document.getElementById("stationsMaxDistance-input").value = savedDistance;
+    document.getElementById("stationsMaxDistance-label").textContent =
+      `Distance (${savedDistance}m):`;
   }
-});
 
-document.addEventListener("DOMContentLoaded", function () {
+  // Custom name-search dropdown
   const input = document.getElementById("name-input");
   const dropdown = document.getElementById("dropdown");
   let stations = [];
-
   const fetchStations = async () => {
-    let city = getCity();
+    const city = getCity();
     if (!allStations[city]) await fetchCityStations(city);
-    stations = allStations[city].map(station => ({
+    stations = allStations[city].map((station) => ({
       name: station.name,
       id: station.id,
-      uid: station.uid
+      uid: station.uid,
     }));
   };
-
-  input.addEventListener("focus", async () => {
-    await fetchStations();
-    showDropdown(stations);
-  });
-
-  input.addEventListener("input", () => {
-    let value = input.value.toLowerCase();
-    let filteredStations = stations.filter(station =>
-      station.name.toLowerCase().includes(value) || station.id.includes(value)
-    );
-    showDropdown(filteredStations);
-  });
 
   function showDropdown(stationList) {
     dropdown.innerHTML = "";
@@ -522,17 +574,15 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
-    stationList.forEach(station => {
-      let item = document.createElement("div");
-      item.classList.add("dropdown-item");
+    stationList.forEach((station) => {
+      const item = document.createElement("div");
+      item.classList.add("station-item");
       item.textContent = `${station.name} (${station.id})`;
-
       item.addEventListener("click", () => {
         input.value = station.name;
         dropdown.style.display = "none";
-        submitByName(station.uid);
+        submitByName();
       });
-
       dropdown.appendChild(item);
     });
 
@@ -542,27 +592,46 @@ document.addEventListener("DOMContentLoaded", function () {
     dropdown.style.top = `${input.offsetHeight + 2}px`;
   }
 
-  document.addEventListener("click", (e) => {
-    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+  input.addEventListener("focus", async () => {
+    await fetchStations();
+    showDropdown(stations);
+  });
+
+  input.addEventListener("input", () => {
+    const value = input.value.toLowerCase();
+    const filteredStations = stations.filter(
+      (station) =>
+        station.name.toLowerCase().includes(value) ||
+        station.id.includes(value),
+    );
+    showDropdown(filteredStations);
+  });
+
+  $(document).on("click", (event) => {
+    if (!$(event.target).closest("#name-input, #dropdown").length) {
       dropdown.style.display = "none";
     }
   });
-});
 
-$(document).ready(function () {
-  const $dropdown = $("#dropdown");
-  const $map = $("#map");
-  let overlay = $("<div class='overlay'></div>").hide().appendTo("body");
+  // Map & tab visibility handlers
+  $(window).on("blur", handleTabOut);
+  $(window).on("focus", handleTabIn);
+  initMap();
 
-  $("#name-input").on("focus", function () {
-    $dropdown.show();
-    overlay.show();
+  // Load cities
+  const response = await doAsyncRequest("/api/cities");
+  const cities = Object.entries(response).map(
+    ([key, value]) => `<option value="${key}">${value}</option>`,
+  );
+  $("#city").html(cities);
+  onCityChange();
+  onSearchModeChange();
+
+  $("#myForm").submit((event) => {
+    event.preventDefault();
+    submitHandlers[getSearchMode()]();
   });
 
-  $(document).on("click", function (event) {
-    if (!$(event.target).closest("#name-input, #dropdown").length) {
-      $dropdown.hide();
-      overlay.hide();
-    }
-  });
+  $("#noBusesMessage").hide();
+  $("#tableContainer").hide();
 });
