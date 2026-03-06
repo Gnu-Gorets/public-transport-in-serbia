@@ -303,30 +303,25 @@ const fetchSchedule = async (city, uid, force = false) => {
     return `<span style="display:inline-block;background:rgba(255,255,255,0.12);padding:2px 6px;border-radius:4px;margin:1px;white-space:nowrap;font-size:0.82rem;${isNextDay ? "opacity:0.55" : ""}">${clean}${isNextDay ? "*" : ""}</span>`;
   };
 
-  const lineNums = lines
-    .map(
-      (line) =>
-        `<div style="white-space:nowrap;color:#FFD700;font-size:0.85rem;font-weight:700;padding:3px 8px 3px 0;border-bottom:1px solid rgba(255,255,255,0.05)">${line}</div>`,
-    )
-    .join("");
-
-  const chipRows = lines
+  const tableRows = lines
     .map((line) => {
       const allChips = response.schedule[line].map(makeChip).join("");
-      return `<div style="white-space:nowrap;padding:3px 0 5px;border-bottom:1px solid rgba(255,255,255,0.05)">${allChips}</div>`;
+      return `<tr>
+        <td style="position:sticky;left:0;background:#1a1f2e;white-space:nowrap;color:#FFD700;font-size:0.85rem;font-weight:700;padding:3px 10px 3px 0;vertical-align:middle;border-bottom:1px solid rgba(255,255,255,0.05)">${line}</td>
+        <td style="white-space:nowrap;padding:3px 0 5px;border-bottom:1px solid rgba(255,255,255,0.05)">${allChips}</td>
+      </tr>`;
     })
     .join("");
 
   $("#scheduleContainer").html(`
-    <div style="color:white;font-size:0.9rem;margin-top:8px;display:flex">
-      <div style="flex-shrink:0;width:52px">
-        <div style="color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;padding-bottom:3px;border-bottom:1px solid #333;margin-bottom:2px">#</div>
-        ${lineNums}
-      </div>
-      <div style="overflow-x:auto;flex:1;min-width:0">
-        <div style="color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;padding-bottom:3px;border-bottom:1px solid #333;margin-bottom:2px">DEPARTURES</div>
-        ${chipRows}
-      </div>
+    <div style="overflow-x:auto;margin-top:8px">
+      <table style="color:white;font-size:0.9rem;border-collapse:collapse;width:100%">
+        <thead><tr>
+          <th style="position:sticky;left:0;background:#1a1f2e;color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;text-align:left;padding-bottom:4px;border-bottom:1px solid #333">#</th>
+          <th style="color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;text-align:left;padding-bottom:4px;border-bottom:1px solid #333">DEPARTURES</th>
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
     </div>
   `);
   scheduleLoadedUid = uid;
