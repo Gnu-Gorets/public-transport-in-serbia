@@ -1,10 +1,11 @@
 const fastify = require("fastify")({
-  logger: true,
+  logger: process.env.NODE_ENV !== "test",
 });
 const axios = require("axios");
 const path = require("path");
 
 const crypto = require("./crypto");
+let httpClient = axios;
 
 fastify.register(require("@fastify/static"), {
   root: path.join(__dirname, "../static"),
@@ -115,7 +116,7 @@ async function getRequest(url, apikey) {
     "User-Agent": "okhttp/4.10.0",
   };
 
-  const response = await axios.get(url, { headers, timeout: 5000 });
+  const response = await httpClient.get(url, { headers, timeout: 5000 });
   if (response.status != 200)
     throw new Error(`Request failed with status code ${response.status}`);
 
@@ -130,7 +131,10 @@ async function getLineTimetable(city, lineNumber, direction, date) {
     "User-Agent": "okhttp/4.10.0",
     "Content-Type": "application/x-www-form-urlencoded",
   };
-  const response = await axios.post(url, payload, { headers, timeout: 10000 });
+  const response = await httpClient.post(url, payload, {
+    headers,
+    timeout: 10000,
+  });
   if (response.status !== 200)
     throw new Error(`Timetable request failed: ${response.status}`);
   return response.data;
@@ -141,7 +145,10 @@ async function postRequest(url, apikey, payload) {
     "X-Api-Authentication": apikey,
     "User-Agent": "okhttp/4.10.0",
   };
-  const response = await axios.post(url, payload, { headers, timeout: 5000 });
+  const response = await httpClient.post(url, payload, {
+    headers,
+    timeout: 5000,
+  });
   if (response.status != 200)
     throw new Error(`Request failed with status code ${response.status}`);
 
@@ -357,7 +364,7 @@ fastify.get("/api/stations/:city/schedule", async (request, reply) => {
 fastify.get("/api/route", async (request, reply) => {
   const { coords } = request.query;
   try {
-    const response = await axios.get(
+    const response = await httpClient.get(
       `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`,
       { timeout: 10000 },
     );
@@ -369,7 +376,24 @@ fastify.get("/api/route", async (request, reply) => {
 });
 fastify.get("/", (request, reply) => reply.sendFile("index.html"));
 
-(async () => {
+const resetState = () => {
+  id_uid_map = {};
+  allStations = {};
+  allLines = {};
+  httpClient = axios;
+};
+
+const setState = (nextState = {}) => {
+  id_uid_map = nextState.id_uid_map || {};
+  allStations = nextState.allStations || {};
+  allLines = nextState.allLines || {};
+};
+
+const setHttpClient = (nextHttpClient) => {
+  httpClient = nextHttpClient;
+};
+
+const start = async () => {
   try {
     await populateMap(true);
     await fastify.listen({ port: 3000, host: "0.0.0.0" });
@@ -377,4 +401,21 @@ fastify.get("/", (request, reply) => reply.sendFile("index.html"));
     console.error(err);
     process.exit(1);
   }
-})();
+};
+
+if (require.main === module) {
+  start();
+}
+
+module.exports = {
+  fastify,
+  start,
+  _test: {
+    resetState,
+    setState,
+    setHttpClient,
+    transformAllStationsResponse,
+    transformAllLinesResponse,
+    transformStationResponse,
+  },
+};

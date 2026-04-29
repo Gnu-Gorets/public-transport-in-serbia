@@ -1,9 +1,19 @@
 stages:
-  - trigger
+  - test
 
-redeploy:
-  stage: trigger
+test:
+  stage: test
+  image: node:24-alpine
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - .npm/
+  before_script:
+    - npm ci --cache .npm --prefer-offline
   script:
-    - curl --fail -G 'https://onedev.gts.org.ua/~api/trigger-job' --data-urlencode project='gorets/public-transport-in-serbia' --data-urlencode branch=master --data-urlencode job='Commit new build' --data-urlencode access-token=$ONEDEV_TOKEN 2>&1
+    - npm test
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH

@@ -1,0 +1,154 @@
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import server from "../server/server.js";
+
+const { fastify, _test } = server;
+
+describe("API routes", () => {
+  beforeEach(() => {
+    _test.resetState();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterAll(async () => {
+    await fastify.close();
+  });
+
+  it("serves the UI entrypoint", async () => {
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("text/html");
+    expect(response.body).toContain("Serbia++");
+  });
+
+  it("requires uid when requesting a station schedule", async () => {
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/api/stations/bg/schedule",
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "uid is required" });
+  });
+
+  it("returns 404 when schedule station is unknown", async () => {
+    _test.setState({
+      allStations: {
+        bg: {},
+      },
+    });
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/api/stations/bg/schedule?uid=missing&date=2026-04-29",
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({ error: "Station not found" });
+  });
+
+  it("builds a station schedule from timetable responses", async () => {
+    _test.setState({
+      allStations: {
+        bg: {
+          "station-1": {
+            uid: "station-1",
+            id: "42",
+            name: "Main Station",
+            lines: ["7"],
+          },
+        },
+      },
+    });
+
+    const httpClient = {
+      get: vi.fn(),
+      post: vi
+        .fn()
+        .mockResolvedValueOnce({
+          status: 200,
+          data: [
+            {
+              station_id: "station-1",
+              departure_time: ["23:58(+24h)", "23:59(+24h)"],
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: [
+            {
+              station_id: "station-1",
+              departure_time: ["23:57(+24h)", "23:58(+24h)"],
+            },
+          ],
+        }),
+    };
+    _test.setHttpClient(httpClient);
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/api/stations/bg/schedule?uid=station-1&date=2026-04-29",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      station: { uid: "station-1", name: "Main Station", id: "42" },
+      schedule: {
+        7: ["23:57(+24h)", "23:58(+24h)", "23:59(+24h)"],
+      },
+      date: "2026-04-29",
+    });
+  });
+
+  it("proxies route requests to OSRM", async () => {
+    const httpClient = {
+      get: vi.fn().mockResolvedValue({
+        status: 200,
+        data: {
+          code: "Ok",
+          routes: [{ geometry: { type: "LineString", coordinates: [] } }],
+        },
+      }),
+      post: vi.fn(),
+    };
+    _test.setHttpClient(httpClient);
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/api/route?coords=20.1,44.1%3B20.2,44.2",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      code: "Ok",
+      routes: [{ geometry: { type: "LineString", coordinates: [] } }],
+    });
+    expect(httpClient.get).toHaveBeenCalledWith(
+      "https://router.project-osrm.org/route/v1/driving/20.1,44.1;20.2,44.2?overview=full&geometries=geojson",
+      { timeout: 10000 },
+    );
+  });
+
+  it("returns 502 when OSRM fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    _test.setHttpClient({
+      get: vi.fn().mockRejectedValue(new Error("network failed")),
+      post: vi.fn(),
+    });
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/api/route?coords=20.1,44.1%3B20.2,44.2",
+    });
+
+    expect(response.statusCode).toBe(502);
+    expect(response.json()).toEqual({ error: "OSRM request failed" });
+  });
+});
