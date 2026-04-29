@@ -48,8 +48,8 @@ async function getStationSchedule(city, uid, date) {
 
           if (!schedule[line]) schedule[line] = new Set();
           times.forEach((t) => schedule[line].add(t));
-        } catch (_) {
-          /* skip */
+        } catch (err) {
+          console.warn(`[schedule] ${city}/${line}/${direction}: ${err.message}`);
         }
       }),
     ),
