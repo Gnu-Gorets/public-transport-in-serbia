@@ -1,4 +1,4 @@
-const apikeys = require("../apikeys.json");
+const apikeys = require("../config");
 
 const cityParams = {
   type: "object",

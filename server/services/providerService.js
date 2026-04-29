@@ -1,4 +1,4 @@
-const apikeys = require("../apikeys.json");
+const apikeys = require("../config");
 const crypto = require("../crypto");
 const { getHttpClient } = require("../httpClient");
 const logger = require("../logger");
