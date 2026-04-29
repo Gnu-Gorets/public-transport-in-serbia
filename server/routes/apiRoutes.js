@@ -6,6 +6,7 @@ const {
 } = require("../services/providerService");
 const { getRoute } = require("../services/routeService");
 const { getStationSchedule } = require("../services/scheduleService");
+const { sendError } = require("../errors");
 
 function registerApiRoutes(fastify) {
   fastify.get("/api/stations/:city/search", async (request, reply) => {
@@ -15,7 +16,7 @@ function registerApiRoutes(fastify) {
       reply.send(response);
     } catch (err) {
       console.error(err);
-      reply.send(err);
+      sendError(reply, err, "Failed to fetch station");
     }
   });
 
@@ -26,7 +27,7 @@ function registerApiRoutes(fastify) {
       reply.send(response);
     } catch (err) {
       console.error(err);
-      reply.send(err);
+      sendError(reply, err, "Failed to fetch stations");
     }
   });
 
@@ -38,7 +39,7 @@ function registerApiRoutes(fastify) {
       reply.send(allLines[city] || {});
     } catch (err) {
       console.error(err);
-      reply.send(err);
+      sendError(reply, err, "Failed to fetch lines");
     }
   });
 
@@ -48,7 +49,7 @@ function registerApiRoutes(fastify) {
       reply.send(response);
     } catch (err) {
       console.error(err);
-      reply.send(err);
+      sendError(reply, err, "Failed to fetch cities");
     }
   });
 
@@ -66,7 +67,7 @@ function registerApiRoutes(fastify) {
       reply.send(response);
     } catch (err) {
       console.error(err);
-      reply.status(500).send({ error: "Failed to fetch schedule" });
+      sendError(reply, err, "Failed to fetch schedule");
     }
   });
 

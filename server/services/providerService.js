@@ -8,6 +8,7 @@ const {
   transformAllStationsResponse,
   transformStationResponse,
 } = require("../transforms");
+const { badRequest, upstreamError } = require("../errors");
 
 async function populateMap(force = false) {
   const idUidMap = state.getIdUidMap();
@@ -41,9 +42,14 @@ async function getRequest(url, apikey) {
     "User-Agent": "okhttp/4.10.0",
   };
 
-  const response = await getHttpClient().get(url, { headers, timeout: 5000 });
+  let response;
+  try {
+    response = await getHttpClient().get(url, { headers, timeout: 5000 });
+  } catch (err) {
+    throw upstreamError(err.message || "Provider request failed");
+  }
   if (response.status != 200)
-    throw new Error(`Request failed with status code ${response.status}`);
+    throw upstreamError(`Request failed with status code ${response.status}`);
 
   return response.data;
 }
@@ -56,12 +62,17 @@ async function getLineTimetable(city, lineNumber, direction, date) {
     "User-Agent": "okhttp/4.10.0",
     "Content-Type": "application/x-www-form-urlencoded",
   };
-  const response = await getHttpClient().post(url, payload, {
-    headers,
-    timeout: 10000,
-  });
+  let response;
+  try {
+    response = await getHttpClient().post(url, payload, {
+      headers,
+      timeout: 10000,
+    });
+  } catch (err) {
+    throw upstreamError(err.message || "Timetable request failed");
+  }
   if (response.status !== 200)
-    throw new Error(`Timetable request failed: ${response.status}`);
+    throw upstreamError(`Timetable request failed: ${response.status}`);
   return response.data;
 }
 
@@ -70,12 +81,17 @@ async function postRequest(url, apikey, payload) {
     "X-Api-Authentication": apikey,
     "User-Agent": "okhttp/4.10.0",
   };
-  const response = await getHttpClient().post(url, payload, {
-    headers,
-    timeout: 5000,
-  });
+  let response;
+  try {
+    response = await getHttpClient().post(url, payload, {
+      headers,
+      timeout: 5000,
+    });
+  } catch (err) {
+    throw upstreamError(err.message || "Provider request failed");
+  }
   if (response.status != 200)
-    throw new Error(`Request failed with status code ${response.status}`);
+    throw upstreamError(`Request failed with status code ${response.status}`);
 
   return response.data;
 }
@@ -85,10 +101,11 @@ function getStationUid(city, query) {
 
   if (query.uid) return query.uid;
   if (query.id) {
-    if (!idUidMap[city]) throw new Error(`Map for ${city} is not populated yet`);
+    if (!idUidMap[city])
+      throw badRequest(`Map for ${city} is not populated yet`);
     return idUidMap[city][query.id.toString()];
   }
-  throw new Error("Invalid query");
+  throw badRequest("Invalid query");
 }
 
 async function getStationInfoV1(city, uid) {
@@ -97,9 +114,9 @@ async function getStationInfoV1(city, uid) {
   let resp = await getRequest(url, apikeys[city].key);
 
   if (resp === "")
-    throw new Error(`Endpoint returned nothing (perhaps they changed API?)`);
+    throw upstreamError(`Endpoint returned nothing (perhaps they changed API?)`);
   if (resp[0].success === false)
-    throw new Error(`Endpoint returned error (perhaps invalid ID?)`);
+    throw badRequest(`Endpoint returned error (perhaps invalid ID?)`);
 
   return transformStationResponse(resp, city);
 }
@@ -122,13 +139,13 @@ async function getStationInfoV2(city, uid) {
 
   let resp = await postRequest(url, apikeys[city].key, payload);
   if (resp === "")
-    throw new Error(`Endpoint returned nothing (perhaps they changed API?)`);
+    throw upstreamError(`Endpoint returned nothing (perhaps they changed API?)`);
 
   let decoded = JSON.parse(
     crypto.decrypt(resp, apikeys[city].v2_key, apikeys[city].v2_iv),
   );
   if (decoded["success"] == false)
-    throw new Error(`Endpoint returned error (perhaps invalid ID?)`);
+    throw badRequest(`Endpoint returned error (perhaps invalid ID?)`);
 
   if (!decoded["data"] || decoded["data"].length === 0) {
     const station = allStations[city]?.[uid];
@@ -149,7 +166,7 @@ async function getStationInfo(city, query) {
   const uid = getStationUid(city, query);
   if (apikeys[city].api === "v1") return await getStationInfoV1(city, uid);
   else if (apikeys[city].api === "v2") return await getStationInfoV2(city, uid);
-  else throw new Error("Invalid API version");
+  else throw upstreamError("Invalid API version");
 }
 
 async function getAllStations(city) {

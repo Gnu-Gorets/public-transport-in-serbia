@@ -53,6 +53,48 @@ describe("API routes", () => {
     expect(response.json()).toEqual({ error: "Station not found" });
   });
 
+  it("returns 400 for invalid station search query", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/api/stations/bg/search",
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "Invalid query" });
+  });
+
+  it("returns 400 when id search is requested before city map is populated", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/api/stations/bg/search?id=42",
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({
+      error: "Map for bg is not populated yet",
+    });
+  });
+
+  it("returns 502 when station provider request fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    _test.setHttpClient({
+      get: vi.fn().mockRejectedValue(new Error("provider unavailable")),
+      post: vi.fn(),
+    });
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/api/stations/bg/all",
+    });
+
+    expect(response.statusCode).toBe(502);
+    expect(response.json()).toEqual({ error: "provider unavailable" });
+  });
+
   it("builds a station schedule from timetable responses", async () => {
     _test.setState({
       allStations: {
