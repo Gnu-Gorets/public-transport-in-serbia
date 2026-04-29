@@ -46,6 +46,7 @@ function registerApiRoutes(fastify) {
       const city = request.params.city;
       try {
         const response = await getAllStations(city);
+        reply.header("Cache-Control", "public, max-age=3600");
         reply.send(response);
       } catch (err) {
         console.error(err);
@@ -66,6 +67,7 @@ function registerApiRoutes(fastify) {
       const allLines = state.getAllLines();
       try {
         if (!allLines[city]) await getAllStations(city);
+        reply.header("Cache-Control", "public, max-age=3600");
         reply.send(allLines[city] || {});
       } catch (err) {
         console.error(err);
