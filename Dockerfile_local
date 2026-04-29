@@ -1,16 +1,24 @@
-FROM alpine:3.23.3
+FROM alpine:3.23.4
 
 # Update and install necessary packages
 RUN apk add --no-cache git curl nodejs npm
 
+# Create a non-root user for the application
+RUN addgroup -S app && adduser -S -G app app
+
 # Set the working directory
 WORKDIR /app
+RUN chown app:app /app
 
-# Copy files from the current context to the container
-COPY . .
+USER app
 
 # Install project dependencies
-RUN npm ci
+COPY --chown=app:app package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+# Copy runtime application files
+COPY --chown=app:app server ./server
+COPY --chown=app:app static ./static
 
 # Run the project
 CMD ["node", "server/server.js"]
