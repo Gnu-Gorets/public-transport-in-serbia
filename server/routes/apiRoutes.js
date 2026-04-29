@@ -74,6 +74,10 @@ function registerApiRoutes(fastify) {
     },
   );
 
+  fastify.get("/health", async (request, reply) => {
+    reply.send({ ok: true, uptime: process.uptime() });
+  });
+
   fastify.get("/api/cities", async (request, reply) => {
     try {
       const response = await getAvailableCities();
