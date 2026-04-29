@@ -1,7 +1,7 @@
 const { createApp } = require("./app");
 const { resetHttpClient, setHttpClient } = require("./httpClient");
 const state = require("./state");
-const { populateMap } = require("./services/providerService");
+const providerService = require("./services/providerService");
 const {
   transformAllLinesResponse,
   transformAllStationsResponse,
@@ -13,11 +13,12 @@ const fastify = createApp();
 const resetState = () => {
   state.resetState();
   resetHttpClient();
+  providerService._test.resetNow();
 };
 
 const start = async () => {
   try {
-    await populateMap(true);
+    await providerService.populateMap(true);
     await fastify.listen({ port: 3000, host: "0.0.0.0" });
   } catch (err) {
     console.error(err);
@@ -36,6 +37,7 @@ module.exports = {
     resetState,
     setState: state.setState,
     setHttpClient,
+    setNow: providerService._test.setNow,
     transformAllStationsResponse,
     transformAllLinesResponse,
     transformStationResponse,

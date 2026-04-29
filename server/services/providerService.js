@@ -10,11 +10,32 @@ const {
 } = require("../transforms");
 const { badRequest, upstreamError } = require("../errors");
 
+const STATIONS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+let now = () => Date.now();
+
+function isStationsCacheExpired(city) {
+  const cacheMeta = state.getCacheMeta();
+  const loadedAt = cacheMeta[city]?.loadedAt;
+  return !loadedAt || now() - loadedAt >= STATIONS_CACHE_TTL_MS;
+}
+
+function rebuildIdUidMap(city) {
+  const idUidMap = state.getIdUidMap();
+  const allStations = state.getAllStations();
+
+  idUidMap[city] = {};
+  for (const station of Object.values(allStations[city] || {})) {
+    if (station.id != null && station.uid != null) {
+      idUidMap[city][String(station.id)] = String(station.uid);
+    }
+  }
+}
+
 async function populateMap(force = false) {
   const idUidMap = state.getIdUidMap();
 
   for (const city of Object.keys(apikeys)) {
-    if (!force && idUidMap[city]) {
+    if (!force && idUidMap[city] && !isStationsCacheExpired(city)) {
       continue;
     }
 
@@ -173,10 +194,20 @@ async function getAllStations(city) {
   const allStations = state.getAllStations();
   const allLines = state.getAllLines();
   const url = `${apikeys[city].url}/publicapi/v1/networkextended.php?action=get_cities_extended`;
-  if (!allStations[city]) {
-    const response = await getRequest(url, apikeys[city].key);
-    allStations[city] = transformAllStationsResponse(response);
-    allLines[city] = transformAllLinesResponse(response);
+
+  if (!allStations[city] || isStationsCacheExpired(city)) {
+    const hadCachedStations = Boolean(allStations[city]);
+    let response;
+    try {
+      response = await getRequest(url, apikeys[city].key);
+      allStations[city] = transformAllStationsResponse(response);
+      allLines[city] = transformAllLinesResponse(response);
+      rebuildIdUidMap(city);
+      state.markCacheLoaded(city, now());
+    } catch (err) {
+      if (!hadCachedStations) throw err;
+      state.markCacheError(city, err);
+    }
   }
   return Object.values(allStations[city]);
 }
@@ -196,4 +227,12 @@ module.exports = {
   getLineTimetable,
   getStationInfo,
   populateMap,
+  _test: {
+    setNow: (nextNow) => {
+      now = nextNow;
+    },
+    resetNow: () => {
+      now = () => Date.now();
+    },
+  },
 };
