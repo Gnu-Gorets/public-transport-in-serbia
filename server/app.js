@@ -17,6 +17,10 @@ function createApp(options = {}) {
     methods: "*",
     allowedHeaders: "*",
   });
+  fastify.register(require("@fastify/rate-limit"), {
+    max: 60,
+    timeWindow: "1 minute",
+  });
 
   registerApiRoutes(fastify);
   fastify.get("/", (request, reply) => reply.sendFile("index.html"));
