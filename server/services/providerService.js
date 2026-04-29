@@ -223,7 +223,7 @@ async function getAvailableCities() {
   const allStations = state.getAllStations();
 
   await populateMap();
-  let cities = new Object();
+  let cities = {};
   for (const id of Object.keys(allStations)) cities[id] = apikeys[id].name;
   return cities;
 }

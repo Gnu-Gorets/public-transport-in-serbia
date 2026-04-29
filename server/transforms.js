@@ -3,7 +3,7 @@ const state = require("./state");
 function transformAllStationsResponse(response) {
   let newResp = {};
   response.stations.forEach((value) => {
-    let station = new Object();
+    let station = {};
     station.name = value.name;
     station.uid = value.id;
     station.id = value.station_id;
@@ -27,7 +27,7 @@ function transformStationResponse(response, city) {
   const uidIdMap = state.getUidIdMap();
   const allStations = state.getAllStations();
 
-  let newResp = new Object();
+  let newResp = {};
   newResp.city = city;
   newResp.name = response[0].station_name;
   newResp.uid = response[0].station_uid;
@@ -39,12 +39,12 @@ function transformStationResponse(response, city) {
     parseFloat(response[0].gpsy ?? 0),
     parseFloat(response[0].gpsx ?? 0),
   ];
-  newResp.vehicles = new Array();
+  newResp.vehicles = [];
 
   if (response[0].just_coordinates == "1") return newResp;
 
   response.map((value) => {
-    let vehicle = new Object();
+    let vehicle = {};
     vehicle.lineNumber = value.line_number;
     vehicle.lineName = value.line_title;
     vehicle.secondsLeft = value.seconds_left;
