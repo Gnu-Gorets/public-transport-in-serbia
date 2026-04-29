@@ -12,6 +12,7 @@ const { badRequest, upstreamError } = require("../errors");
 
 const STATIONS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 let now = () => Date.now();
+const inFlight = {};
 
 function isStationsCacheExpired(city) {
   const cacheMeta = state.getCacheMeta();
@@ -190,24 +191,34 @@ async function getStationInfo(city, query) {
   else throw upstreamError("Invalid API version");
 }
 
-async function getAllStations(city) {
+async function fetchAndCacheStations(city) {
   const allStations = state.getAllStations();
   const allLines = state.getAllLines();
   const url = `${apikeys[city].url}/publicapi/v1/networkextended.php?action=get_cities_extended`;
+  const hadCachedStations = Boolean(allStations[city]);
+
+  try {
+    const response = await getRequest(url, apikeys[city].key);
+    allStations[city] = transformAllStationsResponse(response);
+    allLines[city] = transformAllLinesResponse(response);
+    rebuildIdUidMap(city);
+    state.markCacheLoaded(city, now());
+  } catch (err) {
+    if (!hadCachedStations) throw err;
+    state.markCacheError(city, err);
+  }
+}
+
+async function getAllStations(city) {
+  const allStations = state.getAllStations();
 
   if (!allStations[city] || isStationsCacheExpired(city)) {
-    const hadCachedStations = Boolean(allStations[city]);
-    let response;
-    try {
-      response = await getRequest(url, apikeys[city].key);
-      allStations[city] = transformAllStationsResponse(response);
-      allLines[city] = transformAllLinesResponse(response);
-      rebuildIdUidMap(city);
-      state.markCacheLoaded(city, now());
-    } catch (err) {
-      if (!hadCachedStations) throw err;
-      state.markCacheError(city, err);
+    if (!inFlight[city]) {
+      inFlight[city] = fetchAndCacheStations(city).finally(() => {
+        delete inFlight[city];
+      });
     }
+    await inFlight[city];
   }
   return Object.values(allStations[city]);
 }
@@ -233,6 +244,9 @@ module.exports = {
     },
     resetNow: () => {
       now = () => Date.now();
+    },
+    resetInFlight: () => {
+      for (const key of Object.keys(inFlight)) delete inFlight[key];
     },
   },
 };

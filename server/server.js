@@ -14,6 +14,7 @@ const resetState = () => {
   state.resetState();
   resetHttpClient();
   providerService._test.resetNow();
+  providerService._test.resetInFlight();
 };
 
 const start = async () => {
