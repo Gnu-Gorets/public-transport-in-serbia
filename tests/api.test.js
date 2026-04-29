@@ -34,7 +34,7 @@ describe("API routes", () => {
     });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({ error: "uid is required" });
+    expect(response.json().message).toContain("must have required property 'uid'");
   });
 
   it("returns 404 when schedule station is unknown", async () => {
@@ -54,15 +54,33 @@ describe("API routes", () => {
   });
 
   it("returns 400 for invalid station search query", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-
     const response = await fastify.inject({
       method: "GET",
       url: "/api/stations/bg/search",
     });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({ error: "Invalid query" });
+    expect(response.json().message).toContain("must match a schema in anyOf");
+  });
+
+  it("returns 400 for unknown city params", async () => {
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/api/stations/unknown/all",
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().message).toContain("must be equal to one of the allowed values");
+  });
+
+  it("returns 400 for invalid schedule date format", async () => {
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/api/stations/bg/schedule?uid=station-1&date=29-04-2026",
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().message).toContain("must match pattern");
   });
 
   it("returns 400 when id search is requested before city map is populated", async () => {
@@ -176,6 +194,16 @@ describe("API routes", () => {
       "https://router.project-osrm.org/route/v1/driving/20.1,44.1;20.2,44.2?overview=full&geometries=geojson",
       { timeout: 10000 },
     );
+  });
+
+  it("returns 400 for invalid route coords", async () => {
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/api/route?coords=not-a-coordinate",
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().message).toContain("must match pattern");
   });
 
   it("returns 502 when OSRM fails", async () => {
