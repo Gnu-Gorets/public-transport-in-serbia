@@ -44,55 +44,25 @@ async function populateMap(force = false) {
   }
 }
 
-async function getRequest(url, apikey) {
-  const headers = {
-    "X-Api-Authentication": apikey,
-    "User-Agent": "okhttp/4.10.0",
-  };
-  let response;
+async function request(method, url, apikey, { payload, timeout = GET_TIMEOUT_MS } = {}) {
+  const headers = { "X-Api-Authentication": apikey, "User-Agent": "okhttp/4.10.0" };
+  if (payload) headers["Content-Type"] = "application/x-www-form-urlencoded";
   try {
-    response = await getHttpClient().get(url, { headers, timeout: GET_TIMEOUT_MS });
+    const response = payload
+      ? await getHttpClient()[method](url, payload, { headers, timeout })
+      : await getHttpClient()[method](url, { headers, timeout });
+    if (response.status !== 200)
+      throw new Error(`Request failed with status code ${response.status}`);
+    return response.data;
   } catch (err) {
     throw upstreamError(err.message || "Provider request failed");
   }
-  if (response.status != 200)
-    throw upstreamError(`Request failed with status code ${response.status}`);
-  return response.data;
 }
 
 async function getLineTimetable(city, lineNumber, direction, date) {
   const url = `${apikeys[city].url}/publicapi/v1/timetable/timetable.php`;
   const payload = `action=get_timetable&line_number_for_display=${encodeURIComponent(lineNumber)}&direction_id_for_display=${encodeURIComponent(direction)}&date=${date}&time=`;
-  const headers = {
-    "X-Api-Authentication": apikeys[city].key,
-    "User-Agent": "okhttp/4.10.0",
-    "Content-Type": "application/x-www-form-urlencoded",
-  };
-  let response;
-  try {
-    response = await getHttpClient().post(url, payload, { headers, timeout: TIMETABLE_TIMEOUT_MS });
-  } catch (err) {
-    throw upstreamError(err.message || "Timetable request failed");
-  }
-  if (response.status !== 200)
-    throw upstreamError(`Timetable request failed: ${response.status}`);
-  return response.data;
-}
-
-async function postRequest(url, apikey, payload) {
-  const headers = {
-    "X-Api-Authentication": apikey,
-    "User-Agent": "okhttp/4.10.0",
-  };
-  let response;
-  try {
-    response = await getHttpClient().post(url, payload, { headers, timeout: GET_TIMEOUT_MS });
-  } catch (err) {
-    throw upstreamError(err.message || "Provider request failed");
-  }
-  if (response.status != 200)
-    throw upstreamError(`Request failed with status code ${response.status}`);
-  return response.data;
+  return request("post", url, apikeys[city].key, { payload, timeout: TIMETABLE_TIMEOUT_MS });
 }
 
 function getStationUid(city, query) {
@@ -106,7 +76,7 @@ function getStationUid(city, query) {
 
 async function getStationInfoV1(city, uid) {
   const url = `${apikeys[city].url}/publicapi/v1/announcement/announcement.php?action=get_announcement_data&station_uid=${uid}`;
-  const resp = await getRequest(url, apikeys[city].key);
+  const resp = await request("get", url, apikeys[city].key);
   if (resp === "") throw upstreamError(`Endpoint returned nothing (perhaps they changed API?)`);
   if (resp[0].success === false) throw badRequest(`Endpoint returned error (perhaps invalid ID?)`);
   return transformStationResponse(resp, city);
@@ -119,7 +89,7 @@ async function getStationInfoV2(city, uid) {
     apikeys[city].v2_key,
     apikeys[city].v2_iv,
   );
-  const resp = await postRequest(url, apikeys[city].key, `action=data_bulletin&base=${base}`);
+  const resp = await request("post", url, apikeys[city].key, { payload: `action=data_bulletin&base=${base}` });
   if (resp === "") throw upstreamError(`Endpoint returned nothing (perhaps they changed API?)`);
   const decoded = JSON.parse(crypto.decrypt(resp, apikeys[city].v2_key, apikeys[city].v2_iv));
   if (decoded["success"] == false) throw badRequest(`Endpoint returned error (perhaps invalid ID?)`);
@@ -148,7 +118,7 @@ async function fetchAndCacheStations(city) {
   const url = `${apikeys[city].url}/publicapi/v1/networkextended.php?action=get_cities_extended`;
   const hadCachedStations = Boolean(state.allStations[city]);
   try {
-    const response = await getRequest(url, apikeys[city].key);
+    const response = await request("get", url, apikeys[city].key);
     state.allStations[city] = transformAllStationsResponse(response);
     state.allLines[city] = transformAllLinesResponse(response);
     rebuildIdUidMap(city);
