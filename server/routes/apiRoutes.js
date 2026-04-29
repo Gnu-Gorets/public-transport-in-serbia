@@ -15,150 +15,81 @@ const {
   stationSearchQuery,
 } = require("./schemas");
 
+const handle = (fn, fallback) => async (req, reply) => {
+  try { await fn(req, reply); }
+  catch (err) { req.log.error({ err }); sendError(reply, err, fallback); }
+};
+
 function registerApiRoutes(fastify) {
   fastify.get(
     "/api/stations/:city/search",
-    {
-      schema: {
-        params: cityParams,
-        querystring: stationSearchQuery,
-      },
-    },
-    async (request, reply) => {
-      const city = request.params.city;
-      try {
-        const response = await getStationInfo(city, request.query);
-        reply.send(response);
-      } catch (err) {
-        request.log.error({ err });
-        sendError(reply, err, "Failed to fetch station");
-      }
-    },
+    { schema: { params: cityParams, querystring: stationSearchQuery } },
+    handle(async (req, reply) => {
+      reply.send(await getStationInfo(req.params.city, req.query));
+    }, "Failed to fetch station"),
   );
 
   fastify.get(
     "/api/stations/:city/all",
-    {
-      schema: {
-        params: cityParams,
-      },
-    },
-    async (request, reply) => {
-      const city = request.params.city;
-      try {
-        const response = await getAllStations(city);
-        reply.header("Cache-Control", "public, max-age=3600");
-        reply.send(response);
-      } catch (err) {
-        request.log.error({ err });
-        sendError(reply, err, "Failed to fetch stations");
-      }
-    },
+    { schema: { params: cityParams } },
+    handle(async (req, reply) => {
+      reply.header("Cache-Control", "public, max-age=3600");
+      reply.send(await getAllStations(req.params.city));
+    }, "Failed to fetch stations"),
   );
 
   fastify.get(
     "/api/stations/:city/hash",
-    {
-      schema: {
-        params: cityParams,
-      },
-    },
-    async (request, reply) => {
-      const city = request.params.city;
-      try {
-        const stations = await getAllStations(city);
-        const hash = crypto
-          .createHash("sha256")
-          .update(JSON.stringify(stations))
-          .digest("hex");
-        reply.header("Cache-Control", "public, max-age=3600");
-        reply.send({ hash });
-      } catch (err) {
-        request.log.error({ err });
-        sendError(reply, err, "Failed to compute stations hash");
-      }
-    },
+    { schema: { params: cityParams } },
+    handle(async (req, reply) => {
+      const stations = await getAllStations(req.params.city);
+      const hash = crypto.createHash("sha256").update(JSON.stringify(stations)).digest("hex");
+      reply.header("Cache-Control", "public, max-age=3600");
+      reply.send({ hash });
+    }, "Failed to compute stations hash"),
   );
 
   fastify.get(
     "/api/lines/:city",
-    {
-      schema: {
-        params: cityParams,
-      },
-    },
-    async (request, reply) => {
-      const city = request.params.city;
-      try {
-        if (!state.allLines[city]) await getAllStations(city);
-        reply.header("Cache-Control", "public, max-age=3600");
-        reply.send(state.allLines[city] || {});
-      } catch (err) {
-        request.log.error({ err });
-        sendError(reply, err, "Failed to fetch lines");
-      }
-    },
+    { schema: { params: cityParams } },
+    handle(async (req, reply) => {
+      const { city } = req.params;
+      if (!state.allLines[city]) await getAllStations(city);
+      reply.header("Cache-Control", "public, max-age=3600");
+      reply.send(state.allLines[city] || {});
+    }, "Failed to fetch lines"),
   );
 
   fastify.get("/health", async (request, reply) => {
     reply.send({ ok: true, uptime: process.uptime() });
   });
 
-  fastify.get("/api/cities", async (request, reply) => {
-    try {
-      const response = await getAvailableCities();
-      reply.send(response);
-    } catch (err) {
-      console.error(err);
-      sendError(reply, err, "Failed to fetch cities");
-    }
-  });
+  fastify.get(
+    "/api/cities",
+    handle(async (req, reply) => {
+      reply.send(await getAvailableCities());
+    }, "Failed to fetch cities"),
+  );
 
   fastify.get(
     "/api/stations/:city/schedule",
-    {
-      schema: {
-        params: cityParams,
-        querystring: stationScheduleQuery,
-      },
-    },
-    async (request, reply) => {
-      const city = request.params.city;
-      const { uid, date } = request.query;
-
-      try {
-        const response = await getStationSchedule(city, uid, date);
-        if (!response)
-          return reply.status(404).send({ error: "Station not found" });
-
-        reply.send(response);
-      } catch (err) {
-        request.log.error({ err });
-        sendError(reply, err, "Failed to fetch schedule");
-      }
-    },
+    { schema: { params: cityParams, querystring: stationScheduleQuery } },
+    handle(async (req, reply) => {
+      const { city } = req.params;
+      const { uid, date } = req.query;
+      const response = await getStationSchedule(city, uid, date);
+      if (!response) return reply.status(404).send({ error: "Station not found" });
+      reply.send(response);
+    }, "Failed to fetch schedule"),
   );
 
   fastify.get(
     "/api/route",
-    {
-      schema: {
-        querystring: routeQuery,
-      },
-    },
-    async (request, reply) => {
-      const { coords } = request.query;
-      try {
-        const response = await getRoute(coords);
-        reply.send(response);
-      } catch (err) {
-        request.log.error({ err });
-        reply.status(502).send({ error: "OSRM request failed" });
-      }
-    },
+    { schema: { querystring: routeQuery } },
+    handle(async (req, reply) => {
+      reply.send(await getRoute(req.query.coords));
+    }, "OSRM request failed"),
   );
 }
 
-module.exports = {
-  registerApiRoutes,
-};
+module.exports = { registerApiRoutes };
