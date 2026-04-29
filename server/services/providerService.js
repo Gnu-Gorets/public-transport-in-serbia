@@ -11,6 +11,8 @@ const {
 const { badRequest, upstreamError } = require("../errors");
 
 const STATIONS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const GET_TIMEOUT_MS = 5000;
+const TIMETABLE_TIMEOUT_MS = 10000;
 let now = () => Date.now();
 const inFlight = {};
 
@@ -60,7 +62,7 @@ async function getRequest(url, apikey) {
 
   let response;
   try {
-    response = await getHttpClient().get(url, { headers, timeout: 5000 });
+    response = await getHttpClient().get(url, { headers, timeout: GET_TIMEOUT_MS });
   } catch (err) {
     throw upstreamError(err.message || "Provider request failed");
   }
@@ -82,7 +84,7 @@ async function getLineTimetable(city, lineNumber, direction, date) {
   try {
     response = await getHttpClient().post(url, payload, {
       headers,
-      timeout: 10000,
+      timeout: TIMETABLE_TIMEOUT_MS,
     });
   } catch (err) {
     throw upstreamError(err.message || "Timetable request failed");
@@ -101,7 +103,7 @@ async function postRequest(url, apikey, payload) {
   try {
     response = await getHttpClient().post(url, payload, {
       headers,
-      timeout: 5000,
+      timeout: GET_TIMEOUT_MS,
     });
   } catch (err) {
     throw upstreamError(err.message || "Provider request failed");
