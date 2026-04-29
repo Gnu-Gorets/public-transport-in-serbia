@@ -1,63 +1,56 @@
 const { state } = require("./state");
 
 function transformAllStationsResponse(response) {
-  let newResp = {};
-  response.stations.forEach((value) => {
-    let station = {};
-    station.name = value.name;
-    station.uid = value.id;
-    station.id = value.station_id;
-    station.coords = [value.coordinates.latitude, value.coordinates.longitude];
-    station.lines = value.lines_for_station || [];
-    newResp[station.uid] = station;
-  });
-  return newResp;
+  return Object.fromEntries(
+    response.stations.map((v) => [
+      v.id,
+      {
+        name: v.name,
+        uid: v.id,
+        id: v.station_id,
+        coords: [v.coordinates.latitude, v.coordinates.longitude],
+        lines: v.lines_for_station || [],
+      },
+    ]),
+  );
 }
 
 function transformAllLinesResponse(response) {
-  const result = {};
-  (response.lines || []).forEach((line) => {
-    const key = `${line.line_number_for_display}_${line.direction_id_for_display}`;
-    result[key] = line.all_stations;
-  });
-  return result;
+  return Object.fromEntries(
+    (response.lines || []).map((line) => [
+      `${line.line_number_for_display}_${line.direction_id_for_display}`,
+      line.all_stations,
+    ]),
+  );
 }
 
 function transformStationResponse(response, city) {
-  let newResp = {};
-  newResp.city = city;
-  newResp.name = response[0].station_name;
-  newResp.uid = response[0].station_uid;
-  newResp.id = newResp.uid
-    ? state.uidIdMap[city]?.[String(newResp.uid)] || "0"
-    : "0";
-  const cachedStation = newResp.uid ? state.allStations[city]?.[newResp.uid] : null;
-  newResp.coords = cachedStation?.coords || [
-    parseFloat(response[0].gpsy ?? 0),
-    parseFloat(response[0].gpsx ?? 0),
-  ];
-  newResp.vehicles = [];
-
-  if (response[0].just_coordinates == "1") return newResp;
-
-  response.map((value) => {
-    let vehicle = {};
-    vehicle.lineNumber = value.line_number;
-    vehicle.lineName = value.line_title;
-    vehicle.secondsLeft = value.seconds_left;
-    vehicle.stationsBetween = value.stations_between;
-    vehicle.main_line_title = value.main_line_title;
-    vehicle.stationName = value.vehicles?.[0]?.station_name;
-    vehicle.garageNo = value.vehicles?.[0]?.garageNo;
-    vehicle.coords = [value.vehicles?.[0]?.lat, value.vehicles?.[0]?.lng];
-    vehicle.allStations = (value.all_stations || []).map((station) => ({
-      latitude: station.coordinates.latitude,
-      longitude: station.coordinates.longitude,
-    }));
-    newResp.vehicles.push(vehicle);
-  });
-
-  return newResp;
+  const uid = response[0].station_uid;
+  const cachedStation = uid ? state.allStations[city]?.[uid] : null;
+  return {
+    city,
+    name: response[0].station_name,
+    uid,
+    id: uid ? state.uidIdMap[city]?.[String(uid)] || "0" : "0",
+    coords: cachedStation?.coords || [
+      parseFloat(response[0].gpsy ?? 0),
+      parseFloat(response[0].gpsx ?? 0),
+    ],
+    vehicles: response[0].just_coordinates == "1" ? [] : response.map((v) => ({
+      lineNumber: v.line_number,
+      lineName: v.line_title,
+      secondsLeft: v.seconds_left,
+      stationsBetween: v.stations_between,
+      main_line_title: v.main_line_title,
+      stationName: v.vehicles?.[0]?.station_name,
+      garageNo: v.vehicles?.[0]?.garageNo,
+      coords: [v.vehicles?.[0]?.lat, v.vehicles?.[0]?.lng],
+      allStations: (v.all_stations || []).map((s) => ({
+        latitude: s.coordinates.latitude,
+        longitude: s.coordinates.longitude,
+      })),
+    })),
+  };
 }
 
 module.exports = {
