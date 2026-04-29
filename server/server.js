@@ -1,5 +1,6 @@
 const { createApp } = require("./app");
 const { resetHttpClient, setHttpClient } = require("./httpClient");
+const logger = require("./logger");
 const state = require("./state");
 const providerService = require("./services/providerService");
 const {
@@ -22,7 +23,7 @@ const start = async () => {
     await providerService.populateMap(true);
     await fastify.listen({ port: 3000, host: "0.0.0.0" });
   } catch (err) {
-    console.error(err);
+    logger.error({ err }, "Server startup failed");
     process.exit(1);
   }
 };

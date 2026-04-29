@@ -29,7 +29,7 @@ function registerApiRoutes(fastify) {
         const response = await getStationInfo(city, request.query);
         reply.send(response);
       } catch (err) {
-        console.error(err);
+        request.log.error({ err });
         sendError(reply, err, "Failed to fetch station");
       }
     },
@@ -49,7 +49,7 @@ function registerApiRoutes(fastify) {
         reply.header("Cache-Control", "public, max-age=3600");
         reply.send(response);
       } catch (err) {
-        console.error(err);
+        request.log.error({ err });
         sendError(reply, err, "Failed to fetch stations");
       }
     },
@@ -70,7 +70,7 @@ function registerApiRoutes(fastify) {
         reply.header("Cache-Control", "public, max-age=3600");
         reply.send(allLines[city] || {});
       } catch (err) {
-        console.error(err);
+        request.log.error({ err });
         sendError(reply, err, "Failed to fetch lines");
       }
     },
@@ -109,7 +109,7 @@ function registerApiRoutes(fastify) {
 
         reply.send(response);
       } catch (err) {
-        console.error(err);
+        request.log.error({ err });
         sendError(reply, err, "Failed to fetch schedule");
       }
     },
@@ -128,7 +128,7 @@ function registerApiRoutes(fastify) {
         const response = await getRoute(coords);
         reply.send(response);
       } catch (err) {
-        console.error(err);
+        request.log.error({ err });
         reply.status(502).send({ error: "OSRM request failed" });
       }
     },

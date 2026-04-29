@@ -1,6 +1,7 @@
 const apikeys = require("../apikeys.json");
 const crypto = require("../crypto");
 const { getHttpClient } = require("../httpClient");
+const logger = require("../logger");
 const state = require("../state");
 const {
   transformAllLinesResponse,
@@ -44,10 +45,9 @@ async function populateMap(force = false) {
 
     try {
       await getAllStations(city);
-      console.info(`Populating map finished for ${city}`);
+      logger.info(`Populating map finished for ${city}`);
     } catch (err) {
-      console.error(`Populating map failed for ${city}`);
-      console.error(err);
+      logger.error({ err }, `Populating map failed for ${city}`);
     }
   }
 }

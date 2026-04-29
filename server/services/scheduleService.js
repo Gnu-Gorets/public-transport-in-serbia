@@ -1,3 +1,4 @@
+const logger = require("../logger");
 const state = require("../state");
 const { getLineTimetable, getAllStations } = require("./providerService");
 
@@ -49,7 +50,7 @@ async function getStationSchedule(city, uid, date) {
           if (!schedule[line]) schedule[line] = new Set();
           times.forEach((t) => schedule[line].add(t));
         } catch (err) {
-          console.warn(`[schedule] ${city}/${line}/${direction}: ${err.message}`);
+          logger.warn({ err }, `[schedule] ${city}/${line}/${direction}`);
         }
       }),
     ),
