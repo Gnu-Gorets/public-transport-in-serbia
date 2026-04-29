@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const state = require("../state");
 const {
   getAllStations,
@@ -51,6 +52,30 @@ function registerApiRoutes(fastify) {
       } catch (err) {
         request.log.error({ err });
         sendError(reply, err, "Failed to fetch stations");
+      }
+    },
+  );
+
+  fastify.get(
+    "/api/stations/:city/hash",
+    {
+      schema: {
+        params: cityParams,
+      },
+    },
+    async (request, reply) => {
+      const city = request.params.city;
+      try {
+        const stations = await getAllStations(city);
+        const hash = crypto
+          .createHash("sha256")
+          .update(JSON.stringify(stations))
+          .digest("hex");
+        reply.header("Cache-Control", "public, max-age=3600");
+        reply.send({ hash });
+      } catch (err) {
+        request.log.error({ err });
+        sendError(reply, err, "Failed to compute stations hash");
       }
     },
   );
