@@ -1,4 +1,4 @@
-const state = require("./state");
+const { state } = require("./state");
 
 function transformAllStationsResponse(response) {
   let newResp = {};
@@ -24,17 +24,14 @@ function transformAllLinesResponse(response) {
 }
 
 function transformStationResponse(response, city) {
-  const uidIdMap = state.getUidIdMap();
-  const allStations = state.getAllStations();
-
   let newResp = {};
   newResp.city = city;
   newResp.name = response[0].station_name;
   newResp.uid = response[0].station_uid;
   newResp.id = newResp.uid
-    ? uidIdMap[city]?.[String(newResp.uid)] || "0"
+    ? state.uidIdMap[city]?.[String(newResp.uid)] || "0"
     : "0";
-  const cachedStation = newResp.uid ? allStations[city]?.[newResp.uid] : null;
+  const cachedStation = newResp.uid ? state.allStations[city]?.[newResp.uid] : null;
   newResp.coords = cachedStation?.coords || [
     parseFloat(response[0].gpsy ?? 0),
     parseFloat(response[0].gpsx ?? 0),

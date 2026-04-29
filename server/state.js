@@ -1,53 +1,34 @@
-let idUidMap = {};
-let uidIdMap = {};
-let allStations = {};
-let allLines = {};
-let cacheMeta = {};
+const state = {
+  idUidMap: {},
+  uidIdMap: {},
+  allStations: {},
+  allLines: {},
+  cacheMeta: {},
+};
 
 const resetState = () => {
-  idUidMap = {};
-  uidIdMap = {};
-  allStations = {};
-  allLines = {};
-  cacheMeta = {};
+  Object.assign(state, { idUidMap: {}, uidIdMap: {}, allStations: {}, allLines: {}, cacheMeta: {} });
 };
 
-const setState = (nextState = {}) => {
-  idUidMap = nextState.id_uid_map || {};
-  uidIdMap = nextState.uid_id_map || {};
-  allStations = nextState.allStations || {};
-  allLines = nextState.allLines || {};
-  cacheMeta = nextState.cacheMeta || {};
+const setState = (next = {}) => {
+  Object.assign(state, {
+    idUidMap: next.id_uid_map || {},
+    uidIdMap: next.uid_id_map || {},
+    allStations: next.allStations || {},
+    allLines: next.allLines || {},
+    cacheMeta: next.cacheMeta || {},
+  });
 };
-
-const getIdUidMap = () => idUidMap;
-const getUidIdMap = () => uidIdMap;
-const getAllStations = () => allStations;
-const getAllLines = () => allLines;
-const getCacheMeta = () => cacheMeta;
 
 const markCacheLoaded = (city, loadedAt) => {
-  cacheMeta[city] = {
-    loadedAt,
-    lastError: null,
-  };
+  state.cacheMeta[city] = { loadedAt, lastError: null };
 };
 
 const markCacheError = (city, err) => {
-  cacheMeta[city] = {
-    ...(cacheMeta[city] || {}),
+  state.cacheMeta[city] = {
+    ...(state.cacheMeta[city] || {}),
     lastError: err.message || String(err),
   };
 };
 
-module.exports = {
-  resetState,
-  setState,
-  getIdUidMap,
-  getUidIdMap,
-  getAllStations,
-  getAllLines,
-  getCacheMeta,
-  markCacheError,
-  markCacheLoaded,
-};
+module.exports = { state, resetState, setState, markCacheLoaded, markCacheError };

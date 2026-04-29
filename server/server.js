@@ -1,7 +1,7 @@
 const { createApp } = require("./app");
 const { resetHttpClient, setHttpClient } = require("./httpClient");
 const logger = require("./logger");
-const state = require("./state");
+const { resetState, setState } = require("./state");
 const providerService = require("./services/providerService");
 const {
   transformAllLinesResponse,
@@ -11,8 +11,8 @@ const {
 
 const fastify = createApp();
 
-const resetState = () => {
-  state.resetState();
+const resetAll = () => {
+  resetState();
   resetHttpClient();
   providerService._test.resetNow();
   providerService._test.resetInFlight();
@@ -36,8 +36,8 @@ module.exports = {
   fastify,
   start,
   _test: {
-    resetState,
-    setState: state.setState,
+    resetState: resetAll,
+    setState,
     setHttpClient,
     setNow: providerService._test.setNow,
     transformAllStationsResponse,

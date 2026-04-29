@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const state = require("../state");
+const { state } = require("../state");
 const {
   getAllStations,
   getAvailableCities,
@@ -89,11 +89,10 @@ function registerApiRoutes(fastify) {
     },
     async (request, reply) => {
       const city = request.params.city;
-      const allLines = state.getAllLines();
       try {
-        if (!allLines[city]) await getAllStations(city);
+        if (!state.allLines[city]) await getAllStations(city);
         reply.header("Cache-Control", "public, max-age=3600");
-        reply.send(allLines[city] || {});
+        reply.send(state.allLines[city] || {});
       } catch (err) {
         request.log.error({ err });
         sendError(reply, err, "Failed to fetch lines");

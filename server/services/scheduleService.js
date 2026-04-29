@@ -1,5 +1,5 @@
 const logger = require("../logger");
-const state = require("../state");
+const { state } = require("../state");
 const { getLineTimetable, getAllStations } = require("./providerService");
 
 const getBelgradeDate = () => {
@@ -10,11 +10,10 @@ const getBelgradeDate = () => {
 };
 
 async function getStationSchedule(city, uid, date) {
-  const allStations = state.getAllStations();
   const scheduleDate = date || getBelgradeDate();
 
-  if (!allStations[city]) await getAllStations(city);
-  const station = allStations[city]?.[uid];
+  if (!state.allStations[city]) await getAllStations(city);
+  const station = state.allStations[city]?.[uid];
   if (!station) return null;
 
   const lines = station.lines || [];

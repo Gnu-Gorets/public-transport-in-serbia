@@ -2,7 +2,7 @@ const apikeys = require("../config");
 const crypto = require("../crypto");
 const { getHttpClient } = require("../httpClient");
 const logger = require("../logger");
-const state = require("../state");
+const { state, markCacheLoaded, markCacheError } = require("../state");
 const {
   transformAllLinesResponse,
   transformAllStationsResponse,
@@ -17,34 +17,24 @@ let now = () => Date.now();
 const inFlight = {};
 
 function isStationsCacheExpired(city) {
-  const cacheMeta = state.getCacheMeta();
-  const loadedAt = cacheMeta[city]?.loadedAt;
+  const loadedAt = state.cacheMeta[city]?.loadedAt;
   return !loadedAt || now() - loadedAt >= STATIONS_CACHE_TTL_MS;
 }
 
 function rebuildIdUidMap(city) {
-  const idUidMap = state.getIdUidMap();
-  const uidIdMap = state.getUidIdMap();
-  const allStations = state.getAllStations();
-
-  idUidMap[city] = {};
-  uidIdMap[city] = {};
-  for (const station of Object.values(allStations[city] || {})) {
+  state.idUidMap[city] = {};
+  state.uidIdMap[city] = {};
+  for (const station of Object.values(state.allStations[city] || {})) {
     if (station.id != null && station.uid != null) {
-      idUidMap[city][String(station.id)] = String(station.uid);
-      uidIdMap[city][String(station.uid)] = String(station.id);
+      state.idUidMap[city][String(station.id)] = String(station.uid);
+      state.uidIdMap[city][String(station.uid)] = String(station.id);
     }
   }
 }
 
 async function populateMap(force = false) {
-  const idUidMap = state.getIdUidMap();
-
   for (const city of Object.keys(apikeys)) {
-    if (!force && idUidMap[city] && !isStationsCacheExpired(city)) {
-      continue;
-    }
-
+    if (!force && state.idUidMap[city] && !isStationsCacheExpired(city)) continue;
     try {
       await getAllStations(city);
       logger.info(`Populating map finished for ${city}`);
@@ -59,7 +49,6 @@ async function getRequest(url, apikey) {
     "X-Api-Authentication": apikey,
     "User-Agent": "okhttp/4.10.0",
   };
-
   let response;
   try {
     response = await getHttpClient().get(url, { headers, timeout: GET_TIMEOUT_MS });
@@ -68,7 +57,6 @@ async function getRequest(url, apikey) {
   }
   if (response.status != 200)
     throw upstreamError(`Request failed with status code ${response.status}`);
-
   return response.data;
 }
 
@@ -82,10 +70,7 @@ async function getLineTimetable(city, lineNumber, direction, date) {
   };
   let response;
   try {
-    response = await getHttpClient().post(url, payload, {
-      headers,
-      timeout: TIMETABLE_TIMEOUT_MS,
-    });
+    response = await getHttpClient().post(url, payload, { headers, timeout: TIMETABLE_TIMEOUT_MS });
   } catch (err) {
     throw upstreamError(err.message || "Timetable request failed");
   }
@@ -101,131 +86,92 @@ async function postRequest(url, apikey, payload) {
   };
   let response;
   try {
-    response = await getHttpClient().post(url, payload, {
-      headers,
-      timeout: GET_TIMEOUT_MS,
-    });
+    response = await getHttpClient().post(url, payload, { headers, timeout: GET_TIMEOUT_MS });
   } catch (err) {
     throw upstreamError(err.message || "Provider request failed");
   }
   if (response.status != 200)
     throw upstreamError(`Request failed with status code ${response.status}`);
-
   return response.data;
 }
 
 function getStationUid(city, query) {
-  const idUidMap = state.getIdUidMap();
-
   if (query.uid) return query.uid;
   if (query.id) {
-    if (!idUidMap[city])
-      throw badRequest(`Map for ${city} is not populated yet`);
-    return idUidMap[city][query.id.toString()];
+    if (!state.idUidMap[city]) throw badRequest(`Map for ${city} is not populated yet`);
+    return state.idUidMap[city][query.id.toString()];
   }
   throw badRequest("Invalid query");
 }
 
 async function getStationInfoV1(city, uid) {
-  const baseUrl = `${apikeys[city].url}/publicapi/v1/announcement/announcement.php?action=get_announcement_data&station_uid=`;
-  let url = baseUrl + uid;
-  let resp = await getRequest(url, apikeys[city].key);
-
-  if (resp === "")
-    throw upstreamError(`Endpoint returned nothing (perhaps they changed API?)`);
-  if (resp[0].success === false)
-    throw badRequest(`Endpoint returned error (perhaps invalid ID?)`);
-
+  const url = `${apikeys[city].url}/publicapi/v1/announcement/announcement.php?action=get_announcement_data&station_uid=${uid}`;
+  const resp = await getRequest(url, apikeys[city].key);
+  if (resp === "") throw upstreamError(`Endpoint returned nothing (perhaps they changed API?)`);
+  if (resp[0].success === false) throw badRequest(`Endpoint returned error (perhaps invalid ID?)`);
   return transformStationResponse(resp, city);
 }
 
 async function getStationInfoV2(city, uid) {
-  const allStations = state.getAllStations();
-  const uidIdMap = state.getUidIdMap();
   const url = `${apikeys[city].url}/publicapi/v2/api.php`;
-
-  let json = {
-    station_uid: uid,
-    session_id: `A${Date.now()}`,
-  };
-  let base = crypto.encrypt(
-    JSON.stringify(json),
+  const base = crypto.encrypt(
+    JSON.stringify({ station_uid: uid, session_id: `A${Date.now()}` }),
     apikeys[city].v2_key,
     apikeys[city].v2_iv,
   );
-  let payload = `action=data_bulletin&base=${base}`;
-
-  let resp = await postRequest(url, apikeys[city].key, payload);
-  if (resp === "")
-    throw upstreamError(`Endpoint returned nothing (perhaps they changed API?)`);
-
-  let decoded = JSON.parse(
-    crypto.decrypt(resp, apikeys[city].v2_key, apikeys[city].v2_iv),
-  );
-  if (decoded["success"] == false)
-    throw badRequest(`Endpoint returned error (perhaps invalid ID?)`);
-
+  const resp = await postRequest(url, apikeys[city].key, `action=data_bulletin&base=${base}`);
+  if (resp === "") throw upstreamError(`Endpoint returned nothing (perhaps they changed API?)`);
+  const decoded = JSON.parse(crypto.decrypt(resp, apikeys[city].v2_key, apikeys[city].v2_iv));
+  if (decoded["success"] == false) throw badRequest(`Endpoint returned error (perhaps invalid ID?)`);
   if (!decoded["data"] || decoded["data"].length === 0) {
-    const station = allStations[city]?.[uid];
+    const station = state.allStations[city]?.[uid];
     return {
       city,
       name: station?.name,
-      uid: uid,
-      id: uidIdMap[city]?.[String(uid)] || "0",
+      uid,
+      id: state.uidIdMap[city]?.[String(uid)] || "0",
       coords: station?.coords || [0, 0],
       vehicles: [],
     };
   }
-
   return transformStationResponse(decoded["data"], city);
 }
 
 async function getStationInfo(city, query) {
   const uid = getStationUid(city, query);
-  if (apikeys[city].api === "v1") return await getStationInfoV1(city, uid);
-  else if (apikeys[city].api === "v2") return await getStationInfoV2(city, uid);
-  else throw upstreamError("Invalid API version");
+  if (apikeys[city].api === "v1") return getStationInfoV1(city, uid);
+  if (apikeys[city].api === "v2") return getStationInfoV2(city, uid);
+  throw upstreamError("Invalid API version");
 }
 
 async function fetchAndCacheStations(city) {
-  const allStations = state.getAllStations();
-  const allLines = state.getAllLines();
   const url = `${apikeys[city].url}/publicapi/v1/networkextended.php?action=get_cities_extended`;
-  const hadCachedStations = Boolean(allStations[city]);
-
+  const hadCachedStations = Boolean(state.allStations[city]);
   try {
     const response = await getRequest(url, apikeys[city].key);
-    allStations[city] = transformAllStationsResponse(response);
-    allLines[city] = transformAllLinesResponse(response);
+    state.allStations[city] = transformAllStationsResponse(response);
+    state.allLines[city] = transformAllLinesResponse(response);
     rebuildIdUidMap(city);
-    state.markCacheLoaded(city, now());
+    markCacheLoaded(city, now());
   } catch (err) {
     if (!hadCachedStations) throw err;
-    state.markCacheError(city, err);
+    markCacheError(city, err);
   }
 }
 
 async function getAllStations(city) {
-  const allStations = state.getAllStations();
-
-  if (!allStations[city] || isStationsCacheExpired(city)) {
+  if (!state.allStations[city] || isStationsCacheExpired(city)) {
     if (!inFlight[city]) {
-      inFlight[city] = fetchAndCacheStations(city).finally(() => {
-        delete inFlight[city];
-      });
+      inFlight[city] = fetchAndCacheStations(city).finally(() => { delete inFlight[city]; });
     }
     await inFlight[city];
   }
-  return Object.values(allStations[city]);
+  return Object.values(state.allStations[city]);
 }
 
 async function getAvailableCities() {
-  const allStations = state.getAllStations();
-
   await populateMap();
-  let cities = {};
-  for (const id of Object.keys(allStations)) cities[id] = apikeys[id].name;
-  return cities;
+  return Object.fromEntries(Object.keys(state.allStations).map((id) => [id, apikeys[id].name]));
 }
 
 module.exports = {
@@ -235,14 +181,8 @@ module.exports = {
   getStationInfo,
   populateMap,
   _test: {
-    setNow: (nextNow) => {
-      now = nextNow;
-    },
-    resetNow: () => {
-      now = () => Date.now();
-    },
-    resetInFlight: () => {
-      for (const key of Object.keys(inFlight)) delete inFlight[key];
-    },
+    setNow: (nextNow) => { now = nextNow; },
+    resetNow: () => { now = () => Date.now(); },
+    resetInFlight: () => { for (const key of Object.keys(inFlight)) delete inFlight[key]; },
   },
 };
