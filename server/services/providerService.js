@@ -3,7 +3,6 @@ const crypto = require("../crypto");
 const { getHttpClient } = require("../httpClient");
 const state = require("../state");
 const {
-  getKeyByValue,
   transformAllLinesResponse,
   transformAllStationsResponse,
   transformStationResponse,
@@ -22,12 +21,15 @@ function isStationsCacheExpired(city) {
 
 function rebuildIdUidMap(city) {
   const idUidMap = state.getIdUidMap();
+  const uidIdMap = state.getUidIdMap();
   const allStations = state.getAllStations();
 
   idUidMap[city] = {};
+  uidIdMap[city] = {};
   for (const station of Object.values(allStations[city] || {})) {
     if (station.id != null && station.uid != null) {
       idUidMap[city][String(station.id)] = String(station.uid);
+      uidIdMap[city][String(station.uid)] = String(station.id);
     }
   }
 }
@@ -41,15 +43,7 @@ async function populateMap(force = false) {
     }
 
     try {
-      const stations = await getAllStations(city);
-
-      idUidMap[city] = {};
-
-      for (const station of stations) {
-        if (station.id != null && station.uid != null) {
-          idUidMap[city][String(station.id)] = String(station.uid);
-        }
-      }
+      await getAllStations(city);
       console.info(`Populating map finished for ${city}`);
     } catch (err) {
       console.error(`Populating map failed for ${city}`);
@@ -145,7 +139,7 @@ async function getStationInfoV1(city, uid) {
 
 async function getStationInfoV2(city, uid) {
   const allStations = state.getAllStations();
-  const idUidMap = state.getIdUidMap();
+  const uidIdMap = state.getUidIdMap();
   const url = `${apikeys[city].url}/publicapi/v2/api.php`;
 
   let json = {
@@ -175,7 +169,7 @@ async function getStationInfoV2(city, uid) {
       city,
       name: station?.name,
       uid: uid,
-      id: getKeyByValue(idUidMap[city], String(uid)) || "0",
+      id: uidIdMap[city]?.[String(uid)] || "0",
       coords: station?.coords || [0, 0],
       vehicles: [],
     };

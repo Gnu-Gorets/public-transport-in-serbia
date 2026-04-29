@@ -1,9 +1,5 @@
 const state = require("./state");
 
-const getKeyByValue = (object, value) => {
-  return Object.keys(object).find((key) => object[key] === value);
-};
-
 function transformAllStationsResponse(response) {
   let newResp = {};
   response.stations.forEach((value) => {
@@ -28,7 +24,7 @@ function transformAllLinesResponse(response) {
 }
 
 function transformStationResponse(response, city) {
-  const idUidMap = state.getIdUidMap();
+  const uidIdMap = state.getUidIdMap();
   const allStations = state.getAllStations();
 
   let newResp = new Object();
@@ -36,7 +32,7 @@ function transformStationResponse(response, city) {
   newResp.name = response[0].station_name;
   newResp.uid = response[0].station_uid;
   newResp.id = newResp.uid
-    ? getKeyByValue(idUidMap[city], String(newResp.uid)) || "0"
+    ? uidIdMap[city]?.[String(newResp.uid)] || "0"
     : "0";
   const cachedStation = newResp.uid ? allStations[city]?.[newResp.uid] : null;
   newResp.coords = cachedStation?.coords || [
@@ -68,7 +64,6 @@ function transformStationResponse(response, city) {
 }
 
 module.exports = {
-  getKeyByValue,
   transformAllStationsResponse,
   transformAllLinesResponse,
   transformStationResponse,
