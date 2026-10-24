@@ -123,6 +123,99 @@ describe("API routes", () => {
     expect(httpClient.post).not.toHaveBeenCalled();
   });
 
+  it("returns cached station details when V1 has no arrivals", async () => {
+    _test.setState({
+      allStations: {
+        ns: {
+          "4970": { uid: "4970", id: "4970", name: "Main Station", coords: [44.8, 20.4] },
+        },
+      },
+      uid_id_map: { ns: { "4970": "4970" } },
+    });
+    const httpClient = {
+      get: vi.fn().mockResolvedValue({ status: 200, data: [] }),
+      post: vi.fn(),
+    };
+    _test.setHttpClient(httpClient);
+
+    const response = await fastify.inject({ method: "GET", url: "/api/stations/ns/search?uid=4970" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      city: "ns",
+      name: "Main Station",
+      uid: "4970",
+      id: "4970",
+      coords: [44.8, 20.4],
+      vehicles: [],
+    });
+    expect(httpClient.get).toHaveBeenCalledWith(
+      "https://online.nsmart.rs/publicapi/v1/announcement/announcement.php?ibfm=TM000001&action=get_announcement_data&station_uid=4970",
+      expect.objectContaining({ timeout: 5000 }),
+    );
+  });
+
+  it("transforms valid V1 station responses", async () => {
+    _test.setState({
+      uid_id_map: { ns: { "4970": "4970" } },
+      allStations: { ns: { "4970": { uid: "4970", id: "4970", name: "Main Station", coords: [44.8, 20.4] } } },
+    });
+    _test.setHttpClient({
+      get: vi.fn().mockResolvedValue({
+        status: 200,
+        data: [{ station_uid: "4970", station_name: "Main Station", just_coordinates: "1" }],
+      }),
+      post: vi.fn(),
+    });
+
+    const response = await fastify.inject({ method: "GET", url: "/api/stations/ns/search?uid=4970" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      city: "ns",
+      name: "Main Station",
+      uid: "4970",
+      id: "4970",
+      coords: [44.8, 20.4],
+      vehicles: [],
+    });
+  });
+
+  it("returns 400 for empty V1 response when station is not cached", async () => {
+    _test.setHttpClient({
+      get: vi.fn().mockResolvedValue({ status: 200, data: [] }),
+      post: vi.fn(),
+    });
+
+    const response = await fastify.inject({ method: "GET", url: "/api/stations/ns/search?uid=missing" });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "Station not found" });
+  });
+
+  it.each([null, [null], [{}]])("returns 502 for malformed V1 response %j", async (data) => {
+    _test.setHttpClient({
+      get: vi.fn().mockResolvedValue({ status: 200, data }),
+      post: vi.fn(),
+    });
+
+    const response = await fastify.inject({ method: "GET", url: "/api/stations/ns/search?uid=4970" });
+
+    expect(response.statusCode).toBe(502);
+    expect(response.json()).toEqual({ error: "Endpoint returned invalid station data" });
+  });
+
+  it("preserves V1 invalid-station responses", async () => {
+    _test.setHttpClient({
+      get: vi.fn().mockResolvedValue({ status: 200, data: [{ success: false }] }),
+      post: vi.fn(),
+    });
+
+    const response = await fastify.inject({ method: "GET", url: "/api/stations/ns/search?uid=missing" });
+
+    expect(response.statusCode).toBe(400);
+  });
+
   it("returns 400 for unknown city params", async () => {
     const response = await fastify.inject({
       method: "GET",

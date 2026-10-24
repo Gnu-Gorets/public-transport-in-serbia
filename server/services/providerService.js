@@ -75,11 +75,31 @@ function getStationUid(city, query) {
   throw badRequest("Invalid query");
 }
 
+function emptyStationResponse(city, uid) {
+  const station = state.allStations[city]?.[uid];
+  return {
+    city,
+    name: station?.name,
+    uid,
+    id: state.uidIdMap[city]?.[String(uid)] || (station?.id == null ? "0" : String(station.id)),
+    coords: station?.coords || [0, 0],
+    vehicles: [],
+  };
+}
+
 async function getStationInfoV1(city, uid) {
-  const url = `${apikeys[city].url}/publicapi/v1/announcement/announcement.php?action=get_announcement_data&station_uid=${uid}`;
+  const url = `${apikeys[city].url}/publicapi/v1/announcement/announcement.php?ibfm=TM000001&action=get_announcement_data&station_uid=${encodeURIComponent(uid)}`;
   const resp = await request("get", url, apikeys[city].key);
   if (resp === "") throw upstreamError(`Endpoint returned nothing (perhaps they changed API?)`);
+  if (!Array.isArray(resp) || resp.some((row) => !row || typeof row !== "object" || Array.isArray(row))) {
+    throw upstreamError("Endpoint returned invalid station data");
+  }
+  if (resp.length === 0) {
+    if (!state.allStations[city]?.[uid]) throw badRequest("Station not found");
+    return emptyStationResponse(city, uid);
+  }
   if (resp[0].success === false) throw badRequest(`Endpoint returned error (perhaps invalid ID?)`);
+  if (resp[0].station_uid == null) throw upstreamError("Endpoint returned invalid station data");
   return transformStationResponse(resp, city);
 }
 
@@ -94,17 +114,7 @@ async function getStationInfoV2(city, uid) {
   if (resp === "") throw upstreamError(`Endpoint returned nothing (perhaps they changed API?)`);
   const decoded = JSON.parse(crypto.decrypt(resp, apikeys[city].v2_key, apikeys[city].v2_iv));
   if (decoded["success"] == false) throw badRequest(`Endpoint returned error (perhaps invalid ID?)`);
-  if (!decoded["data"] || decoded["data"].length === 0) {
-    const station = state.allStations[city]?.[uid];
-    return {
-      city,
-      name: station?.name,
-      uid,
-      id: state.uidIdMap[city]?.[String(uid)] || "0",
-      coords: station?.coords || [0, 0],
-      vehicles: [],
-    };
-  }
+  if (!decoded["data"] || decoded["data"].length === 0) return emptyStationResponse(city, uid);
   return transformStationResponse(decoded["data"], city);
 }
 
