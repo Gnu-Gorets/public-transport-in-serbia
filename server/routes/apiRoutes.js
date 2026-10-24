@@ -67,7 +67,7 @@ function registerApiRoutes(fastify) {
   fastify.get(
     "/api/cities",
     handle(async (req, reply) => {
-      reply.send(await getAvailableCities());
+      reply.send(getAvailableCities());
     }, "Failed to fetch cities"),
   );
 

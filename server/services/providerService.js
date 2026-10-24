@@ -34,15 +34,15 @@ function rebuildIdUidMap(city) {
 }
 
 async function populateMap(force = false) {
-  for (const city of Object.keys(apikeys)) {
-    if (!force && state.idUidMap[city] && !isStationsCacheExpired(city)) continue;
+  await Promise.all(Object.keys(apikeys).map(async (city) => {
+    if (!force && state.idUidMap[city] && !isStationsCacheExpired(city)) return;
     try {
       await getAllStations(city);
       logger.info(`Populating map finished for ${city}`);
     } catch (err) {
       logger.error({ err }, `Populating map failed for ${city}`);
     }
-  }
+  }));
 }
 
 async function request(method, url, apikey, { payload, timeout = GET_TIMEOUT_MS, contentType } = {}) {
@@ -151,9 +151,8 @@ async function getAllStations(city) {
   return Object.values(state.allStations[city]);
 }
 
-async function getAvailableCities() {
-  await populateMap();
-  return Object.fromEntries(Object.keys(state.allStations).map((id) => [id, apikeys[id].name]));
+function getAvailableCities() {
+  return Object.fromEntries(Object.entries(apikeys).map(([id, city]) => [id, city.name]));
 }
 
 module.exports = {

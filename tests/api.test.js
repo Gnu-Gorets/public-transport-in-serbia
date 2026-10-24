@@ -4,6 +4,7 @@ import server from "../server/server.js";
 
 const require = createRequire(import.meta.url);
 const logger = require("../server/logger.js");
+const providerService = require("../server/services/providerService.js");
 const { fastify, _test } = server;
 
 const stationsResponse = (name = "Main Station", id = "42", uid = "station-1") => ({
@@ -39,6 +40,25 @@ describe("API routes", () => {
 
   afterAll(async () => {
     await fastify.close();
+  });
+
+  it("prewarms configured cities concurrently", async () => {
+    let active = 0;
+    let maxActive = 0;
+    _test.setHttpClient({
+      get: vi.fn(),
+      post: vi.fn(async () => {
+        active++;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        active--;
+        return { status: 200, data: stationsResponse() };
+      }),
+    });
+
+    await providerService.populateMap(true);
+
+    expect(maxActive).toBe(3);
   });
 
   it("serves the UI entrypoint", async () => {
@@ -87,6 +107,20 @@ describe("API routes", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json().message).toContain("must match a schema in anyOf");
+  });
+
+  it("lists configured cities without requiring upstream availability", async () => {
+    const httpClient = { get: vi.fn(), post: vi.fn().mockRejectedValue(new Error("provider unavailable")) };
+    _test.setHttpClient(httpClient);
+
+    const first = await fastify.inject({ method: "GET", url: "/api/cities" });
+    const second = await fastify.inject({ method: "GET", url: "/api/cities" });
+
+    const expected = { ns: "Novi Sad", bg: "Belgrade", nis: "Nis" };
+    expect(first.statusCode).toBe(200);
+    expect(first.json()).toEqual(expected);
+    expect(second.json()).toEqual(expected);
+    expect(httpClient.post).not.toHaveBeenCalled();
   });
 
   it("returns 400 for unknown city params", async () => {
