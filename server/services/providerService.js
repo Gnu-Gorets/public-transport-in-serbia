@@ -131,6 +131,7 @@ async function fetchAndCacheStations(city) {
     const age = now() - (state.cacheMeta[city]?.loadedAt || 0);
     if (!hadCachedStations || age >= STATIONS_CACHE_TTL_MS + STATIONS_CACHE_STALE_MS) throw err;
     markCacheError(city, err);
+    logger.warn({ err }, `Station cache refresh failed for ${city}; serving stale data`);
   }
 }
 

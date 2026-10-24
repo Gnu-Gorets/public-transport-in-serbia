@@ -54,7 +54,7 @@ function registerApiRoutes(fastify) {
     { schema: { params: cityParams } },
     handle(async (req, reply) => {
       const { city } = req.params;
-      if (!state.allLines[city]) await getAllStations(city);
+      await getAllStations(city);
       reply.header("Cache-Control", "public, max-age=3600");
       reply.send(state.allLines[city] || {});
     }, "Failed to fetch lines"),

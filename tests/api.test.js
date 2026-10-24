@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import server from "../server/server.js";
+import logger from "../server/logger.js";
 
 const { fastify, _test } = server;
 
@@ -64,6 +65,7 @@ describe("API routes", () => {
       allStations: {
         bg: {},
       },
+      cacheMeta: { bg: { loadedAt: Date.now() } },
     });
 
     const response = await fastify.inject({
@@ -273,7 +275,7 @@ describe("API routes", () => {
   });
 
   it("serves stale station cache when refresh fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => {});
     _test.setNow(() => 2 * 24 * 60 * 60 * 1000);
     _test.setState({
       allStations: {
@@ -313,6 +315,10 @@ describe("API routes", () => {
         lines: ["7"],
       },
     ]);
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "Station cache refresh failed for bg; serving stale data",
+    );
   });
 
   it("rejects expired station cache when refresh fails beyond the stale window", async () => {
@@ -330,6 +336,46 @@ describe("API routes", () => {
     expect(response.json()).toEqual({ error: "provider unavailable" });
   });
 
+  it("refreshes stale station cache before serving lines", async () => {
+    _test.setNow(() => 2 * 24 * 60 * 60 * 1000);
+    _test.setState({
+      allStations: { bg: { old: { uid: "old", id: "1", name: "Old", lines: [] } } },
+      allLines: { bg: { old: ["old"] } },
+      cacheMeta: { bg: { loadedAt: 1_000 } },
+    });
+    const httpClient = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ status: 200, data: stationsResponse() }),
+    };
+    _test.setHttpClient(httpClient);
+
+    const response = await fastify.inject({ method: "GET", url: "/api/lines/bg" });
+
+    expect(response.statusCode).toBe(200);
+    expect(httpClient.post).toHaveBeenCalledOnce();
+  });
+
+  it("checks station cache freshness before serving schedules", async () => {
+    _test.setNow(() => 2 * 24 * 60 * 60 * 1000);
+    _test.setState({
+      allStations: { bg: { "station-1": { uid: "station-1", id: "42", name: "Main Station", lines: [] } } },
+      cacheMeta: { bg: { loadedAt: 1_000 } },
+    });
+    const httpClient = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ status: 200, data: stationsResponse() }),
+    };
+    _test.setHttpClient(httpClient);
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/api/stations/bg/schedule?uid=station-1&date=2026-04-29",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(httpClient.post).toHaveBeenCalledOnce();
+  });
+
   it("builds a station schedule from timetable responses", async () => {
     _test.setState({
       allStations: {
@@ -342,6 +388,7 @@ describe("API routes", () => {
           },
         },
       },
+      cacheMeta: { bg: { loadedAt: Date.now() } },
     });
 
     const httpClient = {

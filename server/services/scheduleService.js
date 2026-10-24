@@ -12,7 +12,7 @@ const getBelgradeDate = () => {
 async function getStationSchedule(city, uid, date) {
   const scheduleDate = date || getBelgradeDate();
 
-  if (!state.allStations[city]) await getAllStations(city);
+  await getAllStations(city);
   const station = state.allStations[city]?.[uid];
   if (!station) return null;
 
