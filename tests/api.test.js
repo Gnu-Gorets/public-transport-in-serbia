@@ -122,8 +122,8 @@ describe("API routes", () => {
   it("returns 502 when station provider request fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     _test.setHttpClient({
-      get: vi.fn().mockRejectedValue(new Error("provider unavailable")),
-      post: vi.fn(),
+      get: vi.fn(),
+      post: vi.fn().mockRejectedValue(new Error("provider unavailable")),
     });
 
     const response = await fastify.inject({
@@ -185,7 +185,7 @@ describe("API routes", () => {
   });
 
   it("refreshes expired station cache", async () => {
-    _test.setNow(() => 7 * 60 * 60 * 1000);
+    _test.setNow(() => 2 * 24 * 60 * 60 * 1000);
     _test.setState({
       allStations: {
         bg: {
@@ -204,13 +204,14 @@ describe("API routes", () => {
         },
       },
     });
-    _test.setHttpClient({
-      get: vi.fn().mockResolvedValue({
+    const httpClient = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({
         status: 200,
         data: stationsResponse("Fresh Station", "42", "station-1"),
       }),
-      post: vi.fn(),
-    });
+    };
+    _test.setHttpClient(httpClient);
 
     const response = await fastify.inject({
       method: "GET",
@@ -227,11 +228,53 @@ describe("API routes", () => {
         lines: ["7"],
       },
     ]);
+    expect(httpClient.post).toHaveBeenCalledWith(
+      "https://announcement-bgnaplata.ticketing.rs/publicapi/v1/networkextended.php",
+      JSON.stringify({ action: "get_cities_extended" }),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "Content-Type": "application/json" }),
+      }),
+    );
+  });
+
+  it("serves stale station cache while refreshing in background", async () => {
+    _test.setNow(() => 2 * 24 * 60 * 60 * 1000);
+    _test.setState({
+      allStations: {
+        bg: {
+          "station-1": {
+            uid: "station-1",
+            id: "42",
+            name: "Stale Station",
+            coords: [44.8, 20.4],
+            lines: ["7"],
+          },
+        },
+      },
+      cacheMeta: { bg: { loadedAt: 1_000 } },
+    });
+    let finishRefresh;
+    const httpClient = {
+      get: vi.fn(),
+      post: vi.fn(() => new Promise((resolve) => { finishRefresh = resolve; })),
+    };
+    _test.setHttpClient(httpClient);
+
+    const response = await fastify.inject({ method: "GET", url: "/api/stations/bg/all" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()[0].name).toBe("Stale Station");
+    expect(httpClient.post).toHaveBeenCalledOnce();
+    finishRefresh({ status: 200, data: stationsResponse("Fresh Station", "42", "station-1") });
+    await vi.waitFor(async () => {
+      const refreshed = await fastify.inject({ method: "GET", url: "/api/stations/bg/all" });
+      expect(refreshed.json()[0].name).toBe("Fresh Station");
+    });
   });
 
   it("serves stale station cache when refresh fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    _test.setNow(() => 7 * 60 * 60 * 1000);
+    _test.setNow(() => 2 * 24 * 60 * 60 * 1000);
     _test.setState({
       allStations: {
         bg: {
@@ -251,8 +294,8 @@ describe("API routes", () => {
       },
     });
     _test.setHttpClient({
-      get: vi.fn().mockRejectedValue(new Error("provider unavailable")),
-      post: vi.fn(),
+      get: vi.fn(),
+      post: vi.fn().mockRejectedValue(new Error("provider unavailable")),
     });
 
     const response = await fastify.inject({
@@ -270,6 +313,21 @@ describe("API routes", () => {
         lines: ["7"],
       },
     ]);
+  });
+
+  it("rejects expired station cache when refresh fails beyond the stale window", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    _test.setNow(() => 9 * 24 * 60 * 60 * 1000);
+    _test.setState({
+      allStations: { bg: { old: { uid: "old", id: "1", name: "Old Station", coords: [], lines: [] } } },
+      cacheMeta: { bg: { loadedAt: 1_000 } },
+    });
+    _test.setHttpClient({ get: vi.fn(), post: vi.fn().mockRejectedValue(new Error("provider unavailable")) });
+
+    const response = await fastify.inject({ method: "GET", url: "/api/stations/bg/all" });
+
+    expect(response.statusCode).toBe(502);
+    expect(response.json()).toEqual({ error: "provider unavailable" });
   });
 
   it("builds a station schedule from timetable responses", async () => {

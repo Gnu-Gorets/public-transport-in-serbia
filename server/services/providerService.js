@@ -10,7 +10,8 @@ const {
 } = require("../transforms");
 const { badRequest, upstreamError } = require("../errors");
 
-const STATIONS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const STATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const STATIONS_CACHE_STALE_MS = 7 * STATIONS_CACHE_TTL_MS;
 const GET_TIMEOUT_MS = 5000;
 const TIMETABLE_TIMEOUT_MS = 10000;
 let now = () => Date.now();
@@ -44,9 +45,9 @@ async function populateMap(force = false) {
   }
 }
 
-async function request(method, url, apikey, { payload, timeout = GET_TIMEOUT_MS } = {}) {
+async function request(method, url, apikey, { payload, timeout = GET_TIMEOUT_MS, contentType } = {}) {
   const headers = { "X-Api-Authentication": apikey, "User-Agent": "okhttp/4.10.0" };
-  if (payload) headers["Content-Type"] = "application/x-www-form-urlencoded";
+  if (payload) headers["Content-Type"] = contentType || "application/x-www-form-urlencoded";
   try {
     const response = payload
       ? await getHttpClient()[method](url, payload, { headers, timeout })
@@ -115,16 +116,20 @@ async function getStationInfo(city, query) {
 }
 
 async function fetchAndCacheStations(city) {
-  const url = `${apikeys[city].url}/publicapi/v1/networkextended.php?action=get_cities_extended`;
+  const url = `${apikeys[city].url}/publicapi/v1/networkextended.php`;
   const hadCachedStations = Boolean(state.allStations[city]);
   try {
-    const response = await request("get", url, apikeys[city].key);
+    const response = await request("post", url, apikeys[city].key, {
+      payload: JSON.stringify({ action: "get_cities_extended" }),
+      contentType: "application/json",
+    });
     state.allStations[city] = transformAllStationsResponse(response);
     state.allLines[city] = transformAllLinesResponse(response);
     rebuildIdUidMap(city);
     markCacheLoaded(city, now());
   } catch (err) {
-    if (!hadCachedStations) throw err;
+    const age = now() - (state.cacheMeta[city]?.loadedAt || 0);
+    if (!hadCachedStations || age >= STATIONS_CACHE_TTL_MS + STATIONS_CACHE_STALE_MS) throw err;
     markCacheError(city, err);
   }
 }
@@ -134,7 +139,13 @@ async function getAllStations(city) {
     if (!inFlight[city]) {
       inFlight[city] = fetchAndCacheStations(city).finally(() => { delete inFlight[city]; });
     }
-    await inFlight[city];
+    const refresh = inFlight[city];
+    const age = now() - (state.cacheMeta[city]?.loadedAt || 0);
+    if (state.allStations[city] && age < STATIONS_CACHE_TTL_MS + STATIONS_CACHE_STALE_MS) {
+      refresh.catch((err) => logger.error({ err }, `Refreshing stations failed for ${city}`));
+    } else {
+      await refresh;
+    }
   }
   return Object.values(state.allStations[city]);
 }
