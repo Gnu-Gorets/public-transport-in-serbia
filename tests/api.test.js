@@ -1,7 +1,9 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createRequire } from "node:module";
 import server from "../server/server.js";
-import logger from "../server/logger.js";
 
+const require = createRequire(import.meta.url);
+const logger = require("../server/logger.js");
 const { fastify, _test } = server;
 
 const stationsResponse = (name = "Main Station", id = "42", uid = "station-1") => ({
@@ -186,8 +188,8 @@ describe("API routes", () => {
     expect(httpClient.get).not.toHaveBeenCalled();
   });
 
-  it("refreshes expired station cache", async () => {
-    _test.setNow(() => 2 * 24 * 60 * 60 * 1000);
+  it("refreshes station cache after the stale window expires", async () => {
+    _test.setNow(() => 9 * 24 * 60 * 60 * 1000);
     _test.setState({
       allStations: {
         bg: {
@@ -315,10 +317,10 @@ describe("API routes", () => {
         lines: ["7"],
       },
     ]);
-    expect(warn).toHaveBeenCalledWith(
+    await vi.waitFor(() => expect(warn).toHaveBeenCalledWith(
       expect.objectContaining({ err: expect.any(Error) }),
       "Station cache refresh failed for bg; serving stale data",
-    );
+    ));
   });
 
   it("rejects expired station cache when refresh fails beyond the stale window", async () => {
