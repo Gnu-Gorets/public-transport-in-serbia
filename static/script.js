@@ -11,8 +11,6 @@ let bgStopCentered = false;
 let bgStopRequest;
 let bgRouteData;
 let bgRouteSelection;
-let bgVehiclePositions = [];
-let currentBgVehicleLayer;
 
 const coloredIcon = (color) => {
   return new L.Icon({
@@ -128,7 +126,6 @@ const onCityChange = async () => {
     bgStopCentered = false;
     bgRouteData = undefined;
     bgRouteSelection = undefined;
-    bgVehiclePositions = [];
     layerGroup.clearLayers();
     $("#name-input").val("");
     $("#thead th").eq(1).text("Arrival time");
@@ -275,7 +272,7 @@ const updateBgArrivals = (response) => {
   $("#lastUpdated").text(
     `Last updated: ${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Belgrade" })} (Yandex page; refresh every 60 seconds)`,
   ).show();
-  $("#busRouteInfo").text("Select line to view route, stops, and live buses when available.").show();
+  $("#busRouteInfo").text("Select line to view route and stops.").show();
   $("#updateInProgress").hide();
   $("#error").hide();
   $("#tableBody").empty();
@@ -288,10 +285,7 @@ const updateBgArrivals = (response) => {
   const popup = document.createElement("span");
   popup.textContent = response.name;
   L.featureGroup([createMarker(response.coords, undefined, "yellow", popup)]).addTo(layerGroup);
-  if (bgRouteData) {
-    drawBgRoute(bgRouteData, false);
-    refreshBgVehicles();
-  }
+  if (bgRouteData) drawBgRoute(bgRouteData, false);
 
   if (!arrivals.length) {
     $("#tableContainer").hide();
@@ -317,11 +311,11 @@ const updateBgArrivals = (response) => {
     values.forEach((value, index) => {
       const cell = document.createElement("td");
       if (index === 0 && arrival.route) {
+        row.addEventListener("click", () => showBgRoute(arrival.route));
         const button = document.createElement("button");
         button.type = "button";
         button.textContent = value;
         button.setAttribute("aria-label", `View route ${value} to ${arrival.destination || "destination"}`);
-        button.addEventListener("click", () => showBgRoute(arrival.route));
         cell.appendChild(button);
       } else cell.textContent = value;
       row.appendChild(cell);
@@ -331,37 +325,10 @@ const updateBgArrivals = (response) => {
   $("#tableBody").append(rows);
 };
 
-const drawBgVehicles = (vehicles = bgVehiclePositions) => {
-  if (currentBgVehicleLayer) layerGroup.removeLayer(currentBgVehicleLayer);
-  currentBgVehicleLayer = undefined;
-  bgVehiclePositions = vehicles.filter((vehicle) =>
-    Array.isArray(vehicle.coords) && vehicle.coords.length === 2 && vehicle.coords.every(Number.isFinite),
-  );
-  const markers = bgVehiclePositions.map((vehicle) =>
-    createMarker(vehicle.coords, vehicle.lineNumber, "blue", `Bus ${vehicle.lineNumber}`),
-  );
-  if (markers.length) currentBgVehicleLayer = L.featureGroup(markers).addTo(layerGroup);
-};
-
 const drawBgRoute = (route, recenter = true) => {
   if (currentPolyline) layerGroup.removeLayer(currentPolyline);
-  currentPolyline = L.polyline(route.segments, { color: "green" }).addTo(layerGroup);
-  drawBgVehicles();
+  currentPolyline = L.polyline(route.segments, { color: "blue" }).addTo(layerGroup);
   if (recenter) map.fitBounds(currentPolyline.getBounds());
-};
-
-const refreshBgVehicles = async () => {
-  if (!bgRouteData || !bgRouteSelection) return;
-  const selection = bgRouteSelection;
-  const query = currQuery;
-  const response = await doAsyncRequest(
-    `/api/bg/poc/routes/${encodeURIComponent(bgRouteData.lineId)}/${encodeURIComponent(bgRouteData.threadId)}/vehicles`,
-    "GET",
-    undefined,
-    () => { if (getCity() === "bg" && bgRouteSelection === selection) { bgVehiclePositions = []; drawBgVehicles(); $("#error").hide(); } },
-  );
-  if (getCity() !== "bg" || currQuery !== query || bgRouteSelection !== selection || !response) return;
-  drawBgVehicles(Array.isArray(response.vehicles) ? response.vehicles : []);
 };
 
 const showBgRoute = async (route) => {
@@ -369,8 +336,6 @@ const showBgRoute = async (route) => {
   const query = currQuery;
   bgRouteSelection = selection;
   bgRouteData = undefined;
-  bgVehiclePositions = [];
-  drawBgVehicles([]);
   if (currentPolyline) {
     layerGroup.removeLayer(currentPolyline);
     currentPolyline = null;
@@ -385,7 +350,7 @@ const showBgRoute = async (route) => {
     return;
   }
   bgRouteData = response;
-  $("#scheduleInfo").text(`Route ${response.name}: ${response.stops[0].name} → ${response.stops.at(-1).name} (live buses shown when available)`);
+  $("#scheduleInfo").text(`Route ${response.name}: ${response.stops[0].name} → ${response.stops.at(-1).name}`);
   const list = document.createElement("ol");
   response.stops.forEach((stop) => {
     const item = document.createElement("li");
@@ -398,7 +363,6 @@ const showBgRoute = async (route) => {
   });
   $("#scheduleContainer").empty().append(list);
   drawBgRoute(response);
-  await refreshBgVehicles();
 };
 
 const fetchBgStop = () => {

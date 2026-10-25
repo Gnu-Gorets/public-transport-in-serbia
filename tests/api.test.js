@@ -87,7 +87,7 @@ describe("API routes", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toContain("text/html");
     expect(response.body).toContain("Serbia++");
-    expect(response.body).toContain("static/script.js?v=bg-live-buses-1");
+    expect(response.body).toContain("static/script.js?v=bg-route-blue-1");
   });
 
   it("requires uid when requesting a station schedule", async () => {
@@ -268,8 +268,8 @@ describe("API routes", () => {
     const html = yandexStopPage.replace('"type":"trolleybus"', '"type":"trolleybus","lineId":"123","uri":"ymapsbm1://transit/line?id=123","seoname":"40"')
       .replace('"threads":[{', '"threads":[{"threadId":"456",');
     const routeHtml = `<script type="application/json" class="state-view">${JSON.stringify({
-      config: { csrfToken: "token", realLocale: "en_RS", lang: "en", counters: { analytics: { sessionId: "session" } }, masstransitLine: { features: [{
-        properties: { ThreadMetaData: { id: "456", lineId: "123", name: "40", type: "trolleybus" } },
+      config: { masstransitLine: { features: [{
+        properties: { ThreadMetaData: { id: "456", lineId: "123", name: "40" } },
         features: [
           { id: "a", name: "Бањица", coordinates: [20.4, 44.7] },
           { points: [[20.4, 44.7], [20.5, 44.8]] },
@@ -278,8 +278,7 @@ describe("API routes", () => {
       }] } },
     })}</script>`;
     const get = vi.fn().mockResolvedValueOnce({ status: 200, data: html })
-      .mockResolvedValueOnce({ status: 200, data: routeHtml })
-      .mockResolvedValue({ status: 200, data: { data: { vehicles: [] } } });
+      .mockResolvedValueOnce({ status: 200, data: routeHtml });
     _test.setHttpClient({ get, post: vi.fn() });
     const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/routes/123/456" });
     expect(response.statusCode).toBe(200);
@@ -290,10 +289,6 @@ describe("API routes", () => {
       segments: [[[44.7, 20.4], [44.8, 20.5]]],
     });
 
-    const positions = await fastify.inject({ method: "GET", url: "/api/bg/poc/routes/123/456/vehicles" });
-    expect(positions.statusCode).toBe(200);
-    expect(positions.headers["cache-control"]).toBe("no-store");
-    expect(positions.json()).toEqual({ vehicles: [] });
   });
 
   it("validates BG route identifiers before upstream calls", async () => {

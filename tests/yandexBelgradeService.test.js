@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const { resetHttpClient, setHttpClient } = require("../server/httpClient.js");
-const { getBelgradeStop, getBelgradeRoute, getBelgradeVehicles, _test } = require("../server/services/yandexBelgradeService.js");
+const { getBelgradeStop, getBelgradeRoute, _test } = require("../server/services/yandexBelgradeService.js");
 
 const stopState = {
   config: {
@@ -71,17 +71,6 @@ describe("Yandex Belgrade routes", () => {
     });
   });
 
-  it("parses live vehicle positions and ignores other lines or invalid coordinates", () => {
-    const vehicles = _test.parseVehiclePositions({ vehicles: [
-      { properties: { VehicleMetaData: { id: "bus-1", Transport: { lineId: "1704912322", name: "40" } } }, features: [{ geometry: { coordinates: [[20.4, 44.7], [20.41, 44.71]] } }] },
-      { properties: { VehicleMetaData: { id: "bus-2", Transport: { lineId: "other", name: "41" } } }, features: [{ geometry: { coordinates: [[20.4, 44.7]] } }] },
-      { properties: { VehicleMetaData: { id: "bus-3", Transport: { lineId: "1704912322", name: "40" } } }, features: [{ geometry: { coordinates: [[200, 44.7]] } }] },
-    ] }, "1704912322");
-
-    expect(vehicles).toEqual([{ id: "bus-1", lineNumber: "40", coords: [44.7, 20.4] }]);
-    expect(() => _test.parseVehiclePositions({}, "1704912322")).toThrow();
-  });
-
   it("rejects wrong direction, invalid geometry and CAPTCHA", () => {
     expect(() => _test.parseRoutePage(routeHtml(), "1704912322", "wrong")).toThrow();
     const invalid = structuredClone(routeState);
@@ -101,36 +90,6 @@ describe("Yandex Belgrade routes", () => {
     expect(get.mock.calls[1][0]).toBe(`https://yandex.com/maps/10522/belgrade/routes/trolleybus_40/${Buffer.from(uri).toString("hex")}/`);
     await expect(getBelgradeRoute("123", "456")).rejects.toMatchObject({ statusCode: 404 });
     expect(get).toHaveBeenCalledTimes(2);
-  });
-
-  it("requests live positions through Yandex page session and does not cache them", async () => {
-    const page = structuredClone(routeState);
-    page.config.csrfToken = "csrf-token";
-    page.config.realLocale = "en_RS";
-    page.config.lang = "en";
-    page.config.counters = { analytics: { sessionId: "session-id" } };
-    page.config.masstransitLine.features[0].properties.ThreadMetaData.type = "trolleybus";
-    const sessionRouteHtml = routeHtml(page);
-    const get = vi.fn()
-      .mockResolvedValueOnce({ status: 200, data: stopHtml, headers: { "set-cookie": ["yandexuid=opaque; Path=/"] } })
-      .mockResolvedValueOnce({ status: 200, data: sessionRouteHtml })
-      .mockResolvedValueOnce({ status: 200, data: { csrfToken: "fresh-token" } })
-      .mockResolvedValue({ status: 200, data: { data: { vehicles: [
-        { properties: { VehicleMetaData: { id: "bus-1", Transport: { lineId: "1704912322", name: "40" } } }, features: [{ geometry: { coordinates: [[20.4, 44.7], [20.41, 44.71]] } }] },
-      ] } } });
-    setHttpClient({ get });
-
-    await expect(getBelgradeVehicles("1704912322", "4898716406")).resolves.toEqual({
-      vehicles: [{ id: "bus-1", lineNumber: "40", coords: [44.7, 20.4] }],
-    });
-    await getBelgradeVehicles("1704912322", "4898716406");
-    const [url, options] = get.mock.calls[2];
-    expect(url).toContain("/maps/api/masstransit/getVehiclesInfoWithRegion?");
-    expect(new URL(url).searchParams.get("lineId")).toBe("1704912322");
-    expect(new URL(url).searchParams.get("type")).toBe("trolleybus");
-    expect(options.headers.Cookie).toBe("yandexuid=opaque");
-    expect(new URL(get.mock.calls[3][0]).searchParams.get("csrfToken")).toBe("fresh-token");
-    expect(get.mock.calls.filter(([requestUrl]) => requestUrl.includes("getVehiclesInfoWithRegion"))).toHaveLength(3);
   });
 
   it("does not cache upstream failures or serve expired route geometry", async () => {
