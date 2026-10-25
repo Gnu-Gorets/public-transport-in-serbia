@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const { resetHttpClient, setHttpClient } = require("../server/httpClient.js");
-const { getBelgradeStop, getBelgradeRoute, _test } = require("../server/services/yandexBelgradeService.js");
+const { getBelgradeStop, getBelgradeRoute, getBelgradeVehicles, _test } = require("../server/services/yandexBelgradeService.js");
 
 const stopState = {
   config: {
@@ -48,8 +48,10 @@ afterEach(() => {
 });
 
 const routeState = {
-  config: { masstransitLine: { features: [{
-    properties: { ThreadMetaData: { id: "4898716406", lineId: "1704912322", name: "40" } },
+  config: {
+    csrfToken: "csrf-token", realLocale: "en_RS", lang: "en", counters: { analytics: { sessionId: "session-id" } },
+    masstransitLine: { features: [{
+    properties: { ThreadMetaData: { id: "4898716406", lineId: "1704912322", name: "40", type: "trolleybus" } },
     features: [
       { id: "1", name: "Бањица", coordinates: [20.4, 44.7] },
       { points: [[20.4, 44.7], [20.41, 44.71], [20.42, 44.72]] },
@@ -67,8 +69,50 @@ describe("Yandex Belgrade routes", () => {
         { id: "1", name: "Banjica", coords: [44.7, 20.4] },
         { id: "2", name: "Zvezdara", coords: [44.72, 20.42] },
       ],
+      type: "trolleybus",
       segments: [[[44.7, 20.4], [44.71, 20.41], [44.72, 20.42]]],
     });
+  });
+
+  it("parses validated live positions and ignores invalid coordinates or other lines", () => {
+    const vehicles = _test.parseVehiclePositions({ vehicles: [
+      { properties: { VehicleMetaData: { id: "belgrade|P82023", Transport: { lineId: "1704912322", name: "40" } } }, features: [{ geometry: { coordinates: [[20.41, 44.71], [20.42, 44.72]] } }] },
+      { properties: { VehicleMetaData: { id: "belgrade|P2", Transport: { lineId: "other", name: "41" } } }, features: [{ geometry: { coordinates: [[20.4, 44.7]] } }] },
+      { properties: { VehicleMetaData: { id: "belgrade|P3", Transport: { lineId: "1704912322", name: "40" } } }, features: [{ geometry: { coordinates: [[200, 44.7]] } }] },
+    ] }, "1704912322");
+    expect(vehicles).toEqual([{ id: "belgrade|P82023", lineNumber: "40", coords: [44.71, 20.41] }]);
+    expect(() => _test.parseVehiclePositions({}, "1704912322")).toThrow();
+  });
+
+  it("fetches uncached live positions and keeps only vehicles expected at stop", async () => {
+    const position = { properties: { VehicleMetaData: { id: "belgrade|P82023", Transport: { lineId: "1704912322", name: "40" } } }, features: [{ geometry: { coordinates: [[20.41, 44.71]] } }] };
+    const otherVehicle = { properties: { VehicleMetaData: { id: "belgrade|P82099", Transport: { lineId: "1704912322", name: "40" } } }, features: [{ geometry: { coordinates: [[20.42, 44.72]] } }] };
+    const get = vi.fn()
+      .mockResolvedValueOnce({ status: 200, data: stopHtml, headers: { "set-cookie": ["yandexuid=opaque; Path=/"] } })
+      .mockResolvedValueOnce({ status: 200, data: routeHtml() })
+      .mockResolvedValueOnce({ status: 200, data: { data: { vehicles: [position, otherVehicle] } } })
+      .mockResolvedValueOnce({ status: 200, data: { data: { vehicles: [position] } } });
+    setHttpClient({ get });
+
+    await expect(getBelgradeVehicles()).resolves.toEqual({ vehicles: [{ id: "belgrade|P82023", lineNumber: "40", coords: [44.71, 20.41] }] });
+    await expect(getBelgradeVehicles()).resolves.toEqual({ vehicles: [{ id: "belgrade|P82023", lineNumber: "40", coords: [44.71, 20.41] }] });
+    expect(get).toHaveBeenCalledTimes(4);
+    const [url, options] = get.mock.calls[2];
+    expect(url).toContain("/maps/api/masstransit/getVehiclesInfoWithRegion?");
+    expect(new URL(url).searchParams.get("lineId")).toBe("1704912322");
+    expect(options.headers.Cookie).toBe("yandexuid=opaque");
+  });
+
+  it("rejects incomplete live-position responses after refreshing CSRF token", async () => {
+    const get = vi.fn()
+      .mockResolvedValueOnce({ status: 200, data: stopHtml })
+      .mockResolvedValueOnce({ status: 200, data: routeHtml() })
+      .mockResolvedValueOnce({ status: 200, data: { csrfToken: "fresh-token" } })
+      .mockResolvedValueOnce({ status: 200, data: { blocked: true } });
+    setHttpClient({ get });
+
+    await expect(getBelgradeVehicles()).rejects.toMatchObject({ statusCode: 502 });
+    expect(new URL(get.mock.calls[3][0]).searchParams.get("csrfToken")).toBe("fresh-token");
   });
 
   it("rejects wrong direction, invalid geometry and CAPTCHA", () => {

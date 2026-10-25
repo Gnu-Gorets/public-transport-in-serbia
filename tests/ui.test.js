@@ -219,7 +219,7 @@ describe("UI behavior", () => {
     expect($("#tableContainer").css("display")).toBe("none");
     $("#name-input").val("Stadion Partizan · 278");
     await ui.submitByName();
-    expect(request).toHaveBeenCalledTimes(2);
+    expect(request).toHaveBeenCalledTimes(3);
     expect(timer).toHaveBeenCalledOnce();
     expect($("#stationName").text()).toContain("Stadion Partizan");
     expect($("#stationName").text()).not.toContain("3833919270");
@@ -230,7 +230,7 @@ describe("UI behavior", () => {
     expect($("#tableBody").text()).toContain("estimate");
     expect($("#tableBody").text()).not.toContain("41");
     expect($("#tableBody").text()).not.toContain("scheduled");
-    expect($("#busRouteInfo").text()).toContain("Select line to view route and stops.");
+    expect($("#busRouteInfo").text()).toContain("Live bus positions are shown when available.");
     expect(map.setView).toHaveBeenCalledWith([44.786, 20.4577], 15, { animation: true });
     expect(dom.window.L.featureGroup.mock.calls[0][0]).toHaveLength(1);
     ui.updateBgArrivals({
@@ -250,6 +250,33 @@ describe("UI behavior", () => {
     expect($("#thead th").eq(1).text()).toBe("ETA");
     expect($("#thead th").eq(2).text()).toBe("Route");
     ui.cancelInterval();
+  });
+
+  it("shows matched live BG buses on stop map and clears them after empty refresh", async () => {
+    const { $, dom, layerGroup, map, ui } = context;
+    const route = { lineId: "1704912322", threadId: "4898716406" };
+    const stop = {
+      name: "Stadion Partizan · 278", id: "3833919270", uid: "3833919270", coords: [44.786, 20.4577],
+      arrivals: [{ lineNumber: "40", destination: "Zvezdara", estimatedAt: new Date(Date.now() + 60_000).toISOString(), isEstimated: true, vehicleId: "belgrade|P82023", route }],
+    };
+    const vehicle = { id: "belgrade|P82023", lineNumber: "40", coords: [44.71, 20.41] };
+    await ui.onCityChange();
+    const request = vi.fn(({ url }) => Promise.resolve(url === "/api/bg/poc/vehicles" ? { vehicles: [vehicle] } : stop));
+    $.ajax = request;
+    const marker = vi.spyOn(dom.window.L, "marker");
+    await ui.fetchBgStop();
+    $("#name-input").val(stop.name);
+    await ui.submitByName();
+
+    expect(request).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/vehicles" }));
+    expect(marker).toHaveBeenCalledWith(vehicle.coords, expect.objectContaining({ icon: expect.anything() }));
+    expect(map.fitBounds).toHaveBeenCalledWith("bounds");
+
+    request.mockImplementation(({ url }) => Promise.resolve(url === "/api/bg/poc/vehicles" ? { vehicles: [] } : stop));
+    const clearCount = layerGroup.clearLayers.mock.calls.length;
+    await ui.updateBgArrivals(stop);
+    expect(layerGroup.clearLayers).toHaveBeenCalledTimes(clearCount + 1);
+    expect(marker.mock.calls.filter(([coords]) => coords[0] === vehicle.coords[0] && coords[1] === vehicle.coords[1])).toHaveLength(1);
   });
 
   it("opens BG route from arrival line and draws route in blue", async () => {

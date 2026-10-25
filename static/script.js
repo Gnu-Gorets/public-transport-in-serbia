@@ -9,6 +9,9 @@ let scheduleLoadedUid = null;
 let currentCity;
 let bgStopCentered = false;
 let bgStopRequest;
+let bgStopMarker;
+let bgVehicleLayer;
+let bgVehicleRequestId = 0;
 let bgRouteData;
 let bgRouteSelection;
 
@@ -118,6 +121,9 @@ const onCityChange = async () => {
   if (isBelgrade || wasBelgrade) {
     currInterval = clearInterval(currInterval);
     currQuery = undefined;
+    bgVehicleRequestId++;
+    bgVehicleLayer = undefined;
+    bgStopMarker = undefined;
   }
   if (isBelgrade) {
     $("#searchMode").val("name");
@@ -259,6 +265,7 @@ const updateArrivals = (response, recenter) => {
 };
 
 const updateBgArrivals = (response) => {
+  bgVehicleRequestId++;
   const now = Date.now();
   const arrivals = (response.arrivals || [])
     .filter((arrival) => arrival.isEstimated)
@@ -273,24 +280,28 @@ const updateBgArrivals = (response) => {
   $("#lastUpdated").text(
     `Last updated: ${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Belgrade" })} (Yandex page; refresh every 60 seconds)`,
   ).show();
-  $("#busRouteInfo").text("Select line to view route and stops.").show();
+  $("#busRouteInfo").text("Live bus positions are shown when available. Select line to view route.").show();
   $("#updateInProgress").hide();
   $("#error").hide();
   $("#tableBody").empty();
   layerGroup.clearLayers();
+  bgVehicleLayer = undefined;
 
-  if (!bgStopCentered) {
+  const recenter = !bgStopCentered;
+  if (recenter) {
     map.setView(response.coords, 15, { animation: true });
     bgStopCentered = true;
   }
   const popup = document.createElement("span");
   popup.textContent = response.name;
-  L.featureGroup([createMarker(response.coords, undefined, "yellow", popup)]).addTo(layerGroup);
+  bgStopMarker = createMarker(response.coords, undefined, "yellow", popup);
+  L.featureGroup([bgStopMarker]).addTo(layerGroup);
   if (bgRouteData) drawBgRoute(bgRouteData, false);
 
   if (!arrivals.length) {
     $("#tableContainer").hide();
     $("#noBusesMessage").text("No live arrival estimates are available for this stop.").show();
+    drawBgVehicles([]);
     return;
   }
 
@@ -324,6 +335,29 @@ const updateBgArrivals = (response) => {
     return row;
   });
   $("#tableBody").append(rows);
+  if (currQuery) return refreshBgVehicles(recenter);
+};
+
+const drawBgVehicles = (vehicles = [], recenter = false) => {
+  if (bgVehicleLayer) layerGroup.removeLayer(bgVehicleLayer);
+  bgVehicleLayer = undefined;
+  const markers = vehicles
+    .filter((vehicle) => Array.isArray(vehicle.coords) && vehicle.coords.length === 2 && vehicle.coords.every(Number.isFinite))
+    .map((vehicle) => createMarker(vehicle.coords, vehicle.lineNumber, "blue", `Bus ${vehicle.lineNumber}`));
+  if (!markers.length) return;
+  bgVehicleLayer = L.featureGroup(markers).addTo(layerGroup);
+  if (recenter && bgStopMarker) map.fitBounds(L.featureGroup([bgStopMarker, ...markers]).getBounds());
+};
+
+const refreshBgVehicles = async (recenter = false) => {
+  const requestId = ++bgVehicleRequestId;
+  const query = currQuery;
+  const clearLatest = () => {
+    if (getCity() === "bg" && currQuery === query && requestId === bgVehicleRequestId) drawBgVehicles([]);
+  };
+  const response = await doAsyncRequest("/api/bg/poc/vehicles", "GET", undefined, clearLatest);
+  if (getCity() !== "bg" || currQuery !== query || requestId !== bgVehicleRequestId) return;
+  drawBgVehicles(Array.isArray(response?.vehicles) ? response.vehicles : [], recenter);
 };
 
 const drawBgRoute = (route, recenter = true) => {
@@ -369,7 +403,7 @@ const fetchBgStop = () => {
       $("#updateInProgress").hide();
       return;
     }
-    updateBgArrivals(response);
+    await updateBgArrivals(response);
   })().finally(() => { bgStopRequest = null; });
   return bgStopRequest;
 };

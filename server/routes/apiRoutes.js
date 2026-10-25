@@ -7,7 +7,7 @@ const {
 } = require("../services/providerService");
 const { getRoute } = require("../services/routeService");
 const { getStationSchedule } = require("../services/scheduleService");
-const { getBelgradeStop, getBelgradeRoute } = require("../services/yandexBelgradeService");
+const { getBelgradeStop, getBelgradeRoute, getBelgradeVehicles } = require("../services/yandexBelgradeService");
 const { sendError } = require("../errors");
 const {
   bgRouteParams,
@@ -38,6 +38,13 @@ function registerApiRoutes(fastify) {
         reply.header("Cache-Control", "no-store");
         reply.send(await getBelgradeStop());
       }, "Failed to fetch Yandex stop"),
+    );
+    app.get(
+      "/api/bg/poc/vehicles",
+      handle(async (_req, reply) => {
+        reply.header("Cache-Control", "no-store");
+        reply.send(await getBelgradeVehicles());
+      }, "Failed to fetch Yandex vehicle positions"),
     );
   });
 

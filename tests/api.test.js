@@ -87,7 +87,7 @@ describe("API routes", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toContain("text/html");
     expect(response.body).toContain("Serbia++");
-    expect(response.body).toContain("static/script.js?v=bg-live-estimates-1");
+    expect(response.body).toContain("static/script.js?v=bg-live-vehicles-1");
   });
 
   it("requires uid when requesting a station schedule", async () => {
@@ -251,6 +251,18 @@ describe("API routes", () => {
       coords: [44.786, 20.4577],
       arrivals: [{ lineNumber: "40", isEstimated: true }],
     });
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("serves uncached BG vehicle positions with no-store", async () => {
+    const get = vi.fn().mockResolvedValue({ status: 200, data: yandexStopPage });
+    _test.setHttpClient({ get, post: vi.fn() });
+
+    const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/vehicles" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.json()).toEqual({ vehicles: [] });
     expect(get).toHaveBeenCalledTimes(1);
   });
 
