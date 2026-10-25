@@ -263,12 +263,11 @@ describe("UI behavior", () => {
     $("#tableBody tr").first().trigger("click");
     await new Promise((resolve) => setImmediate(resolve));
     expect($.ajax).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/routes/1704912322/4898716406" }));
-    expect($("#scheduleContainer li")).toHaveLength(2);
-    expect($("#scheduleInfo").text()).toContain("Route 40");
+    expect($("#scheduleSection").css("display")).toBe("none");
+    expect($("#scheduleContainer").text()).toBe("");
+    expect($("#scheduleInfo").text()).not.toContain("Route 40");
     expect(dom.window.L.polyline).toHaveBeenCalledWith(data.segments, { color: "blue" });
     expect(map.fitBounds).toHaveBeenCalledWith("route-bounds");
-    $("#scheduleContainer button").first().trigger("click");
-    expect(map.setView).toHaveBeenCalledWith([44.7, 20.4], 16);
     ui.updateBgArrivals(stop);
     expect(dom.window.L.polyline).toHaveBeenCalledTimes(2);
     expect(dom.window.L.featureGroup.mock.calls.every(([markers]) => markers.length === 1)).toBe(true);
@@ -278,9 +277,16 @@ describe("UI behavior", () => {
     const { $, ui } = context;
     await ui.onCityChange();
     vi.spyOn(console, "error").mockImplementation(() => {});
+    const route = { lineId: "1", threadId: "2" };
+    ui.updateBgArrivals({
+      name: "Stadion Partizan", id: "278", coords: [44.786, 20.4577],
+      arrivals: [{ lineNumber: "40", destination: "Zvezdara", estimatedAt: new Date(Date.now() + 60_000).toISOString(), route }],
+    });
     $.ajax = vi.fn().mockRejectedValue(new Error("upstream failed"));
-    await ui.showBgRoute({ lineId: "1", threadId: "2" });
-    expect($("#scheduleInfo").text()).toContain("Arrivals remain available");
+    await ui.showBgRoute(route);
+    expect($("#tableBody").text()).toContain("40");
+    expect($("#scheduleSection").css("display")).toBe("none");
+    expect($("#error").css("display")).not.toBe("none");
     let finish;
     $.ajax.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
     const pending = ui.showBgRoute({ lineId: "1", threadId: "2" });

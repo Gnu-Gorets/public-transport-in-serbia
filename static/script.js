@@ -340,28 +340,9 @@ const showBgRoute = async (route) => {
     layerGroup.removeLayer(currentPolyline);
     currentPolyline = null;
   }
-  $("#scheduleInfo").text("Loading route stops...");
-  $("#scheduleContainer").empty();
-  $("#scheduleSection").show();
   const response = await doAsyncRequest(`/api/bg/poc/routes/${encodeURIComponent(route.lineId)}/${encodeURIComponent(route.threadId)}`);
-  if (getCity() !== "bg" || currQuery !== query || bgRouteSelection !== selection) return;
-  if (!response) {
-    $("#scheduleInfo").text("Route stops could not be loaded. Arrivals remain available.");
-    return;
-  }
+  if (getCity() !== "bg" || currQuery !== query || bgRouteSelection !== selection || !response) return;
   bgRouteData = response;
-  $("#scheduleInfo").text(`Route ${response.name}: ${response.stops[0].name} → ${response.stops.at(-1).name}`);
-  const list = document.createElement("ol");
-  response.stops.forEach((stop) => {
-    const item = document.createElement("li");
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = stop.name;
-    button.addEventListener("click", () => map.setView(stop.coords, 16));
-    item.appendChild(button);
-    list.appendChild(item);
-  });
-  $("#scheduleContainer").empty().append(list);
   drawBgRoute(response);
 };
 

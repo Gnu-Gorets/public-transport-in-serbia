@@ -87,7 +87,7 @@ describe("API routes", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toContain("text/html");
     expect(response.body).toContain("Serbia++");
-    expect(response.body).toContain("static/script.js?v=bg-route-blue-1");
+    expect(response.body).toContain("static/script.js?v=bg-route-blue-2");
   });
 
   it("requires uid when requesting a station schedule", async () => {
