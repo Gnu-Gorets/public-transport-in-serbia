@@ -264,8 +264,7 @@ const updateBgArrivals = (response) => {
     .filter((arrival) => Number.isFinite(arrival.timestamp) && arrival.timestamp >= now - 60_000)
     .sort((a, b) => a.timestamp - b.timestamp);
 
-  const name = `${response.name} (${response.id})`;
-  $("#stationName").text(`Station: ${name}`).show();
+  $("#stationName").text(`Station: ${response.name}`).show();
   $("#lastUpdated").text(
     `Last updated: ${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Belgrade" })} (Yandex page; refresh every 60 seconds)`,
   ).show();
@@ -281,7 +280,7 @@ const updateBgArrivals = (response) => {
   }
   const popup = document.createElement("span");
   popup.textContent = response.name;
-  L.featureGroup([createMarker(response.coords, response.id, "yellow", popup)]).addTo(layerGroup);
+  L.featureGroup([createMarker(response.coords, undefined, "yellow", popup)]).addTo(layerGroup);
 
   if (!arrivals.length) {
     $("#tableContainer").hide();
@@ -749,7 +748,7 @@ $(document).ready(async () => {
     stationList.forEach((station) => {
       const item = document.createElement("div");
       item.classList.add("station-item");
-      item.textContent = `${station.name} (${station.id})`;
+      item.textContent = getCity() === "bg" ? station.name : `${station.name} (${station.id})`;
       item.addEventListener("click", () => {
         input.value = station.name;
         dropdown.style.display = "none";

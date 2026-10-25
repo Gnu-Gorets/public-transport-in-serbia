@@ -12,7 +12,8 @@ const createMarker = () => ({
   bindPopup() {
     return this;
   },
-  bindTooltip() {
+  bindTooltip(text) {
+    this.tooltip = text;
     return this;
   },
   on() {
@@ -219,6 +220,8 @@ describe("UI behavior", () => {
     expect(request).toHaveBeenCalledTimes(2);
     expect(timer).toHaveBeenCalledOnce();
     expect($("#stationName").text()).toContain("Stadion Partizan");
+    expect($("#stationName").text()).not.toContain("3833919270");
+    expect(dom.window.L.featureGroup.mock.calls[0][0][0].tooltip).toBeUndefined();
     expect($("#tableContainer").css("display")).not.toBe("none");
     expect($("#tabela").css("display")).not.toBe("none");
     expect($("#tableBody").text()).toContain("40");
