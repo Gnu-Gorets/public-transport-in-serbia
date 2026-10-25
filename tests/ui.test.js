@@ -114,6 +114,10 @@ function loadUiScript() {
       setStations(city, stations) {
         allStations[city] = stations;
       },
+      setLines(city, lines) {
+        allLines[city] = lines;
+      },
+      addRouteToMap,
       setMapStubs(nextMap, nextLayerGroup) {
         map = nextMap;
         layerGroup = nextLayerGroup;
@@ -205,6 +209,47 @@ describe("UI behavior", () => {
       animation: true,
     });
     expect(map.fitBounds).toHaveBeenCalledWith("bounds");
+  });
+
+  it("routes ordered bus stops along roads", async () => {
+    const geometry = { type: "LineString", coordinates: [[20.1, 44.1], [20.15, 44.15], [20.2, 44.2]] };
+    const { dom, ui } = context;
+    ui.setStations("bg", [
+      { uid: "first", coords: [44.1, 20.1] },
+      { uid: "second", coords: [44.2, 20.2] },
+    ]);
+    ui.setLines("bg", { "7_A": ["first", "second"] });
+    dom.window.fetch.mockResolvedValue({
+      json: async () => ({ code: "Ok", routes: [{ geometry }] }),
+    });
+
+    await ui.addRouteToMap("7", []);
+
+    expect(dom.window.fetch).toHaveBeenCalledWith(
+      "/api/route?coords=20.1%2C44.1%3B20.2%2C44.2",
+    );
+    expect(dom.window.L.geoJSON).toHaveBeenCalledWith(geometry, {
+      style: { color: "blue" },
+    });
+  });
+
+  it("falls back to straight stop connections when road routing fails", async () => {
+    const { dom, ui } = context;
+    const stops = [
+      { latitude: 44.1, longitude: 20.1 },
+      { latitude: 44.2, longitude: 20.2 },
+    ];
+    dom.window.fetch.mockRejectedValue(new Error("routing unavailable"));
+
+    await ui.addRouteToMap("7", stops);
+
+    expect(dom.window.fetch).toHaveBeenCalledWith(
+      "/api/route?coords=20.1%2C44.1%3B20.2%2C44.2",
+    );
+    expect(dom.window.L.polyline).toHaveBeenCalledWith(
+      [[44.1, 20.1], [44.2, 20.2]],
+      { color: "blue" },
+    );
   });
 
   it("shows an empty-state message when no vehicles are arriving", () => {

@@ -328,7 +328,7 @@ const fetchSchedule = async (city, uid, force = false) => {
   scheduleLoadedUid = uid;
 };
 
-const addRouteToMap = async (lineNumber, fallbackStations) => {
+const addRouteToMap = async (lineNumber, fallbackStations = []) => {
   if (currentPolyline) {
     layerGroup.removeLayer(currentPolyline);
     currentPolyline = null;
@@ -337,8 +337,12 @@ const addRouteToMap = async (lineNumber, fallbackStations) => {
   const city = getCity();
   const cityLines = allLines[city];
   const cityStations = allStations[city];
+  const arrivalStops = fallbackStations
+    .map((s) => [parseFloat(s.latitude), parseFloat(s.longitude)])
+    .filter((coords) => coords.every(Number.isFinite));
+  let latlngs = arrivalStops.length > 1 ? arrivalStops : undefined;
 
-  if (cityLines && cityStations) {
+  if (!latlngs && cityLines && cityStations) {
     const stationMap = {};
     cityStations.forEach((s) => {
       stationMap[String(s.uid)] = s.coords;
@@ -347,24 +351,26 @@ const addRouteToMap = async (lineNumber, fallbackStations) => {
     for (const dir of ["A", "B"]) {
       const uids = cityLines[`${lineNumber}_${dir}`];
       if (!uids) continue;
-      const latlngs = uids
+      const stops = uids
         .map((uid) => stationMap[String(uid)])
-        .filter(Boolean);
-      if (latlngs.length > 1) {
-        currentPolyline = L.polyline(latlngs, {
-          color: "blue",
-          weight: 3,
-          opacity: 0.8,
-        }).addTo(layerGroup);
-        return;
+        .filter(
+          (coords) =>
+            Array.isArray(coords) &&
+            coords.length === 2 &&
+            coords.every(Number.isFinite),
+        );
+      if (stops.length > 1) {
+        latlngs = stops;
+        break;
       }
     }
   }
 
-  // Fallback: OSRM (for cities where lines data unavailable)
-  const coords = fallbackStations
-    .map((s) => `${parseFloat(s.longitude)},${parseFloat(s.latitude)}`)
-    .join(";");
+  if (!latlngs) latlngs = arrivalStops;
+  if (latlngs.length < 2) return;
+
+  // shortcut: routes over 2000 characters fall back to straight lines; chunk if a real route exceeds API limit.
+  const coords = latlngs.map(([lat, lon]) => `${lon},${lat}`).join(";");
   try {
     const res = await fetch(`/api/route?coords=${encodeURIComponent(coords)}`);
     const data = await res.json();
@@ -378,10 +384,6 @@ const addRouteToMap = async (lineNumber, fallbackStations) => {
     /* fall through */
   }
 
-  const latlngs = fallbackStations.map((s) => [
-    parseFloat(s.latitude),
-    parseFloat(s.longitude),
-  ]);
   currentPolyline = L.polyline(latlngs, { color: "blue" }).addTo(layerGroup);
 };
 
