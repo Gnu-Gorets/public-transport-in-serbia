@@ -229,7 +229,7 @@ describe("UI behavior", () => {
     expect($("#tableBody").text()).toContain("40");
     expect($("#tableBody").text()).toContain("estimate");
     expect($("#tableBody").text()).toContain("scheduled");
-    expect($("#busRouteInfo").text()).toContain("Current feed does not include vehicle positions");
+    expect($("#busRouteInfo").text()).toContain("live buses when available");
     expect(map.setView).toHaveBeenCalledWith([44.786, 20.4577], 15, { animation: true });
     expect(dom.window.L.featureGroup.mock.calls[0][0]).toHaveLength(1);
 
@@ -245,7 +245,7 @@ describe("UI behavior", () => {
     ui.cancelInterval();
   });
 
-  it("opens BG route from arrival line and lists stops without vehicle markers", async () => {
+  it("opens BG route from arrival line and renders live vehicle markers", async () => {
     const { $, dom, map, ui } = context;
     const route = { lineId: "1704912322", threadId: "4898716406" };
     const data = {
@@ -258,13 +258,18 @@ describe("UI behavior", () => {
       arrivals: [{ lineNumber: "40", destination: "Zvezdara", estimatedAt: new Date(Date.now() + 60_000).toISOString(), isEstimated: true, route }],
     };
     await ui.onCityChange();
-    $.ajax = vi.fn().mockResolvedValue(data);
+    $.ajax = vi.fn().mockImplementation(({ url }) => Promise.resolve(
+      url.endsWith("/vehicles") ? { vehicles: [{ id: "bus-1", lineNumber: "40", coords: [44.71, 20.41] }] } : data,
+    ));
+    const marker = vi.spyOn(dom.window.L, "marker");
     ui.updateBgArrivals(stop);
     $("#tableBody button").trigger("click");
     await new Promise((resolve) => setImmediate(resolve));
     expect($.ajax).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/routes/1704912322/4898716406" }));
+    expect($.ajax).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/routes/1704912322/4898716406/vehicles" }));
+    expect(marker).toHaveBeenCalledWith([44.71, 20.41], expect.objectContaining({ icon: expect.anything() }));
     expect($("#scheduleContainer li")).toHaveLength(2);
-    expect($("#scheduleInfo").text()).toContain("route geometry, not vehicle position");
+    expect($("#scheduleInfo").text()).toContain("live buses shown when available");
     expect(dom.window.L.polyline).toHaveBeenCalledWith(data.segments, { color: "green" });
     expect(map.fitBounds).toHaveBeenCalledWith("route-bounds");
     $("#scheduleContainer button").first().trigger("click");
