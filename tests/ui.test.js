@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import vm from "node:vm";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JSDOM } from "jsdom";
 
 const require = createRequire(import.meta.url);
@@ -24,8 +24,12 @@ function loadUiScript() {
   const dom = new JSDOM(
     `<!doctype html>
     <body>
-      <select id="city"><option value="bg">Belgrade</option></select>
-      <select id="searchMode"><option value="name">Name</option><option value="coords">Coords</option></select>
+      <select id="city"><option value="bg">Belgrade</option><option value="ns">Novi Sad</option></select>
+      <div id="stationControls">
+        <select id="searchMode"><option value="name">Name</option><option value="coords">Coords</option></select>
+        <div class="name-search"><input id="name-input" /><div id="dropdown"></div></div>
+        <div class="coords-search"></div>
+      </div>
       <input id="submit" />
       <input id="stationsMaxDistance-input" value="350" />
       <select id="coords-input"></select>
@@ -38,7 +42,7 @@ function loadUiScript() {
       <p id="error"></p>
       <div id="noBusesMessage"></div>
       <div id="tableContainer"></div>
-      <table id="tabela"><tbody id="tableBody"></tbody></table>
+      <table id="tabela" style="display:none"><thead id="thead"><tr><th>#</th><th>ETA</th><th>Route</th></tr></thead><tbody id="tableBody"></tbody></table>
       <div id="scheduleSection"></div>
       <p id="scheduleInfo"></p>
       <div id="scheduleContainer"></div>
@@ -75,6 +79,7 @@ function loadUiScript() {
 
   dom.window.$ = $;
   dom.window.jQuery = $;
+  dom.window.changeBg = vi.fn();
   dom.window.console = console;
   dom.window.fetch = vi.fn();
   dom.window.L = {
@@ -109,10 +114,17 @@ function loadUiScript() {
       fetchSchedule,
       findClosestStations,
       formatSeconds,
+      cancelInterval,
+      onCityChange,
       onSearchModeChange,
+      submitByName,
       updateArrivals,
+      updateBgArrivals,
       setStations(city, stations) {
         allStations[city] = stations;
+      },
+      getStations(city) {
+        return allStations[city];
       },
       setLines(city, lines) {
         allLines[city] = lines;
@@ -137,6 +149,84 @@ describe("UI behavior", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     context = loadUiScript();
+  });
+
+  afterEach(() => context.ui.cancelInterval());
+
+  it("uses native Leaflet map without Yandex iframe or link", () => {
+    const html = readFileSync(resolve("static/index.html"), "utf8");
+    expect(html).toContain('<div id="map"></div>');
+    expect(html).not.toContain("bgYandexMap");
+    expect(html).not.toContain("bgTransportLink");
+    expect(html).not.toContain("yandex.com/map-widget");
+  });
+
+  it("shows BG stop arrivals on native map and restores controls for NS", async () => {
+    const { $, dom, map, ui } = context;
+    const request = vi.spyOn($, "ajax").mockResolvedValue({
+      city: "bg",
+      name: "Stadion Partizan · 278",
+      uid: "3833919270",
+      id: "3833919270",
+      coords: [44.786, 20.4577],
+      arrivals: [
+        {
+          lineNumber: "40",
+          destination: "Zvezdara",
+          scheduledAt: new Date(Date.now() + 120_000).toISOString(),
+          estimatedAt: new Date(Date.now() + 120_000).toISOString(),
+          isEstimated: true,
+        },
+        {
+          lineNumber: "41",
+          destination: "Studentski trg",
+          scheduledAt: new Date(Date.now() + 300_000).toISOString(),
+          estimatedAt: null,
+          isEstimated: false,
+        },
+      ],
+    });
+    $("#city").val("bg");
+
+    await ui.onCityChange();
+
+    expect(request).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/stop" }));
+    expect($("#map").css("display")).not.toBe("none");
+    expect($("#stationControls").css("display")).not.toBe("none");
+    expect($("#searchMode").val()).toBe("name");
+    expect($("#searchMode option[value=coords]").prop("disabled")).toBe(true);
+    expect($(".name-search").css("display")).not.toBe("none");
+    expect($(".coords-search").css("display")).toBe("none");
+    expect(ui.getStations("bg")).toEqual([{
+      uid: "3833919270",
+      id: "3833919270",
+      name: "Stadion Partizan · 278",
+      coords: [44.786, 20.4577],
+      lines: [],
+    }]);
+    $("#name-input").val("Stadion Partizan · 278");
+    ui.submitByName();
+    expect(request).toHaveBeenCalledTimes(1);
+    expect($("#stationName").text()).toContain("Stadion Partizan");
+    expect($("#tableContainer").css("display")).not.toBe("none");
+    expect($("#tabela").css("display")).not.toBe("none");
+    expect($("#tableBody").text()).toContain("40");
+    expect($("#tableBody").text()).toContain("estimate");
+    expect($("#tableBody").text()).toContain("scheduled");
+    expect($("#busRouteInfo").text()).toContain("vehicle coordinates are unavailable");
+    expect(map.setView).toHaveBeenCalledWith([44.786, 20.4577], 15, { animation: true });
+    expect(dom.window.L.featureGroup.mock.calls[0][0]).toHaveLength(1);
+
+    ui.setStations("ns", []);
+    ui.setLines("ns", {});
+    $("#city").val("ns");
+    await ui.onCityChange();
+    expect($("#stationControls").css("display")).not.toBe("none");
+    expect($("#searchMode option[value=coords]").prop("disabled")).toBe(false);
+    expect($("#map").css("display")).not.toBe("none");
+    expect($("#thead th").eq(1).text()).toBe("ETA");
+    expect($("#thead th").eq(2).text()).toBe("Route");
+    ui.cancelInterval();
   });
 
   it("formats seconds as whole minutes", () => {

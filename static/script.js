@@ -6,6 +6,9 @@ let allLines = {};
 let mapInitialized = false;
 let currentPolyline = null;
 let scheduleLoadedUid = null;
+let currentCity;
+let bgStopCentered = false;
+let bgStopRequest;
 
 const coloredIcon = (color) => {
   return new L.Icon({
@@ -100,8 +103,36 @@ const getCity = () => {
 };
 
 const onCityChange = async () => {
-  let city = getCity();
+  const city = getCity();
+  const isBelgrade = city === "bg";
+  const wasBelgrade = currentCity === "bg";
+  currentCity = city;
   changeBg(city);
+  $("#stationControls").toggle(true);
+  $("#searchMode option[value=coords]").prop("hidden", isBelgrade).prop("disabled", isBelgrade);
+  $("#map").show();
+  $("#updateInProgress, #stationName, #lastUpdated, #busRouteInfo, #error, #noBusesMessage, #tableContainer, #scheduleSection").hide();
+
+  if (isBelgrade || wasBelgrade) {
+    currInterval = clearInterval(currInterval);
+    currQuery = undefined;
+  }
+  if (isBelgrade) {
+    $("#searchMode").val("name");
+    onSearchModeChange();
+    scheduleLoadedUid = null;
+    bgStopCentered = false;
+    layerGroup.clearLayers();
+    $("#thead th").eq(1).text("Arrival time");
+    $("#thead th").eq(2).text("Destination");
+    await fetchBgStop();
+    currInterval = setInterval(fetchBgStop, 60 * 1000);
+    return;
+  }
+
+  $("#thead th").eq(1).text("ETA");
+  $("#thead th").eq(2).text("Route");
+  $("#noBusesMessage").text("Currently, there are no buses scheduled to arrive at this stop.");
   moveMapToCityCentre(city);
   const promises = [];
   if (!allStations[city]) promises.push(fetchCityStations(city));
@@ -136,6 +167,13 @@ const handleTabOut = () => {
 };
 
 const handleTabIn = () => {
+  if (getCity() === "bg") {
+    if (!currInterval) {
+      fetchBgStop();
+      currInterval = setInterval(fetchBgStop, 60 * 1000);
+    }
+    return;
+  }
   spawnInterval();
 };
 
@@ -214,6 +252,89 @@ const updateArrivals = (response, recenter) => {
   $("#tabela").show();
   let group = L.featureGroup(markers).addTo(layerGroup);
   if (recenter) map.fitBounds(group.getBounds());
+};
+
+const updateBgArrivals = (response) => {
+  const now = Date.now();
+  const arrivals = (response.arrivals || [])
+    .map((arrival) => ({
+      ...arrival,
+      timestamp: Date.parse(arrival.estimatedAt || arrival.scheduledAt),
+    }))
+    .filter((arrival) => Number.isFinite(arrival.timestamp) && arrival.timestamp >= now - 60_000)
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  const name = `${response.name} (${response.id})`;
+  $("#stationName").text(`Station: ${name}`).show();
+  $("#lastUpdated").text(
+    `Last updated: ${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Belgrade" })} (Yandex page; refresh every 60 seconds)`,
+  ).show();
+  $("#busRouteInfo").text("Showing stop location only; vehicle coordinates are unavailable.").show();
+  $("#updateInProgress").hide();
+  $("#error").hide();
+  $("#tableBody").empty();
+  layerGroup.clearLayers();
+
+  if (!bgStopCentered) {
+    map.setView(response.coords, 15, { animation: true });
+    bgStopCentered = true;
+  }
+  const popup = document.createElement("span");
+  popup.textContent = response.name;
+  L.featureGroup([createMarker(response.coords, response.id, "yellow", popup)]).addTo(layerGroup);
+
+  if (!arrivals.length) {
+    $("#tableContainer").hide();
+    $("#noBusesMessage").text("No upcoming departures are available for this stop.").show();
+    return;
+  }
+
+  $("#noBusesMessage").hide();
+  $("#tableContainer").show();
+  $("#tabela").show();
+  const rows = arrivals.map((arrival) => {
+    const row = document.createElement("tr");
+    const arrivalTime = new Date(arrival.timestamp).toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Europe/Belgrade",
+    });
+    const values = [
+      arrival.lineNumber,
+      `${arrivalTime} (${arrival.isEstimated ? "estimate" : "scheduled"})`,
+      arrival.destination || "—",
+    ];
+    values.forEach((value) => {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      row.appendChild(cell);
+    });
+    return row;
+  });
+  $("#tableBody").append(rows);
+};
+
+const fetchBgStop = () => {
+  if (getCity() !== "bg") return Promise.resolve();
+  if (bgStopRequest) return bgStopRequest;
+  bgStopRequest = (async () => {
+    $("#updateInProgress").show();
+    $("#error").hide();
+    const response = await doAsyncRequest("/api/bg/poc/stop");
+    if (!response || getCity() !== "bg") {
+      $("#updateInProgress").hide();
+      return;
+    }
+    allStations.bg = [{
+      uid: response.uid,
+      id: response.id,
+      name: response.name,
+      coords: response.coords,
+      lines: [],
+    }];
+    updateBgArrivals(response);
+  })().finally(() => { bgStopRequest = null; });
+  return bgStopRequest;
 };
 
 const fetchArrivals = async (city, query, recenter) => {
@@ -404,17 +525,14 @@ const initMap = () => {
 
 const submitByName = () => {
   if (!$("#name-input").val()) return;
-  let selectedValue = $("#name-input").val().trim();
-  let city = getCity();
-  let station = allStations[city].find(
+  const selectedValue = $("#name-input").val().trim();
+  const city = getCity();
+  const station = (allStations[city] || []).find(
     (s) => s.name === selectedValue || s.id === selectedValue,
   );
-  if (station) {
-    currQuery = { uid: station.uid };
-  } else {
-    currQuery = { uid: selectedValue };
-  }
-  spawnInterval(currQuery);
+  if (city === "bg" && !station) return;
+  currQuery = { uid: station?.uid || selectedValue };
+  if (city !== "bg") spawnInterval(currQuery);
 };
 
 const submitByCoords = () => {
@@ -600,8 +718,11 @@ $(document).ready(async () => {
   let stations = [];
   const fetchStations = async () => {
     const city = getCity();
-    if (!allStations[city]) await fetchCityStations(city);
-    stations = allStations[city].map((station) => ({
+    if (!allStations[city]) {
+      if (city === "bg") await fetchBgStop();
+      else await fetchCityStations(city);
+    }
+    stations = (allStations[city] || []).map((station) => ({
       name: station.name,
       id: station.id,
       uid: station.uid,

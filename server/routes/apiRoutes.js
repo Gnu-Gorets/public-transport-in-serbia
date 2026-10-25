@@ -7,6 +7,7 @@ const {
 } = require("../services/providerService");
 const { getRoute } = require("../services/routeService");
 const { getStationSchedule } = require("../services/scheduleService");
+const { getBelgradeStop } = require("../services/yandexBelgradeService");
 const { sendError } = require("../errors");
 const {
   cityParams,
@@ -21,6 +22,16 @@ const handle = (fn, fallback) => async (req, reply) => {
 };
 
 function registerApiRoutes(fastify) {
+  fastify.register(async (app) => {
+    app.get(
+      "/api/bg/poc/stop",
+      handle(async (_req, reply) => {
+        reply.header("Cache-Control", "no-store");
+        reply.send(await getBelgradeStop());
+      }, "Failed to fetch Yandex stop"),
+    );
+  });
+
   fastify.get(
     "/api/stations/:city/search",
     { schema: { params: cityParams, querystring: stationSearchQuery } },

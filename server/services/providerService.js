@@ -162,7 +162,7 @@ async function getAllStations(city) {
 }
 
 function getAvailableCities() {
-  return Object.fromEntries(Object.entries(apikeys).map(([id, city]) => [id, city.name]));
+  return { bg: "Belgrade", ...Object.fromEntries(Object.entries(apikeys).map(([id, city]) => [id, city.name])) };
 }
 
 module.exports = {
