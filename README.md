@@ -4,7 +4,7 @@
 
 ### Dockerless
 
-1. Install nodejs and npm
+1. Install Node.js 26 and npm
 2. `npm ci` in root of project
 3. `npm run dev`
 4. Check 127.0.0.1:3000

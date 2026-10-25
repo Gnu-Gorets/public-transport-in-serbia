@@ -10,6 +10,9 @@
   },
   "author": "",
   "license": "AGPL-3.0",
+  "engines": {
+    "node": "^26.0.0"
+  },
   "dependencies": {
     "@fastify/cors": "^11.3.1",
     "@fastify/rate-limit": "^11.2.1",
