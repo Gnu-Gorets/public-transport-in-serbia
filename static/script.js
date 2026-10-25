@@ -123,10 +123,10 @@ const onCityChange = async () => {
     scheduleLoadedUid = null;
     bgStopCentered = false;
     layerGroup.clearLayers();
+    $("#name-input").val("");
     $("#thead th").eq(1).text("Arrival time");
     $("#thead th").eq(2).text("Destination");
-    await fetchBgStop();
-    currInterval = setInterval(fetchBgStop, 60 * 1000);
+    moveMapToCityCentre(city);
     return;
   }
 
@@ -163,12 +163,12 @@ const formatSeconds = (seconds) => {
 };
 
 const handleTabOut = () => {
-  clearInterval(currInterval);
+  currInterval = clearInterval(currInterval);
 };
 
 const handleTabIn = () => {
   if (getCity() === "bg") {
-    if (!currInterval) {
+    if (currQuery && !currInterval) {
       fetchBgStop();
       currInterval = setInterval(fetchBgStop, 60 * 1000);
     }
@@ -318,7 +318,7 @@ const fetchBgStop = () => {
   if (getCity() !== "bg") return Promise.resolve();
   if (bgStopRequest) return bgStopRequest;
   bgStopRequest = (async () => {
-    $("#updateInProgress").show();
+    if (currQuery) $("#updateInProgress").show();
     $("#error").hide();
     const response = await doAsyncRequest("/api/bg/poc/stop");
     if (!response || getCity() !== "bg") {
@@ -332,6 +332,10 @@ const fetchBgStop = () => {
       coords: response.coords,
       lines: [],
     }];
+    if (currQuery?.uid !== response.uid) {
+      $("#updateInProgress").hide();
+      return;
+    }
     updateBgArrivals(response);
   })().finally(() => { bgStopRequest = null; });
   return bgStopRequest;
@@ -532,7 +536,13 @@ const submitByName = () => {
   );
   if (city === "bg" && !station) return;
   currQuery = { uid: station?.uid || selectedValue };
-  if (city !== "bg") spawnInterval(currQuery);
+  if (city === "bg") {
+    currInterval = clearInterval(currInterval);
+    const refresh = fetchBgStop();
+    currInterval = setInterval(fetchBgStop, 60 * 1000);
+    return refresh;
+  }
+  spawnInterval(currQuery);
 };
 
 const submitByCoords = () => {

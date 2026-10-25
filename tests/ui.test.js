@@ -118,6 +118,7 @@ function loadUiScript() {
       onCityChange,
       onSearchModeChange,
       submitByName,
+      fetchBgStop,
       updateArrivals,
       updateBgArrivals,
       setStations(city, stations) {
@@ -161,8 +162,9 @@ describe("UI behavior", () => {
     expect(html).not.toContain("yandex.com/map-widget");
   });
 
-  it("shows BG stop arrivals on native map and restores controls for NS", async () => {
+  it("requires explicit BG stop selection and restores controls for NS", async () => {
     const { $, dom, map, ui } = context;
+    const timer = vi.spyOn(dom.window, "setInterval");
     const request = vi.spyOn($, "ajax").mockResolvedValue({
       city: "bg",
       name: "Stadion Partizan · 278",
@@ -190,13 +192,19 @@ describe("UI behavior", () => {
 
     await ui.onCityChange();
 
-    expect(request).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/stop" }));
+    expect(request).not.toHaveBeenCalled();
+    expect(timer).not.toHaveBeenCalled();
+    expect($("#stationName").css("display")).toBe("none");
+    expect($("#tableContainer").css("display")).toBe("none");
+    expect(dom.window.L.featureGroup).not.toHaveBeenCalled();
     expect($("#map").css("display")).not.toBe("none");
     expect($("#stationControls").css("display")).not.toBe("none");
     expect($("#searchMode").val()).toBe("name");
     expect($("#searchMode option[value=coords]").prop("disabled")).toBe(true);
     expect($(".name-search").css("display")).not.toBe("none");
     expect($(".coords-search").css("display")).toBe("none");
+    await ui.fetchBgStop();
+    expect(request).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/stop" }));
     expect(ui.getStations("bg")).toEqual([{
       uid: "3833919270",
       id: "3833919270",
@@ -204,9 +212,12 @@ describe("UI behavior", () => {
       coords: [44.786, 20.4577],
       lines: [],
     }]);
+    expect($("#stationName").css("display")).toBe("none");
+    expect($("#tableContainer").css("display")).toBe("none");
     $("#name-input").val("Stadion Partizan · 278");
-    ui.submitByName();
-    expect(request).toHaveBeenCalledTimes(1);
+    await ui.submitByName();
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(timer).toHaveBeenCalledOnce();
     expect($("#stationName").text()).toContain("Stadion Partizan");
     expect($("#tableContainer").css("display")).not.toBe("none");
     expect($("#tabela").css("display")).not.toBe("none");
