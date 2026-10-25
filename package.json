@@ -1,5 +1,5 @@
 {
-  "name": "bgpp",
+  "name": "public-transport-in-serbia",
   "version": "1.0.0",
   "description": "",
   "main": "server/server.js",
@@ -19,7 +19,8 @@
     "@fastify/static": "^10.1.7",
     "axios": "^1.20.0",
     "crypto-js": "^4.2.0",
-    "fastify": "^5.12.7"
+    "fastify": "^5.12.7",
+    "pino-pretty": "^13.2.0"
   },
   "devDependencies": {
     "jquery": "^4.0.0",
