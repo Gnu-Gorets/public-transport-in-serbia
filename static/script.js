@@ -261,6 +261,7 @@ const updateArrivals = (response, recenter) => {
 const updateBgArrivals = (response) => {
   const now = Date.now();
   const arrivals = (response.arrivals || [])
+    .filter((arrival) => arrival.isEstimated)
     .map((arrival) => ({
       ...arrival,
       timestamp: Date.parse(arrival.estimatedAt || arrival.scheduledAt),
@@ -289,7 +290,7 @@ const updateBgArrivals = (response) => {
 
   if (!arrivals.length) {
     $("#tableContainer").hide();
-    $("#noBusesMessage").text("No upcoming departures are available for this stop.").show();
+    $("#noBusesMessage").text("No live arrival estimates are available for this stop.").show();
     return;
   }
 
@@ -305,7 +306,7 @@ const updateBgArrivals = (response) => {
     });
     const values = [
       arrival.lineNumber,
-      `${arrivalTime} (${arrival.isEstimated ? "estimate" : "scheduled"})`,
+      `${arrivalTime} (estimate)`,
       arrival.destination || "—",
     ];
     values.forEach((value, index) => {
