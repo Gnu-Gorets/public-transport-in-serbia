@@ -87,7 +87,7 @@ describe("API routes", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toContain("text/html");
     expect(response.body).toContain("Serbia++");
-    expect(response.body).toContain("static/script.js?v=bg-stop-search-4");
+    expect(response.body).toContain("static/script.js?v=bg-route-stops-1");
   });
 
   it("requires uid when requesting a station schedule", async () => {
@@ -261,6 +261,48 @@ describe("API routes", () => {
     const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/stop" });
 
     expect(response.statusCode).toBe(502);
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("serves BG route stops and geometry for matching direction", async () => {
+    const html = yandexStopPage.replace('"type":"trolleybus"', '"type":"trolleybus","lineId":"123","uri":"ymapsbm1://transit/line?id=123","seoname":"40"')
+      .replace('"threads":[{', '"threads":[{"threadId":"456",');
+    const routeHtml = `<script type="application/json" class="state-view">${JSON.stringify({
+      config: { masstransitLine: { features: [{
+        properties: { ThreadMetaData: { id: "456", lineId: "123", name: "40" } },
+        features: [
+          { id: "a", name: "Бањица", coordinates: [20.4, 44.7] },
+          { points: [[20.4, 44.7], [20.5, 44.8]] },
+          { id: "b", name: "Звездара", coordinates: [20.5, 44.8] },
+        ],
+      }] } },
+    })}</script>`;
+    const get = vi.fn().mockResolvedValueOnce({ status: 200, data: html })
+      .mockResolvedValueOnce({ status: 200, data: routeHtml });
+    _test.setHttpClient({ get, post: vi.fn() });
+    const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/routes/123/456" });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.json()).toMatchObject({
+      lineId: "123", threadId: "456",
+      stops: [{ name: "Banjica", coords: [44.7, 20.4] }, { name: "Zvezdara", coords: [44.8, 20.5] }],
+      segments: [[[44.7, 20.4], [44.8, 20.5]]],
+    });
+  });
+
+  it("validates BG route identifiers before upstream calls", async () => {
+    const get = vi.fn();
+    _test.setHttpClient({ get, post: vi.fn() });
+    const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/routes/invalid/123" });
+    expect(response.statusCode).toBe(400);
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("rejects BG routes not supplied by stop metadata", async () => {
+    const get = vi.fn().mockResolvedValue({ status: 200, data: yandexStopPage });
+    _test.setHttpClient({ get, post: vi.fn() });
+    const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/routes/123/456" });
+    expect(response.statusCode).toBe(404);
     expect(get).toHaveBeenCalledTimes(1);
   });
 

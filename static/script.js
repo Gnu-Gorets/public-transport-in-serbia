@@ -9,6 +9,8 @@ let scheduleLoadedUid = null;
 let currentCity;
 let bgStopCentered = false;
 let bgStopRequest;
+let bgRouteData;
+let bgRouteSelection;
 
 const coloredIcon = (color) => {
   return new L.Icon({
@@ -122,6 +124,8 @@ const onCityChange = async () => {
     onSearchModeChange();
     scheduleLoadedUid = null;
     bgStopCentered = false;
+    bgRouteData = undefined;
+    bgRouteSelection = undefined;
     layerGroup.clearLayers();
     $("#name-input").val("");
     $("#thead th").eq(1).text("Arrival time");
@@ -268,7 +272,7 @@ const updateBgArrivals = (response) => {
   $("#lastUpdated").text(
     `Last updated: ${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Belgrade" })} (Yandex page; refresh every 60 seconds)`,
   ).show();
-  $("#busRouteInfo").text("Showing stop location only; vehicle coordinates are unavailable.").show();
+  $("#busRouteInfo").text("Select line to view route and stops. Current feed does not include vehicle positions.").show();
   $("#updateInProgress").hide();
   $("#error").hide();
   $("#tableBody").empty();
@@ -281,6 +285,7 @@ const updateBgArrivals = (response) => {
   const popup = document.createElement("span");
   popup.textContent = response.name;
   L.featureGroup([createMarker(response.coords, undefined, "yellow", popup)]).addTo(layerGroup);
+  if (bgRouteData) drawBgRoute(bgRouteData, false);
 
   if (!arrivals.length) {
     $("#tableContainer").hide();
@@ -303,14 +308,61 @@ const updateBgArrivals = (response) => {
       `${arrivalTime} (${arrival.isEstimated ? "estimate" : "scheduled"})`,
       arrival.destination || "—",
     ];
-    values.forEach((value) => {
+    values.forEach((value, index) => {
       const cell = document.createElement("td");
-      cell.textContent = value;
+      if (index === 0 && arrival.route) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = value;
+        button.setAttribute("aria-label", `View route ${value} to ${arrival.destination || "destination"}`);
+        button.addEventListener("click", () => showBgRoute(arrival.route));
+        cell.appendChild(button);
+      } else cell.textContent = value;
       row.appendChild(cell);
     });
     return row;
   });
   $("#tableBody").append(rows);
+};
+
+const drawBgRoute = (route, recenter = true) => {
+  if (currentPolyline) layerGroup.removeLayer(currentPolyline);
+  currentPolyline = L.polyline(route.segments, { color: "green" }).addTo(layerGroup);
+  if (recenter) map.fitBounds(currentPolyline.getBounds());
+};
+
+const showBgRoute = async (route) => {
+  const selection = `${route.lineId}:${route.threadId}`;
+  const query = currQuery;
+  bgRouteSelection = selection;
+  bgRouteData = undefined;
+  if (currentPolyline) {
+    layerGroup.removeLayer(currentPolyline);
+    currentPolyline = null;
+  }
+  $("#scheduleInfo").text("Loading route stops...");
+  $("#scheduleContainer").empty();
+  $("#scheduleSection").show();
+  const response = await doAsyncRequest(`/api/bg/poc/routes/${encodeURIComponent(route.lineId)}/${encodeURIComponent(route.threadId)}`);
+  if (getCity() !== "bg" || currQuery !== query || bgRouteSelection !== selection) return;
+  if (!response) {
+    $("#scheduleInfo").text("Route stops could not be loaded. Arrivals remain available.");
+    return;
+  }
+  bgRouteData = response;
+  $("#scheduleInfo").text(`Route ${response.name}: ${response.stops[0].name} → ${response.stops.at(-1).name} (route geometry, not vehicle position)`);
+  const list = document.createElement("ol");
+  response.stops.forEach((stop) => {
+    const item = document.createElement("li");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = stop.name;
+    button.addEventListener("click", () => map.setView(stop.coords, 16));
+    item.appendChild(button);
+    list.appendChild(item);
+  });
+  $("#scheduleContainer").empty().append(list);
+  drawBgRoute(response);
 };
 
 const fetchBgStop = () => {

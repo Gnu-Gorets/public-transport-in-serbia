@@ -59,7 +59,18 @@ const routeQuery = {
   additionalProperties: false,
 };
 
+const bgRouteParams = {
+  type: "object",
+  required: ["lineId", "threadId"],
+  additionalProperties: false,
+  properties: {
+    lineId: { type: "string", pattern: "^[0-9]{1,20}$" },
+    threadId: { type: "string", pattern: "^[0-9]{1,20}$" },
+  },
+};
+
 module.exports = {
+  bgRouteParams,
   cityParams,
   routeQuery,
   stationScheduleQuery,

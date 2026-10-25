@@ -7,9 +7,10 @@ const {
 } = require("../services/providerService");
 const { getRoute } = require("../services/routeService");
 const { getStationSchedule } = require("../services/scheduleService");
-const { getBelgradeStop } = require("../services/yandexBelgradeService");
+const { getBelgradeStop, getBelgradeRoute } = require("../services/yandexBelgradeService");
 const { sendError } = require("../errors");
 const {
+  bgRouteParams,
   cityParams,
   routeQuery,
   stationScheduleQuery,
@@ -23,6 +24,14 @@ const handle = (fn, fallback) => async (req, reply) => {
 
 function registerApiRoutes(fastify) {
   fastify.register(async (app) => {
+    app.get(
+      "/api/bg/poc/routes/:lineId/:threadId",
+      { schema: { params: bgRouteParams } },
+      handle(async (req, reply) => {
+        reply.header("Cache-Control", "no-store");
+        reply.send(await getBelgradeRoute(req.params.lineId, req.params.threadId));
+      }, "Failed to fetch Yandex route"),
+    );
     app.get(
       "/api/bg/poc/stop",
       handle(async (_req, reply) => {
