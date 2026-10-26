@@ -61,31 +61,6 @@ describe("API routes", () => {
     await fastify.close();
   });
 
-  it("prewarms configured cities concurrently", async () => {
-    let active = 0;
-    let maxActive = 0;
-    const httpClient = {
-      get: vi.fn(),
-      post: vi.fn(async () => {
-        active++;
-        maxActive = Math.max(maxActive, active);
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        active--;
-        return { status: 200, data: stationsResponse() };
-      }),
-    };
-    _test.setHttpClient(httpClient);
-
-    await providerService.populateMap(true);
-
-    expect(maxActive).toBe(2);
-    expect(httpClient.post).toHaveBeenCalledWith(
-      expect.stringContaining("/publicapi/v1/networkextended.php"),
-      JSON.stringify({ action: "get_cities_extended" }),
-      expect.objectContaining({ timeout: 15000 }),
-    );
-  });
-
   it("serves the UI entrypoint", async () => {
     const response = await fastify.inject({
       method: "GET",
@@ -371,18 +346,41 @@ describe("API routes", () => {
     expect(response.json().message).toContain("must match pattern");
   });
 
-  it("returns 400 when id search is requested before city map is populated", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
+  it("loads the station map before resolving an ID search on cold start", async () => {
+    const httpClient = {
+      get: vi.fn().mockResolvedValue({ status: 200, data: [] }),
+      post: vi.fn().mockResolvedValue({ status: 200, data: stationsResponse() }),
+    };
+    _test.setHttpClient(httpClient);
 
     const response = await fastify.inject({
       method: "GET",
       url: "/api/stations/ns/search?id=42",
     });
 
-    expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({
-      error: "Map for ns is not populated yet",
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ uid: "station-1", name: "Main Station", coords: [44.8, 20.4] });
+    expect(httpClient.post).toHaveBeenCalledOnce();
+    expect(httpClient.get).toHaveBeenCalledWith(
+      expect.stringContaining("station_uid=station-1"),
+      expect.any(Object),
+    );
+  });
+
+  it("rejects IDs absent from a populated station map", async () => {
+    _test.setNow(() => 1_000);
+    _test.setState({
+      allStations: { ns: { known: { uid: "known", id: "42", name: "Known", coords: [44.8, 20.4] } } },
+      cacheMeta: { ns: { loadedAt: 1_000 } },
     });
+    const httpClient = { get: vi.fn(), post: vi.fn() };
+    _test.setHttpClient(httpClient);
+
+    const response = await fastify.inject({ method: "GET", url: "/api/stations/ns/search?id=404" });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "Station not found" });
+    expect(httpClient.get).not.toHaveBeenCalled();
   });
 
   it("returns 502 when station provider request fails", async () => {

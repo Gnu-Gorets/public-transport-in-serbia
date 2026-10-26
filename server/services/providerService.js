@@ -34,18 +34,6 @@ function rebuildIdUidMap(city) {
   }
 }
 
-async function populateMap(force = false) {
-  await Promise.all(Object.keys(apikeys).map(async (city) => {
-    if (!force && state.idUidMap[city] && !isStationsCacheExpired(city)) return;
-    try {
-      await getAllStations(city);
-      logger.info(`Populating map finished for ${city}`);
-    } catch (err) {
-      logger.error({ err }, `Populating map failed for ${city}`);
-    }
-  }));
-}
-
 async function request(method, url, apikey, { payload, timeout = GET_TIMEOUT_MS, contentType } = {}) {
   const headers = { "X-Api-Authentication": apikey, "User-Agent": "okhttp/4.10.0" };
   if (payload) headers["Content-Type"] = contentType || "application/x-www-form-urlencoded";
@@ -70,8 +58,9 @@ async function getLineTimetable(city, lineNumber, direction, date) {
 function getStationUid(city, query) {
   if (query.uid) return query.uid;
   if (query.id) {
-    if (!state.idUidMap[city]) throw badRequest(`Map for ${city} is not populated yet`);
-    return state.idUidMap[city][query.id.toString()];
+    const uid = state.idUidMap[city]?.[query.id.toString()];
+    if (!uid) throw badRequest("Station not found");
+    return uid;
   }
   throw badRequest("Invalid query");
 }
@@ -120,6 +109,7 @@ async function getStationInfoV2(city, uid) {
 }
 
 async function getStationInfo(city, query) {
+  if (query.id) await getAllStations(city);
   const uid = getStationUid(city, query);
   if (apikeys[city].api === "v1") return getStationInfoV1(city, uid);
   if (apikeys[city].api === "v2") return getStationInfoV2(city, uid);
@@ -172,7 +162,6 @@ module.exports = {
   getAvailableCities,
   getLineTimetable,
   getStationInfo,
-  populateMap,
   _test: {
     setNow: (nextNow) => { now = nextNow; },
     resetNow: () => { now = () => Date.now(); },
