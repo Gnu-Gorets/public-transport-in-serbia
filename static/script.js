@@ -202,17 +202,19 @@ const formatSeconds = (seconds) => {
   return `${minutes} min`;
 };
 
-const updateArrivals = (response, recenter) => {
-  let date = new Date();
-
-  let name = `${response.name} (${response.id})`;
-  $("#stationName").text(`Station: ${name}`);
-  $("#lastUpdated").text(
-    `Last updated: ${date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Belgrade" })} (auto refresh - 60 seconds)`,
-  );
-  $("#stationName").show();
-  $("#lastUpdated").show();
+const updateStationHeader = (name) => {
+  $("#stationName").text(`Station: ${name}`).show();
+  $("#lastUpdated")
+    .text(
+      `Last updated: ${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Belgrade" })} (auto refresh - 60 seconds)`,
+    )
+    .show();
   $("#updateInProgress").hide();
+};
+
+const updateArrivals = (response, recenter) => {
+  const name = `${response.name} (${response.id})`;
+  updateStationHeader(name);
 
   layerGroup.clearLayers();
   if (recenter) map.setView(response.coords, 13, { animation: true });
@@ -284,14 +286,14 @@ const updateArrivals = (response, recenter) => {
         value.main_line_title,
       );
       marker.on("click", () =>
-        handleBusClick(value.lineNumber, value.allStations),
+        addRouteToMap(value.lineNumber, value.allStations),
       );
       markers.push(marker);
     }
     const formattedTime = formatSeconds(value.secondsLeft);
     const row = document.createElement("tr");
     row.addEventListener("click", () =>
-      handleBusClick(value.lineNumber, value.allStations),
+      addRouteToMap(value.lineNumber, value.allStations),
     );
     const lineCell = document.createElement("td");
     const lineLink = document.createElement("a");
@@ -333,12 +335,7 @@ const updateBgArrivals = (response) => {
     )
     .sort((a, b) => a.timestamp - b.timestamp);
 
-  $("#stationName").text(`Station: ${response.name}`).show();
-  $("#lastUpdated")
-    .text(
-      `Last updated: ${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Belgrade" })} (auto refresh - 60 seconds)`,
-    )
-    .show();
+  updateStationHeader(response.name);
   $("#busRouteInfo")
     .text("Click on bus number to view its route on map.")
     .show();
@@ -594,10 +591,6 @@ const spawnInterval = (query = undefined) => {
   currInterval = setInterval(() => {
     fetchArrivals(city, query, false);
   }, 60 * 1000);
-};
-
-const handleBusClick = (busNumber, fallbackStations) => {
-  addRouteToMap(busNumber, fallbackStations);
 };
 
 const toggleSchedule = (city, uid) => {
