@@ -114,6 +114,9 @@ function loadUiScript(runReady = false, initialAjax) {
       addTo() {
         return this;
       },
+      getBounds() {
+        return "route-bounds";
+      },
     })),
     map: vi.fn(() => ({ setView: vi.fn() })),
     layerGroup: vi.fn(() => ({
@@ -665,6 +668,36 @@ describe("UI behavior", () => {
     finish({ name: "40", stops: [], segments: [] });
     await pending;
     expect($("#scheduleSection").css("display")).toBe("none");
+  });
+
+  it("fits the map to the full NS and Nis bus route", async () => {
+    const { map, ui } = context;
+    const stations = [
+      { uid: "1", coords: [45, 19] },
+      { uid: "2", coords: [46, 20] },
+    ];
+    const lines = { "7_A": ["1", "2"] };
+    ui.setStations("ns", stations);
+    ui.setLines("ns", lines);
+    ui.setStations("nis", stations);
+    ui.setLines("nis", lines);
+    global.document.getElementById("city").value = "ns";
+    global.fetch = vi.fn().mockResolvedValue({
+      json: async () => ({
+        code: "Ok",
+        routes: [{ geometry: { type: "LineString", coordinates: [] } }],
+      }),
+    });
+
+    for (const city of ["ns", "nis"]) {
+      global.document.getElementById("city").value = city;
+      await ui.addRouteToMap("7");
+    }
+
+    expect(map.fitBounds).toHaveBeenCalledTimes(2);
+    expect(map.fitBounds).toHaveBeenCalledWith("route-bounds", {
+      padding: [40, 40],
+    });
   });
 
   it("formats seconds as whole minutes", () => {

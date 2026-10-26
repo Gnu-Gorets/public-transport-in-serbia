@@ -743,6 +743,7 @@ const addRouteToMap = async (lineNumber, fallbackStations = []) => {
       currentPolyline = L.geoJSON(data.routes[0].geometry, {
         style: { color: "blue" },
       }).addTo(layerGroup);
+      map.fitBounds(currentPolyline.getBounds(), { padding: [40, 40] });
       return;
     }
   } catch {
@@ -750,6 +751,7 @@ const addRouteToMap = async (lineNumber, fallbackStations = []) => {
   }
 
   currentPolyline = L.polyline(latlngs, { color: "blue" }).addTo(layerGroup);
+  map.fitBounds(currentPolyline.getBounds(), { padding: [40, 40] });
 };
 
 const initMap = () => {
