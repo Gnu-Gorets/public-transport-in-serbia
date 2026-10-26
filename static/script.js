@@ -453,7 +453,7 @@ const refreshBgVehicles = async (recenter = false) => {
     else return true;
   };
   const response = await doAsyncRequest(
-    `/api/bg/poc/vehicles?stopId=${encodeURIComponent(query.uid || bgStopId)}`,
+    `/api/bg/vehicles?stopId=${encodeURIComponent(query.uid || bgStopId)}`,
     "GET",
     undefined,
     clearLatest,
@@ -488,7 +488,7 @@ const showBgRoute = async (route) => {
     currentPolyline = null;
   }
   const response = await doAsyncRequest(
-    `/api/bg/poc/routes/${encodeURIComponent(route.lineId)}/${encodeURIComponent(route.threadId)}?stopId=${encodeURIComponent(query?.uid || bgStopId)}`,
+    `/api/bg/routes/${encodeURIComponent(route.lineId)}/${encodeURIComponent(route.threadId)}?stopId=${encodeURIComponent(query?.uid || bgStopId)}`,
     "GET",
     undefined,
     () =>
@@ -518,13 +518,13 @@ const fetchBgStop = () => {
     const isStale = () => getCity() !== "bg" || currQuery?.uid !== stopId;
     const [response, vehicleResponse] = await Promise.all([
       doAsyncRequest(
-        `/api/bg/poc/stop?stopId=${encodeURIComponent(stopId)}`,
+        `/api/bg/stop?stopId=${encodeURIComponent(stopId)}`,
         "GET",
         undefined,
         isStale,
       ),
       doAsyncRequest(
-        `/api/bg/poc/vehicles?stopId=${encodeURIComponent(stopId)}`,
+        `/api/bg/vehicles?stopId=${encodeURIComponent(stopId)}`,
         "GET",
         undefined,
         isStale,

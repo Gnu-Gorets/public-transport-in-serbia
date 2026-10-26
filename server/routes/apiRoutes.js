@@ -45,7 +45,7 @@ function registerApiRoutes(fastify) {
       );
     };
     registerBgEndpoint(
-      "/api/bg/poc/routes/:lineId/:threadId",
+      "/api/bg/routes/:lineId/:threadId",
       { params: bgRouteParams, querystring: bgStopQuery },
       (req) =>
         getBelgradeRoute(
@@ -56,13 +56,13 @@ function registerApiRoutes(fastify) {
       "Failed to fetch Yandex route",
     );
     registerBgEndpoint(
-      "/api/bg/poc/stop",
+      "/api/bg/stop",
       { querystring: bgStopQuery },
       (req) => getBelgradeStop(req.query.stopId),
       "Failed to fetch Yandex stop",
     );
     registerBgEndpoint(
-      "/api/bg/poc/vehicles",
+      "/api/bg/vehicles",
       { querystring: bgStopQuery },
       (req) => getBelgradeVehicles(req.query.stopId),
       "Failed to fetch Yandex vehicle positions",

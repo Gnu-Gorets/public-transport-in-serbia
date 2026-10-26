@@ -225,7 +225,7 @@ describe("UI behavior", () => {
     $("#name-input").val("Stadion Partizan · 278");
     await ui.submitByName();
     expect(request).toHaveBeenCalledWith(
-      expect.objectContaining({ url: "/api/bg/poc/stop?stopId=6739029064" }),
+      expect.objectContaining({ url: "/api/bg/stop?stopId=6739029064" }),
     );
     expect(request).toHaveBeenCalledTimes(2);
     expect(timer).toHaveBeenCalledOnce();
@@ -342,7 +342,7 @@ describe("UI behavior", () => {
     await ui.onCityChange();
     const request = vi.fn(({ url }) =>
       Promise.resolve(
-        url.startsWith("/api/bg/poc/vehicles") ? { vehicles: [vehicle] } : stop,
+        url.startsWith("/api/bg/vehicles") ? { vehicles: [vehicle] } : stop,
       ),
     );
     $.ajax = request;
@@ -355,7 +355,7 @@ describe("UI behavior", () => {
 
     expect(request).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: "/api/bg/poc/vehicles?stopId=6739029064",
+        url: "/api/bg/vehicles?stopId=6739029064",
       }),
     );
     expect(marker).toHaveBeenCalledWith(
@@ -369,7 +369,7 @@ describe("UI behavior", () => {
 
     request.mockImplementation(({ url }) =>
       Promise.resolve(
-        url.startsWith("/api/bg/poc/vehicles") ? { vehicles: [] } : stop,
+        url.startsWith("/api/bg/vehicles") ? { vehicles: [] } : stop,
       ),
     );
     const removeCount = layerGroup.removeLayer.mock.calls.length;
@@ -422,7 +422,7 @@ describe("UI behavior", () => {
     await new Promise((resolve) => setImmediate(resolve));
     expect($.ajax).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: "/api/bg/poc/routes/1704912322/4898716406?stopId=6739029064",
+        url: "/api/bg/routes/1704912322/4898716406?stopId=6739029064",
       }),
     );
     expect($("#scheduleSection").css("display")).toBe("none");

@@ -364,7 +364,7 @@ describe("API routes", () => {
       Array.from({ length: 3 }, () =>
         fastify.inject({
           method: "GET",
-          url: "/api/bg/poc/stop?stopId=6739029064",
+          url: "/api/bg/stop?stopId=6739029064",
         }),
       ),
     );
@@ -390,7 +390,7 @@ describe("API routes", () => {
 
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/bg/poc/vehicles?stopId=6739029064",
+      url: "/api/bg/vehicles?stopId=6739029064",
     });
 
     expect(response.statusCode).toBe(200);
@@ -407,7 +407,7 @@ describe("API routes", () => {
 
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/bg/poc/stop?stopId=6739029064",
+      url: "/api/bg/stop?stopId=6739029064",
     });
 
     expect(response.statusCode).toBe(502);
@@ -453,7 +453,7 @@ describe("API routes", () => {
     _test.setHttpClient({ get, post: vi.fn() });
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/bg/poc/routes/123/456?stopId=6739029064",
+      url: "/api/bg/routes/123/456?stopId=6739029064",
     });
     expect(response.statusCode).toBe(200);
     expect(response.headers["cache-control"]).toBe("no-store");
@@ -478,7 +478,7 @@ describe("API routes", () => {
     _test.setHttpClient({ get, post: vi.fn() });
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/bg/poc/routes/invalid/123",
+      url: "/api/bg/routes/invalid/123",
     });
     expect(response.statusCode).toBe(400);
     expect(get).not.toHaveBeenCalled();
@@ -491,7 +491,7 @@ describe("API routes", () => {
     _test.setHttpClient({ get, post: vi.fn() });
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/bg/poc/routes/123/456?stopId=6739029064",
+      url: "/api/bg/routes/123/456?stopId=6739029064",
     });
     expect(response.statusCode).toBe(404);
     expect(get).toHaveBeenCalledTimes(1);
