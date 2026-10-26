@@ -974,6 +974,41 @@ describe("API routes", () => {
     });
   });
 
+  it.each(["2026-04-28", "2026-04-30"])(
+    "keeps all departures for non-current date %s",
+    async (date) => {
+      vi.setSystemTime(new Date("2026-04-29T12:00:00+02:00"));
+      _test.setState({
+        allStations: {
+          ns: {
+            station: {
+              uid: "station",
+              id: "1",
+              name: "Stop",
+              lines: ["1"],
+            },
+          },
+        },
+        cacheMeta: { ns: { loadedAt: Date.now() } },
+      });
+      _test.setHttpClient({
+        get: vi.fn(),
+        post: vi.fn().mockResolvedValue({
+          status: 200,
+          data: [{ station_id: "station", departure_time: ["08:00", "18:00"] }],
+        }),
+      });
+
+      const response = await fastify.inject({
+        method: "GET",
+        url: `/api/stations/ns/schedule?uid=station&date=${date}`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().schedule["1"]).toEqual(["08:00", "18:00"]);
+    },
+  );
+
   it("bounds timetable concurrency and deduplicates station lines", async () => {
     _test.setState({
       allStations: {

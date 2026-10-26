@@ -11,6 +11,7 @@ const getBelgradeDate = () => {
 
 async function getStationSchedule(city, uid, date) {
   const scheduleDate = date || getBelgradeDate();
+  const isToday = scheduleDate === getBelgradeDate();
 
   await getAllStations(city);
   const station = state.allStations[city]?.[uid];
@@ -46,7 +47,7 @@ async function getStationSchedule(city, uid, date) {
           if (!stationEntry?.departure_time?.length) continue;
 
           const times = stationEntry.departure_time.filter((t) => {
-            if (t.includes("(+24h)")) return true;
+            if (!isToday || t.includes("(+24h)")) return true;
             return t.trim() >= nowHHMM;
           });
           if (!times.length) continue;
