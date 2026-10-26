@@ -349,6 +349,19 @@ function routeViewport(route) {
   };
 }
 
+function yandexHeaders() {
+  return {
+    "User-Agent": "SerbiaTransport/1.0",
+    ...(upstreamCookies.size
+      ? {
+          Cookie: [...upstreamCookies]
+            .map(([name, value]) => `${name}=${value}`)
+            .join("; "),
+        }
+      : {}),
+  };
+}
+
 function mergeCookies(setCookie = []) {
   for (const cookie of Array.isArray(setCookie) ? setCookie : [setCookie]) {
     const pair = cookie?.split(";", 1)[0];
@@ -388,16 +401,9 @@ async function fetchVehiclePositions(route, config, pageUrl) {
         maxContentLength: MAX_STOP_PAGE_BYTES,
         responseType: "json",
         headers: {
+          ...yandexHeaders(),
           Accept: "application/json",
-          "User-Agent": "SerbiaTransport/1.0",
           "X-Retpath-Y": pageUrl,
-          ...(upstreamCookies.size
-            ? {
-                Cookie: [...upstreamCookies]
-                  .map(([name, value]) => `${name}=${value}`)
-                  .join("; "),
-              }
-            : {}),
         },
       });
     } catch (err) {
@@ -431,17 +437,7 @@ async function fetchPage(url) {
       timeout: STOP_PAGE_TIMEOUT_MS,
       maxContentLength: MAX_STOP_PAGE_BYTES,
       responseType: "text",
-      headers: {
-        Accept: "text/html",
-        "User-Agent": "SerbiaTransport/1.0",
-        ...(upstreamCookies.size
-          ? {
-              Cookie: [...upstreamCookies]
-                .map(([name, value]) => `${name}=${value}`)
-                .join("; "),
-            }
-          : {}),
-      },
+      headers: { ...yandexHeaders(), Accept: "text/html" },
     });
   } catch (err) {
     throw upstreamError(err.message || "Yandex page request failed");

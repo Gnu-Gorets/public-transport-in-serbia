@@ -18,7 +18,11 @@ describe("Belgrade stop catalog", () => {
     expect(belgradeStops.stops).toHaveLength(2125);
     expect(belgradeStops.routes).toHaveLength(92);
     expect(belgradeStops.routes).toContainEqual(
-      expect.objectContaining({ route: "511", lineId: "4206130163", type: "bus" }),
+      expect.objectContaining({
+        route: "511",
+        lineId: "4206130163",
+        type: "bus",
+      }),
     );
     expect(belgradeStops.remainingRoutes).toEqual([]);
     expect(belgradeStops.complete).toBe(false);
@@ -26,8 +30,15 @@ describe("Belgrade stop catalog", () => {
 
   it("rejects duplicate IDs and invalid coordinates", () => {
     const stop = { id: "1", name: "Stop", coords: [44.8, 20.4] };
-    expect(() => _test.validateStops({ updatedAt: "2026-10-26", stops: [stop, stop] })).toThrow();
-    expect(() => _test.validateStops({ updatedAt: "2026-10-26", stops: [{ ...stop, coords: [0, 0] }] })).toThrow();
+    expect(() =>
+      _test.validateStops({ updatedAt: "2026-10-26", stops: [stop, stop] }),
+    ).toThrow();
+    expect(() =>
+      _test.validateStops({
+        updatedAt: "2026-10-26",
+        stops: [{ ...stop, coords: [0, 0] }],
+      }),
+    ).toThrow();
   });
 });
 
@@ -244,6 +255,7 @@ describe("Yandex Belgrade routes", () => {
       .mockResolvedValueOnce({
         status: 200,
         data: { csrfToken: "fresh-token" },
+        headers: { "set-cookie": ["challenge=updated; Path=/"] },
       })
       .mockResolvedValueOnce({ status: 200, data: { blocked: true } });
     setHttpClient({ get });
@@ -254,6 +266,7 @@ describe("Yandex Belgrade routes", () => {
     expect(new URL(get.mock.calls[3][0]).searchParams.get("csrfToken")).toBe(
       "fresh-token",
     );
+    expect(get.mock.calls[3][1].headers.Cookie).toBe("challenge=updated");
   });
 
   it("rejects wrong direction, invalid geometry and CAPTCHA", () => {
