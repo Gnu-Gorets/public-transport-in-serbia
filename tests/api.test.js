@@ -6,12 +6,14 @@ const require = createRequire(import.meta.url);
 const logger = require("../server/logger.js");
 const providerService = require("../server/services/providerService.js");
 const yandexBelgradeService = require("../server/services/yandexBelgradeService.js");
+const belgradeStops = require("../server/data/yandex-belgrade-bus-stops.json");
+const { validateStops } = require("../server/services/belgradeStopsService.js");
 const { fastify, _test } = server;
 
 const yandexStopPage = `<script type="application/json" class="state-view">${JSON.stringify({
   config: {
     masstransitStop: {
-      id: "3833919270",
+      id: "6739029064",
       name: "Стадион Партизан · 278",
       coordinates: [20.4577, 44.786],
       transports: [{
@@ -88,6 +90,20 @@ describe("API routes", () => {
     expect(response.headers["content-type"]).toContain("text/html");
     expect(response.body).toContain("Serbia++");
     expect(response.body).toContain("static/script.js?v=bg-live-vehicles-1");
+  });
+
+  it("validates Belgrade catalog IDs, names, coordinates, and uniqueness", () => {
+    const valid = { updatedAt: "2026-10-27", stops: [{ id: "1", name: "Stop", coords: [44.8, 20.4] }] };
+    expect(validateStops(valid)).toBe(valid);
+    expect(() => validateStops({ ...valid, stops: [...valid.stops, valid.stops[0]] })).toThrow();
+    expect(() => validateStops({ ...valid, stops: [{ ...valid.stops[0], coords: [0, 0] }] })).toThrow();
+  });
+
+  it("serves the checked-in Belgrade stop catalog locally", async () => {
+    const response = await fastify.inject({ method: "GET", url: "/api/bg/stops" });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("public, max-age=3600");
+    expect(response.json()).toEqual(belgradeStops);
   });
 
   it("requires uid when requesting a station schedule", async () => {
@@ -240,14 +256,14 @@ describe("API routes", () => {
     _test.setHttpClient({ get, post: vi.fn() });
 
     const responses = await Promise.all(Array.from({ length: 3 }, () =>
-      fastify.inject({ method: "GET", url: "/api/bg/poc/stop" }),
+      fastify.inject({ method: "GET", url: "/api/bg/poc/stop?stopId=6739029064" }),
     ));
 
     expect(responses.map((response) => response.statusCode)).toEqual([200, 200, 200]);
     expect(responses[0].headers["cache-control"]).toBe("no-store");
     expect(responses[0].json()).toMatchObject({
       city: "bg",
-      uid: "3833919270",
+      uid: "6739029064",
       coords: [44.786, 20.4577],
       arrivals: [{ lineNumber: "40", isEstimated: true }],
     });
@@ -258,7 +274,7 @@ describe("API routes", () => {
     const get = vi.fn().mockResolvedValue({ status: 200, data: yandexStopPage });
     _test.setHttpClient({ get, post: vi.fn() });
 
-    const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/vehicles" });
+    const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/vehicles?stopId=6739029064" });
 
     expect(response.statusCode).toBe(200);
     expect(response.headers["cache-control"]).toBe("no-store");
@@ -270,7 +286,7 @@ describe("API routes", () => {
     const get = vi.fn().mockResolvedValue({ status: 200, data: "<html>captcha</html>" });
     _test.setHttpClient({ get, post: vi.fn() });
 
-    const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/stop" });
+    const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/stop?stopId=6739029064" });
 
     expect(response.statusCode).toBe(502);
     expect(get).toHaveBeenCalledTimes(1);
@@ -292,7 +308,7 @@ describe("API routes", () => {
     const get = vi.fn().mockResolvedValueOnce({ status: 200, data: html })
       .mockResolvedValueOnce({ status: 200, data: routeHtml });
     _test.setHttpClient({ get, post: vi.fn() });
-    const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/routes/123/456" });
+    const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/routes/123/456?stopId=6739029064" });
     expect(response.statusCode).toBe(200);
     expect(response.headers["cache-control"]).toBe("no-store");
     expect(response.json()).toMatchObject({
@@ -314,7 +330,7 @@ describe("API routes", () => {
   it("rejects BG routes not supplied by stop metadata", async () => {
     const get = vi.fn().mockResolvedValue({ status: 200, data: yandexStopPage });
     _test.setHttpClient({ get, post: vi.fn() });
-    const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/routes/123/456" });
+    const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/routes/123/456?stopId=6739029064" });
     expect(response.statusCode).toBe(404);
     expect(get).toHaveBeenCalledTimes(1);
   });

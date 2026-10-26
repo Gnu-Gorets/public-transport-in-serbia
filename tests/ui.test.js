@@ -171,8 +171,8 @@ describe("UI behavior", () => {
     const request = vi.spyOn($, "ajax").mockResolvedValue({
       city: "bg",
       name: "Stadion Partizan · 278",
-      uid: "3833919270",
-      id: "3833919270",
+      uid: "6739029064",
+      id: "6739029064",
       coords: [44.786, 20.4577],
       arrivals: [
         {
@@ -206,23 +206,16 @@ describe("UI behavior", () => {
     expect($("#searchMode option[value=coords]").prop("disabled")).toBe(true);
     expect($(".name-search").css("display")).not.toBe("none");
     expect($(".coords-search").css("display")).toBe("none");
-    await ui.fetchBgStop();
-    expect(request).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/stop" }));
-    expect(ui.getStations("bg")).toEqual([{
-      uid: "3833919270",
-      id: "3833919270",
-      name: "Stadion Partizan · 278",
-      coords: [44.786, 20.4577],
-      lines: [],
+    ui.setStations("bg", [{
+      uid: "6739029064", id: "6739029064", name: "Stadion Partizan · 278", coords: [44.786, 20.4577],
     }]);
-    expect($("#stationName").css("display")).toBe("none");
-    expect($("#tableContainer").css("display")).toBe("none");
     $("#name-input").val("Stadion Partizan · 278");
     await ui.submitByName();
-    expect(request).toHaveBeenCalledTimes(3);
+    expect(request).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/stop?stopId=6739029064" }));
+    expect(request).toHaveBeenCalledTimes(2);
     expect(timer).toHaveBeenCalledOnce();
     expect($("#stationName").text()).toContain("Stadion Partizan");
-    expect($("#stationName").text()).not.toContain("3833919270");
+    expect($("#stationName").text()).not.toContain("6739029064");
     expect(dom.window.L.featureGroup.mock.calls[0][0][0].tooltip).toBeUndefined();
     expect($("#tableContainer").css("display")).not.toBe("none");
     expect($("#tabela").css("display")).not.toBe("none");
@@ -256,23 +249,23 @@ describe("UI behavior", () => {
     const { $, dom, layerGroup, map, ui } = context;
     const route = { lineId: "1704912322", threadId: "4898716406" };
     const stop = {
-      name: "Stadion Partizan · 278", id: "3833919270", uid: "3833919270", coords: [44.786, 20.4577],
+      name: "Stadion Partizan · 278", id: "6739029064", uid: "6739029064", coords: [44.786, 20.4577],
       arrivals: [{ lineNumber: "40", destination: "Zvezdara", estimatedAt: new Date(Date.now() + 60_000).toISOString(), isEstimated: true, vehicleId: "belgrade|P82023", route }],
     };
     const vehicle = { id: "belgrade|P82023", lineNumber: "40", coords: [44.71, 20.41] };
     await ui.onCityChange();
-    const request = vi.fn(({ url }) => Promise.resolve(url === "/api/bg/poc/vehicles" ? { vehicles: [vehicle] } : stop));
+    const request = vi.fn(({ url }) => Promise.resolve(url.startsWith("/api/bg/poc/vehicles") ? { vehicles: [vehicle] } : stop));
     $.ajax = request;
     const marker = vi.spyOn(dom.window.L, "marker");
-    await ui.fetchBgStop();
+    ui.setStations("bg", [{ uid: stop.id, id: stop.id, name: stop.name, coords: stop.coords }]);
     $("#name-input").val(stop.name);
     await ui.submitByName();
 
-    expect(request).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/vehicles" }));
+    expect(request).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/vehicles?stopId=6739029064" }));
     expect(marker).toHaveBeenCalledWith(vehicle.coords, expect.objectContaining({ icon: expect.anything() }));
     expect(map.fitBounds).toHaveBeenCalledWith("bounds");
 
-    request.mockImplementation(({ url }) => Promise.resolve(url === "/api/bg/poc/vehicles" ? { vehicles: [] } : stop));
+    request.mockImplementation(({ url }) => Promise.resolve(url.startsWith("/api/bg/poc/vehicles") ? { vehicles: [] } : stop));
     const clearCount = layerGroup.clearLayers.mock.calls.length;
     await ui.updateBgArrivals(stop);
     expect(layerGroup.clearLayers).toHaveBeenCalledTimes(clearCount + 1);
@@ -288,7 +281,7 @@ describe("UI behavior", () => {
       segments: [[[44.7, 20.4], [44.71, 20.41], [44.72, 20.42]]],
     };
     const stop = {
-      name: "Stadion Partizan", id: "3833919270", coords: [44.786, 20.4577],
+      name: "Stadion Partizan", id: "6739029064", coords: [44.786, 20.4577],
       arrivals: [{ lineNumber: "40", destination: "Zvezdara", estimatedAt: new Date(Date.now() + 60_000).toISOString(), isEstimated: true, route }],
     };
     await ui.onCityChange();
@@ -296,7 +289,7 @@ describe("UI behavior", () => {
     ui.updateBgArrivals(stop);
     $("#tableBody tr").first().trigger("click");
     await new Promise((resolve) => setImmediate(resolve));
-    expect($.ajax).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/routes/1704912322/4898716406" }));
+    expect($.ajax).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/routes/1704912322/4898716406?stopId=6739029064" }));
     expect($("#scheduleSection").css("display")).toBe("none");
     expect($("#scheduleContainer").text()).toBe("");
     expect($("#scheduleInfo").text()).not.toContain("Route 40");

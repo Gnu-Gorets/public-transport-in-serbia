@@ -1,14 +1,13 @@
 const { getHttpClient } = require("../httpClient");
 const { upstreamError } = require("../errors");
+const { belgradeStops } = require("./belgradeStopsService");
+const knownStopIds = new Set(belgradeStops.stops.map(({ id }) => id));
 
-const STOP_ID = "3833919270";
-const STOP_URL = `https://yandex.com/maps/10522/belgrade/stops/${STOP_ID}/`;
+const STOP_CACHE_TTL_MS = 30_000;
+const stopCache = new Map();
+const stopInFlight = new Map();
 const STOP_PAGE_TIMEOUT_MS = 5000;
 const MAX_STOP_PAGE_BYTES = 1_000_000;
-const STOP_CACHE_TTL_MS = 30_000;
-let cachedStop;
-let cachedAt = 0;
-let inFlight;
 const upstreamCookies = new Map();
 const routeCache = new Map();
 const SERBIAN_CYRILLIC = {
@@ -46,12 +45,12 @@ function parsePageState(html) {
   return pageState;
 }
 
-function parseStopPage(html) {
+function parseStopPage(html, stopId) {
   const pageState = parsePageState(html);
   const stop = pageState.config?.masstransitStop;
   if (
     !stop ||
-    String(stop.id) !== STOP_ID ||
+    String(stop.id) !== stopId ||
     typeof stop.name !== "string" ||
     !Array.isArray(stop.coordinates) ||
     stop.coordinates.length !== 2 ||
@@ -86,8 +85,8 @@ function parseStopPage(html) {
   return {
     city: "bg",
     name: toLatin(stop.name),
-    uid: STOP_ID,
-    id: STOP_ID,
+    uid: String(stopId),
+    id: String(stopId),
     coords: [stop.coordinates[1], stop.coordinates[0]],
     arrivals,
   };
@@ -271,11 +270,11 @@ async function fetchPage(url) {
   return response.data;
 }
 
-async function getRoutePage(lineId, threadId) {
-  const stop = await getBelgradeStop();
+async function getRoutePage(lineId, threadId, stopId) {
+  const stop = await getBelgradeStop(stopId);
   const routeRef = stop.arrivals.find((arrival) => arrival.route?.lineId === lineId && arrival.route?.threadId === threadId)?.route;
   if (!routeRef) throw Object.assign(new Error("Route is not available for selected stop"), { statusCode: 404 });
-  const key = `${lineId}:${threadId}`;
+  const key = `${stopId}:${lineId}:${threadId}`;
   const cached = routeCache.get(key);
   if (cached && Date.now() - cached.at < 300_000) return cached.promise;
   const entry = { at: Date.now() };
@@ -290,12 +289,12 @@ async function getRoutePage(lineId, threadId) {
   return entry.promise;
 }
 
-async function getBelgradeRoute(lineId, threadId) {
-  return (await getRoutePage(lineId, threadId)).route;
+async function getBelgradeRoute(lineId, threadId, stopId) {
+  return (await getRoutePage(lineId, threadId, stopId)).route;
 }
 
-async function getBelgradeVehicles() {
-  const stop = await getBelgradeStop();
+async function getBelgradeVehicles(stopId) {
+  const stop = await getBelgradeStop(stopId);
   const routes = new Map();
   for (const arrival of stop.arrivals) {
     if (!arrival.isEstimated || !arrival.vehicleId || !arrival.route) continue;
@@ -307,7 +306,7 @@ async function getBelgradeVehicles() {
   if (!routes.size) return { vehicles: [] };
 
   const results = await Promise.allSettled([...routes.values()].map(async ({ reference, vehicleIds }) => {
-    const { route, config, pageUrl } = await getRoutePage(reference.lineId, reference.threadId);
+    const { route, config, pageUrl } = await getRoutePage(reference.lineId, reference.threadId, stopId);
     return (await fetchVehiclePositions(route, config, pageUrl)).filter((vehicle) => vehicleIds.has(vehicle.id));
   }));
   const successful = results.filter((result) => result.status === "fulfilled");
@@ -315,24 +314,25 @@ async function getBelgradeVehicles() {
   return { vehicles: [...new Map(successful.flatMap((result) => result.value).map((vehicle) => [vehicle.id, vehicle])).values()] };
 }
 
-async function getBelgradeStop() {
-  if (cachedStop && Date.now() - cachedAt < STOP_CACHE_TTL_MS) return cachedStop;
-  if (!inFlight) {
-    inFlight = fetchPage(STOP_URL).then(parseStopPage)
-      .then((stop) => {
-        cachedStop = stop;
-        cachedAt = Date.now();
-        return stop;
-      })
-      .finally(() => { inFlight = null; });
+async function getBelgradeStop(stopId) {
+  if (typeof stopId !== "string" || !/^\d{1,20}$/.test(stopId) || !knownStopIds.has(stopId)) {
+    throw Object.assign(new Error("Invalid Belgrade stop ID"), { statusCode: 400 });
   }
-  return inFlight;
+  const cached = stopCache.get(stopId);
+  if (cached && Date.now() - cached.at < STOP_CACHE_TTL_MS) return cached.value;
+  if (!stopInFlight.has(stopId)) {
+    const request = fetchPage(`https://yandex.com/maps/10522/belgrade/stops/${stopId}/`)
+      .then((html) => parseStopPage(html, stopId))
+      .then((value) => { stopCache.set(stopId, { value, at: Date.now() }); return value; })
+      .finally(() => stopInFlight.delete(stopId));
+    stopInFlight.set(stopId, request);
+  }
+  return stopInFlight.get(stopId);
 }
 
 function resetCache() {
-  cachedStop = undefined;
-  cachedAt = 0;
-  inFlight = null;
+  stopCache.clear();
+  stopInFlight.clear();
   upstreamCookies.clear();
   routeCache.clear();
 }

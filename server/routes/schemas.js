@@ -59,6 +59,13 @@ const routeQuery = {
   additionalProperties: false,
 };
 
+const bgStopQuery = {
+  type: "object",
+  required: ["stopId"],
+  properties: { stopId: { type: "string", pattern: "^[0-9]{1,20}$" } },
+  additionalProperties: false,
+};
+
 const bgRouteParams = {
   type: "object",
   required: ["lineId", "threadId"],
@@ -71,6 +78,7 @@ const bgRouteParams = {
 
 module.exports = {
   bgRouteParams,
+  bgStopQuery,
   cityParams,
   routeQuery,
   stationScheduleQuery,

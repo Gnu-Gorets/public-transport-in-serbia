@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const { state } = require("../state");
+const bgStops = require("../data/yandex-belgrade-bus-stops.json");
 const {
   getAllStations,
   getAvailableCities,
@@ -11,6 +12,7 @@ const { getBelgradeStop, getBelgradeRoute, getBelgradeVehicles } = require("../s
 const { sendError } = require("../errors");
 const {
   bgRouteParams,
+  bgStopQuery,
   cityParams,
   routeQuery,
   stationScheduleQuery,
@@ -26,26 +28,33 @@ function registerApiRoutes(fastify) {
   fastify.register(async (app) => {
     app.get(
       "/api/bg/poc/routes/:lineId/:threadId",
-      { schema: { params: bgRouteParams } },
+      { schema: { params: bgRouteParams, querystring: bgStopQuery } },
       handle(async (req, reply) => {
         reply.header("Cache-Control", "no-store");
-        reply.send(await getBelgradeRoute(req.params.lineId, req.params.threadId));
+        reply.send(await getBelgradeRoute(req.params.lineId, req.params.threadId, req.query.stopId));
       }, "Failed to fetch Yandex route"),
     );
     app.get(
       "/api/bg/poc/stop",
-      handle(async (_req, reply) => {
+      { schema: { querystring: bgStopQuery } },
+      handle(async (req, reply) => {
         reply.header("Cache-Control", "no-store");
-        reply.send(await getBelgradeStop());
+        reply.send(await getBelgradeStop(req.query.stopId));
       }, "Failed to fetch Yandex stop"),
     );
     app.get(
       "/api/bg/poc/vehicles",
-      handle(async (_req, reply) => {
+      { schema: { querystring: bgStopQuery } },
+      handle(async (req, reply) => {
         reply.header("Cache-Control", "no-store");
-        reply.send(await getBelgradeVehicles());
+        reply.send(await getBelgradeVehicles(req.query.stopId));
       }, "Failed to fetch Yandex vehicle positions"),
     );
+  });
+
+  fastify.get("/api/bg/stops", async (_req, reply) => {
+    reply.header("Cache-Control", "public, max-age=3600");
+    reply.send(bgStops);
   });
 
   fastify.get(

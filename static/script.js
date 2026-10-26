@@ -9,6 +9,7 @@ let scheduleLoadedUid = null;
 let currentCity;
 let bgStopCentered = false;
 let bgStopRequest;
+let bgStopId;
 let bgStopMarker;
 let bgVehicleLayer;
 let bgVehicleRequestId = 0;
@@ -124,6 +125,7 @@ const onCityChange = async () => {
     bgVehicleRequestId++;
     bgVehicleLayer = undefined;
     bgStopMarker = undefined;
+    bgStopId = undefined;
   }
   if (isBelgrade) {
     $("#searchMode").val("name");
@@ -265,6 +267,7 @@ const updateArrivals = (response, recenter) => {
 };
 
 const updateBgArrivals = (response) => {
+  bgStopId = response.id;
   bgVehicleRequestId++;
   const now = Date.now();
   const arrivals = (response.arrivals || [])
@@ -355,7 +358,7 @@ const refreshBgVehicles = async (recenter = false) => {
   const clearLatest = () => {
     if (getCity() === "bg" && currQuery === query && requestId === bgVehicleRequestId) drawBgVehicles([]);
   };
-  const response = await doAsyncRequest("/api/bg/poc/vehicles", "GET", undefined, clearLatest);
+  const response = await doAsyncRequest(`/api/bg/poc/vehicles?stopId=${encodeURIComponent(query.uid || bgStopId)}`, "GET", undefined, clearLatest);
   if (getCity() !== "bg" || currQuery !== query || requestId !== bgVehicleRequestId) return;
   drawBgVehicles(Array.isArray(response?.vehicles) ? response.vehicles : [], recenter);
 };
@@ -375,7 +378,7 @@ const showBgRoute = async (route) => {
     layerGroup.removeLayer(currentPolyline);
     currentPolyline = null;
   }
-  const response = await doAsyncRequest(`/api/bg/poc/routes/${encodeURIComponent(route.lineId)}/${encodeURIComponent(route.threadId)}`);
+  const response = await doAsyncRequest(`/api/bg/poc/routes/${encodeURIComponent(route.lineId)}/${encodeURIComponent(route.threadId)}?stopId=${encodeURIComponent(query?.uid || bgStopId)}`);
   if (getCity() !== "bg" || currQuery !== query || bgRouteSelection !== selection || !response) return;
   bgRouteData = response;
   drawBgRoute(response);
@@ -387,18 +390,13 @@ const fetchBgStop = () => {
   bgStopRequest = (async () => {
     if (currQuery) $("#updateInProgress").show();
     $("#error").hide();
-    const response = await doAsyncRequest("/api/bg/poc/stop");
+    const stopId = currQuery?.uid;
+    if (!stopId) return;
+    const response = await doAsyncRequest(`/api/bg/poc/stop?stopId=${encodeURIComponent(stopId)}`);
     if (!response || getCity() !== "bg") {
       $("#updateInProgress").hide();
       return;
     }
-    allStations.bg = [{
-      uid: response.uid,
-      id: response.id,
-      name: response.name,
-      coords: response.coords,
-      lines: [],
-    }];
     if (currQuery?.uid !== response.uid) {
       $("#updateInProgress").hide();
       return;
@@ -796,8 +794,10 @@ $(document).ready(async () => {
   const fetchStations = async () => {
     const city = getCity();
     if (!allStations[city]) {
-      if (city === "bg") await fetchBgStop();
-      else await fetchCityStations(city);
+      if (city === "bg") {
+        const response = await doAsyncRequest("/api/bg/stops");
+        allStations.bg = (response?.stops || []).map((stop) => ({ ...stop, uid: stop.id }));
+      } else await fetchCityStations(city);
     }
     stations = (allStations[city] || []).map((station) => ({
       name: station.name,
