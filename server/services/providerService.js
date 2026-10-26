@@ -34,6 +34,18 @@ function rebuildIdUidMap(city) {
   }
 }
 
+async function populateMap(force = false) {
+  await Promise.all(Object.keys(apikeys).map(async (city) => {
+    if (!force && state.idUidMap[city] && !isStationsCacheExpired(city)) return;
+    try {
+      await getAllStations(city);
+      logger.info(`Populating map finished for ${city}`);
+    } catch (err) {
+      logger.error({ err }, `Populating map failed for ${city}`);
+    }
+  }));
+}
+
 async function request(method, url, apikey, { payload, timeout = GET_TIMEOUT_MS, contentType } = {}) {
   const headers = { "X-Api-Authentication": apikey, "User-Agent": "okhttp/4.10.0" };
   if (payload) headers["Content-Type"] = contentType || "application/x-www-form-urlencoded";
@@ -162,6 +174,7 @@ module.exports = {
   getAvailableCities,
   getLineTimetable,
   getStationInfo,
+  populateMap,
   _test: {
     setNow: (nextNow) => { now = nextNow; },
     resetNow: () => { now = () => Date.now(); },
