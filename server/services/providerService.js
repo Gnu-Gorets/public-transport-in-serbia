@@ -13,6 +13,7 @@ const { badRequest, upstreamError } = require("../errors");
 const STATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const STATIONS_CACHE_STALE_MS = 7 * STATIONS_CACHE_TTL_MS;
 const GET_TIMEOUT_MS = 5000;
+const STATIONS_TIMEOUT_MS = 15000;
 const TIMETABLE_TIMEOUT_MS = 10000;
 let now = () => Date.now();
 const inFlight = {};
@@ -132,6 +133,7 @@ async function fetchAndCacheStations(city) {
     const response = await request("post", url, apikeys[city].key, {
       payload: JSON.stringify({ action: "get_cities_extended" }),
       contentType: "application/json",
+      timeout: STATIONS_TIMEOUT_MS,
     });
     state.allStations[city] = transformAllStationsResponse(response);
     state.allLines[city] = transformAllLinesResponse(response);

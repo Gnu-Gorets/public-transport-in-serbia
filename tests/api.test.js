@@ -64,7 +64,7 @@ describe("API routes", () => {
   it("prewarms configured cities concurrently", async () => {
     let active = 0;
     let maxActive = 0;
-    _test.setHttpClient({
+    const httpClient = {
       get: vi.fn(),
       post: vi.fn(async () => {
         active++;
@@ -73,11 +73,17 @@ describe("API routes", () => {
         active--;
         return { status: 200, data: stationsResponse() };
       }),
-    });
+    };
+    _test.setHttpClient(httpClient);
 
     await providerService.populateMap(true);
 
     expect(maxActive).toBe(2);
+    expect(httpClient.post).toHaveBeenCalledWith(
+      expect.stringContaining("/publicapi/v1/networkextended.php"),
+      JSON.stringify({ action: "get_cities_extended" }),
+      expect.objectContaining({ timeout: 15000 }),
+    );
   });
 
   it("serves the UI entrypoint", async () => {
