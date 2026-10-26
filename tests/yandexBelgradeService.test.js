@@ -265,6 +265,66 @@ describe("Yandex Belgrade routes", () => {
     expect(options.headers.Cookie).toBe("yandexuid=opaque");
   });
 
+  it("returns vehicles from successful routes when another route request fails", async () => {
+    const partialState = structuredClone(stopState);
+    const firstTransport = partialState.config.masstransitStop.transports[0];
+    const secondTransport = structuredClone(firstTransport);
+    secondTransport.name = "41";
+    secondTransport.lineId = "1704912323";
+    secondTransport.uri =
+      "ymapsbm1://transit/line?id=1704912323&name=41&type=bus";
+    secondTransport.seoname = "41";
+    secondTransport.type = "bus";
+    secondTransport.threads[0].threadId = "4898716407";
+    secondTransport.threads[0].BriefSchedule.Events[0].vehicleId =
+      "belgrade|P82024";
+    partialState.config.masstransitStop.transports.push(secondTransport);
+
+    const get = vi.fn(async (url) => {
+      if (url.includes("/stops/"))
+        return {
+          status: 200,
+          data: `<script type="application/json" class="state-view">${JSON.stringify(partialState)}</script>`,
+        };
+      if (url.includes("/routes/")) {
+        const state = structuredClone(routeState);
+        const isSecond = url.includes("bus_41");
+        const metadata =
+          state.config.masstransitLine.features[0].properties.ThreadMetaData;
+        metadata.lineId = isSecond ? "1704912323" : "1704912322";
+        metadata.id = isSecond ? "4898716407" : "4898716406";
+        return { status: 200, data: routeHtml(state) };
+      }
+      const lineId = new URL(url).searchParams.get("lineId");
+      if (lineId === "1704912322") throw new Error("route feed unavailable");
+      return {
+        status: 200,
+        data: {
+          data: {
+            vehicles: [
+              {
+                properties: {
+                  VehicleMetaData: {
+                    id: "belgrade|P82024",
+                    Transport: { lineId, name: "41" },
+                  },
+                },
+                features: [{ geometry: { coordinates: [[20.42, 44.72]] } }],
+              },
+            ],
+          },
+        },
+      };
+    });
+    setHttpClient({ get });
+
+    await expect(getBelgradeVehicles("6739029064")).resolves.toEqual({
+      vehicles: [
+        { id: "belgrade|P82024", lineNumber: "41", coords: [44.72, 20.42] },
+      ],
+    });
+  });
+
   it("maps upstream HTTP failures to gateway errors for both request types", async () => {
     const pageFailure = vi
       .fn()
