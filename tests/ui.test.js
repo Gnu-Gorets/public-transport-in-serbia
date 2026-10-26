@@ -362,7 +362,10 @@ describe("UI behavior", () => {
       vehicle.coords,
       expect.objectContaining({ icon: expect.anything() }),
     );
-    expect(map.fitBounds).toHaveBeenCalledWith("bounds", { animate: false });
+    expect(map.fitBounds).toHaveBeenCalledWith("bounds", {
+      animate: false,
+      padding: [40, 40],
+    });
 
     request.mockImplementation(({ url }) =>
       Promise.resolve(
@@ -553,7 +556,9 @@ describe("UI behavior", () => {
     expect(map.setView).toHaveBeenCalledWith([44.8, 20.4], 13, {
       animation: true,
     });
-    expect(map.fitBounds).toHaveBeenCalledWith("bounds");
+    expect(map.fitBounds).toHaveBeenCalledWith("bounds", {
+      padding: [40, 40],
+    });
   });
 
   it("renders provider markup as text in arrivals and schedule", async () => {

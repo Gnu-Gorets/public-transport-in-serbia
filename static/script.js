@@ -311,7 +311,7 @@ const updateArrivals = (response, recenter) => {
   $("#tableBody").empty().append(tableData);
   $("#tabela").show();
   let group = L.featureGroup(markers).addTo(layerGroup);
-  if (recenter) map.fitBounds(group.getBounds());
+  if (recenter) map.fitBounds(group.getBounds(), { padding: [40, 40] });
 };
 
 const updateBgArrivals = (response) => {
@@ -433,6 +433,7 @@ const drawBgVehicles = (vehicles = [], recenter = false) => {
     if (markers.length)
       map.fitBounds(L.featureGroup([bgStopMarker, ...markers]).getBounds(), {
         animate: false,
+        padding: [40, 40],
       });
     else map.setView(bgStopCoords, 15, { animate: false });
     bgStopCentered = true;
