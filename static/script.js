@@ -298,9 +298,9 @@ const updateBgArrivals = (response) => {
 
   $("#stationName").text(`Station: ${response.name}`).show();
   $("#lastUpdated").text(
-    `Last updated: ${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Belgrade" })} (Yandex page; refresh every 60 seconds)`,
+    `Last updated: ${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Belgrade" })} (auto refresh - 60 seconds)`,
   ).show();
-  $("#busRouteInfo").text("Live bus positions are shown when available. Select line to view route.").show();
+  $("#busRouteInfo").text("Click on bus number to view its route on map.").show();
   $("#updateInProgress").hide();
   $("#error").hide();
   $("#tableBody").empty();

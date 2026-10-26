@@ -230,7 +230,8 @@ describe("UI behavior", () => {
     expect($("#tableBody").text()).toContain("estimate");
     expect($("#tableBody tr")).toHaveLength(1);
     expect($("#tableBody").text()).not.toContain("scheduled");
-    expect($("#busRouteInfo").text()).toContain("Live bus positions are shown when available.");
+    expect($("#busRouteInfo").text()).toBe("Click on bus number to view its route on map.");
+    expect($("#busRouteInfo").text()).not.toContain("View schedule");
     expect(map.setView).toHaveBeenCalledWith([44.786, 20.4577], 15, { animate: false });
     expect(dom.window.L.featureGroup.mock.calls[0][0]).toHaveLength(1);
     ui.updateBgArrivals({
