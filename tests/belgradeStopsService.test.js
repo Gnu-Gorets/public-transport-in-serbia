@@ -6,8 +6,21 @@ const source = require("../server/data/yandex-belgrade-bus-stops.json");
 describe("Belgrade stop catalog", () => {
   it("validates and exports the Yandex bus stop source", () => {
     expect(belgradeStops).toBe(source);
-    expect(belgradeStops.stops).toHaveLength(1083);
-    expect(belgradeStops.stops.every((stop) => stop.routes.length > 0)).toBe(true);
+    expect(belgradeStops.stops).toHaveLength(1759);
+    expect(belgradeStops.routes.filter(({ type }) => type === "bus")).toHaveLength(55);
+    expect(belgradeStops.routes.filter(({ type }) => type === "tram")).toHaveLength(9);
+    expect(belgradeStops.routes.filter(({ type }) => type === "minibus")).toHaveLength(2);
+    const routeNames = new Set(belgradeStops.routes.map(({ route }) => route));
+    expect(belgradeStops.stops.every((stop) => stop.routes.length > 0 && stop.routes.every((route) => routeNames.has(route.replace(/^(?:tram|minibus):/, ""))))).toBe(true);
+    expect(belgradeStops.routes.filter(({ type }) => type === "bus").every((route) =>
+      belgradeStops.stops.some((stop) => stop.routes.includes(route.route)),
+    )).toBe(true);
+    expect(belgradeStops.routes.filter(({ type }) => type === "tram").every((route) =>
+      belgradeStops.stops.some((stop) => stop.routes.includes(`tram:${route.route}`)),
+    )).toBe(true);
+    expect(belgradeStops.routes.filter(({ type }) => type === "minibus").every((route) =>
+      belgradeStops.stops.some((stop) => stop.routes.includes(`minibus:${route.route}`)),
+    )).toBe(true);
   });
 
   it("rejects duplicate IDs and invalid coordinates", () => {

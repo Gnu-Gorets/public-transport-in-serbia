@@ -94,7 +94,7 @@ function parseStopPage(html, stopId) {
 
 function routeReference(transport, thread) {
   if (!/^\d+$/.test(transport.lineId) || !/^\d+$/.test(thread.threadId) ||
-      !["bus", "trolleybus", "tram", "minibus"].includes(transport.type) ||
+      !["bus", "trolleybus", "tram", "tramway", "minibus"].includes(transport.type) ||
       typeof transport.uri !== "string" || !transport.uri.startsWith("ymapsbm1://transit/line?") ||
       typeof transport.seoname !== "string" || !/^[\w-]+$/.test(transport.seoname)) return null;
   let uri;

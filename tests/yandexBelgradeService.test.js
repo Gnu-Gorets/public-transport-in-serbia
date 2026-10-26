@@ -151,6 +151,40 @@ describe("Yandex Belgrade routes", () => {
 });
 
 describe("Yandex Belgrade stop page", () => {
+  it("builds tramway route references from stop metadata", () => {
+    const tramState = structuredClone(stopState);
+    Object.assign(tramState.config.masstransitStop.transports[0], {
+      name: "14",
+      lineId: "1704914690",
+      uri: "ymapsbm1://transit/line?id=1704914690&name=14&type=tramway",
+      seoname: "14",
+      type: "tramway",
+    });
+    const arrival = _test.parseStopPage(routeHtml(tramState), "6739029064").arrivals[0];
+    expect(arrival.route).toEqual({
+      lineId: "1704914690",
+      threadId: "4898716406",
+      path: `/maps/10522/belgrade/routes/tramway_14/${Buffer.from(tramState.config.masstransitStop.transports[0].uri).toString("hex")}/`,
+    });
+  });
+
+  it("builds minibus route references from stop metadata", () => {
+    const minibusState = structuredClone(stopState);
+    Object.assign(minibusState.config.masstransitStop.transports[0], {
+      name: "Е6",
+      lineId: "4664663654",
+      uri: "ymapsbm1://transit/line?id=4664663654&ll=20.429671%2C44.790000&name=E6&r=12000&type=minibus",
+      seoname: "E6",
+      type: "minibus",
+    });
+    const arrival = _test.parseStopPage(routeHtml(minibusState), "6739029064").arrivals[0];
+    expect(arrival.route).toEqual({
+      lineId: "4664663654",
+      threadId: "4898716406",
+      path: `/maps/10522/belgrade/routes/minibus_E6/${Buffer.from(minibusState.config.masstransitStop.transports[0].uri).toString("hex")}/`,
+    });
+  });
+
   it("normalizes Latin names and scheduled-only times", () => {
     expect(_test.parseStopPage(stopHtml, "6739029064")).toEqual({
       city: "bg",
