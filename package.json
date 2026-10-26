@@ -8,7 +8,7 @@
     "dev": "npx nodemon server/server.js",
     "test": "vitest run",
     "lint": "eslint server static tests eslint.config.mjs",
-    "format:check": "prettier --check \"server/**/*.js\" \"static/**/*.{js,html,css}\" \"tests/**/*.js\" package.json AGENTS.md .gitlab-ci.yml eslint.config.mjs .prettierrc.json"
+    "format:check": "prettier --check \"server/**/*.js\" \"static/**/*.{js,html,css}\" \"tests/**/*.js\" package.json AGENTS.md .github/workflows/ci.yml eslint.config.mjs .prettierrc.json"
   },
   "author": "",
   "license": "AGPL-3.0",
