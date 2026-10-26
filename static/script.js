@@ -438,7 +438,7 @@ const drawBgVehicles = (vehicles = [], recenter = false) => {
       createMarker(
         vehicle.coords,
         vehicle.lineNumber,
-        "yellow",
+        "blue",
         `Bus ${vehicle.lineNumber}`,
       ),
     );
