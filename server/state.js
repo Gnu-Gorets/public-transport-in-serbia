@@ -7,7 +7,13 @@ const state = {
 };
 
 const resetState = () => {
-  Object.assign(state, { idUidMap: {}, uidIdMap: {}, allStations: {}, allLines: {}, cacheMeta: {} });
+  Object.assign(state, {
+    idUidMap: {},
+    uidIdMap: {},
+    allStations: {},
+    allLines: {},
+    cacheMeta: {},
+  });
 };
 
 const setState = (next = {}) => {
@@ -31,4 +37,10 @@ const markCacheError = (city, err) => {
   };
 };
 
-module.exports = { state, resetState, setState, markCacheLoaded, markCacheError };
+module.exports = {
+  state,
+  resetState,
+  setState,
+  markCacheLoaded,
+  markCacheError,
+};

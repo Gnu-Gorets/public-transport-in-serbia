@@ -5,12 +5,24 @@ const { registerApiRoutes } = require("./routes/apiRoutes");
 
 function createApp(options = {}) {
   const fastify = fastifyFactory({
-    logger: options.logger ?? (process.env.NODE_ENV === "test" ? false : {
-      transport: process.env.NODE_ENV === "production" ? undefined : {
-        target: "pino-pretty",
-        options: { colorize: true, translateTime: "SYS:standard", ignore: "pid,hostname", singleLine: true },
-      },
-    }),
+    logger:
+      options.logger ??
+      (process.env.NODE_ENV === "test"
+        ? false
+        : {
+            transport:
+              process.env.NODE_ENV === "production"
+                ? undefined
+                : {
+                    target: "pino-pretty",
+                    options: {
+                      colorize: true,
+                      translateTime: "SYS:standard",
+                      ignore: "pid,hostname",
+                      singleLine: true,
+                    },
+                  },
+          }),
   });
 
   fastify.register(require("@fastify/static"), {

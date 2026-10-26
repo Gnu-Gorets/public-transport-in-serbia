@@ -11,6 +11,7 @@ const getBelgradeDate = () => {
 
 async function getStationSchedule(city, uid, date) {
   const scheduleDate = date || getBelgradeDate();
+  const isToday = scheduleDate === getBelgradeDate();
 
   await getAllStations(city);
   const station = state.allStations[city]?.[uid];
@@ -24,30 +25,41 @@ async function getStationSchedule(city, uid, date) {
     minute: "2-digit",
   });
 
-  const requests = lines.flatMap((line) => ["A", "B"].map((direction) => ({ line, direction })));
+  const requests = lines.flatMap((line) =>
+    ["A", "B"].map((direction) => ({ line, direction })),
+  );
   let nextRequest = 0;
-  await Promise.all(Array.from({ length: Math.min(6, requests.length) }, async () => {
-    while (nextRequest < requests.length) {
-      const { line, direction } = requests[nextRequest++];
-      try {
-        const timetable = await getLineTimetable(city, line, direction, scheduleDate);
-        if (!Array.isArray(timetable)) continue;
-        const stationEntry = timetable.find((s) => String(s.station_id) === String(uid));
-        if (!stationEntry?.departure_time?.length) continue;
+  await Promise.all(
+    Array.from({ length: Math.min(6, requests.length) }, async () => {
+      while (nextRequest < requests.length) {
+        const { line, direction } = requests[nextRequest++];
+        try {
+          const timetable = await getLineTimetable(
+            city,
+            line,
+            direction,
+            scheduleDate,
+          );
+          if (!Array.isArray(timetable)) continue;
+          const stationEntry = timetable.find(
+            (s) => String(s.station_id) === String(uid),
+          );
+          if (!stationEntry?.departure_time?.length) continue;
 
-        const times = stationEntry.departure_time.filter((t) => {
-          if (t.includes("(+24h)")) return true;
-          return t.trim() >= nowHHMM;
-        });
-        if (!times.length) continue;
+          const times = stationEntry.departure_time.filter((t) => {
+            if (!isToday || t.includes("(+24h)")) return true;
+            return t.trim() >= nowHHMM;
+          });
+          if (!times.length) continue;
 
-        if (!schedule[line]) schedule[line] = new Set();
-        times.forEach((t) => schedule[line].add(t));
-      } catch (err) {
-        logger.warn({ err }, `[schedule] ${city}/${line}/${direction}`);
+          if (!schedule[line]) schedule[line] = new Set();
+          times.forEach((t) => schedule[line].add(t));
+        } catch (err) {
+          logger.warn({ err }, `[schedule] ${city}/${line}/${direction}`);
+        }
       }
-    }
-  }));
+    }),
+  );
 
   const result = {};
   for (const line of Object.keys(schedule).sort()) {

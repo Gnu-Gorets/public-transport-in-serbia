@@ -14,6 +14,7 @@ let bgStopCentered = false;
 let bgStopRequest;
 let bgStopId;
 let bgStopMarker;
+let bgStopCoords;
 let bgVehicleLayer;
 let bgVehicleRequestId = 0;
 let bgRouteData;
@@ -88,12 +89,25 @@ const doAsyncRequest = async (url, type = "GET", data = {}, errorHandler) => {
 };
 
 const fetchCityStations = async (city) => {
-  let response = await doAsyncRequest(`/api/stations/${city}/all`, "GET", undefined, () => city !== getCity());
-  allStations[city] = response;
+  const isBelgrade = city === "bg";
+  const response = await doAsyncRequest(
+    isBelgrade ? "/api/bg/stops" : `/api/stations/${city}/all`,
+    "GET",
+    undefined,
+    isBelgrade ? undefined : () => city !== getCity(),
+  );
+  allStations[city] = isBelgrade
+    ? (response?.stops || []).map((stop) => ({ ...stop, uid: stop.id }))
+    : response;
 };
 
 const fetchCityLines = async (city) => {
-  const response = await doAsyncRequest(`/api/lines/${city}`, "GET", undefined, () => city !== getCity());
+  const response = await doAsyncRequest(
+    `/api/lines/${city}`,
+    "GET",
+    undefined,
+    () => city !== getCity(),
+  );
   allLines[city] = response;
 };
 
@@ -122,11 +136,17 @@ const onCityChange = async () => {
   currentCity = city;
   changeBg(city);
   $("#stationControls").toggle(true);
-  $("#searchMode option[value=coords]").prop("hidden", isBelgrade).prop("disabled", isBelgrade);
+  $("#searchMode option[value=coords]")
+    .prop("hidden", isBelgrade)
+    .prop("disabled", isBelgrade);
   $("#map").show();
-  $("#updateInProgress, #stationName, #lastUpdated, #busRouteInfo, #error, #noBusesMessage, #tableContainer, #scheduleSection").hide();
+  $(
+    "#updateInProgress, #stationName, #lastUpdated, #busRouteInfo, #error, #noBusesMessage, #tableContainer, #scheduleSection",
+  ).hide();
 
   currInterval = clearInterval(currInterval);
+  layerGroup.clearLayers();
+  currentPolyline = null;
   genericRequestId++;
   scheduleRequestId++;
   currQuery = undefined;
@@ -134,6 +154,7 @@ const onCityChange = async () => {
     bgVehicleRequestId++;
     bgVehicleLayer = undefined;
     bgStopMarker = undefined;
+    bgStopCoords = undefined;
     bgStopId = undefined;
   }
   if (isBelgrade) {
@@ -152,7 +173,9 @@ const onCityChange = async () => {
 
   $("#thead th").eq(1).text("ETA");
   $("#thead th").eq(2).text("Route");
-  $("#noBusesMessage").text("Currently, there are no buses scheduled to arrive at this stop.");
+  $("#noBusesMessage").text(
+    "Currently, there are no buses scheduled to arrive at this stop.",
+  );
   moveMapToCityCentre(city);
   const promises = [];
   if (!allStations[city]) promises.push(fetchCityStations(city));
@@ -181,32 +204,19 @@ const formatSeconds = (seconds) => {
   return `${minutes} min`;
 };
 
-const handleTabOut = () => {
-  currInterval = clearInterval(currInterval);
-};
-
-const handleTabIn = () => {
-  if (getCity() === "bg") {
-    if (currQuery && !currInterval) {
-      fetchBgStop();
-      currInterval = setInterval(fetchBgStop, 60 * 1000);
-    }
-    return;
-  }
-  spawnInterval();
+const updateStationHeader = (name) => {
+  $("#stationName").text(`Station: ${name}`).show();
+  $("#lastUpdated")
+    .text(
+      `Last updated: ${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Belgrade" })} (auto refresh - 60 seconds)`,
+    )
+    .show();
+  $("#updateInProgress").hide();
 };
 
 const updateArrivals = (response, recenter) => {
-  let date = new Date();
-
-  let name = `${response.name} (${response.id})`;
-  $("#stationName").text(`Station: ${name}`);
-  $("#lastUpdated").text(
-    `Last updated: ${date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Belgrade" })} (auto refresh - 30 seconds)`,
-  );
-  $("#stationName").show();
-  $("#lastUpdated").show();
-  $("#updateInProgress").hide();
+  const name = `${response.name} (${response.id})`;
+  updateStationHeader(name);
 
   layerGroup.clearLayers();
   if (recenter) map.setView(response.coords, 13, { animation: true });
@@ -226,7 +236,9 @@ const updateArrivals = (response, recenter) => {
   const city = getCity();
   const uid = response.uid;
   const info = document.getElementById("busRouteInfo");
-  info.replaceChildren(document.createTextNode("Click on bus number to view its route on map. | "));
+  info.replaceChildren(
+    document.createTextNode("Click on bus number to view its route on map. | "),
+  );
   const scheduleLink = document.createElement("a");
   scheduleLink.id = "scheduleToggle";
   scheduleLink.href = "#";
@@ -252,48 +264,61 @@ const updateArrivals = (response, recenter) => {
     if (lineOrder) return lineOrder;
     const aSeconds = Number(a.secondsLeft);
     const bSeconds = Number(b.secondsLeft);
-    return (Number.isFinite(aSeconds) ? aSeconds : Infinity) -
-      (Number.isFinite(bSeconds) ? bSeconds : Infinity);
+    return (
+      (Number.isFinite(aSeconds) ? aSeconds : Infinity) -
+      (Number.isFinite(bSeconds) ? bSeconds : Infinity)
+    );
   });
 
-  const tableData = response.vehicles
-    .map((value) => {
-      const hasCoords = Array.isArray(value.coords) && value.coords.length === 2 &&
-        value.coords.every((coord) => coord != null && String(coord).trim() && Number.isFinite(Number(coord)));
-      if (hasCoords) {
-        const marker = createMarker(
-          value.coords.map(Number),
-          value.lineNumber,
-          "blue",
-          value.main_line_title,
-        );
-        marker.on("click", () =>
-          handleBusClick(value.lineNumber, value.allStations),
-        );
-        markers.push(marker);
-      }
-      const formattedTime = formatSeconds(value.secondsLeft);
-      const row = document.createElement("tr");
-      row.addEventListener("click", () => handleBusClick(value.lineNumber, value.allStations));
-      const lineCell = document.createElement("td");
-      const lineLink = document.createElement("a");
-      lineLink.href = "#";
-      lineLink.style.color = "#FFD700";
-      lineLink.textContent = value.lineNumber ?? "";
-      lineLink.addEventListener("click", (event) => event.preventDefault());
-      lineCell.appendChild(lineLink);
-      row.appendChild(lineCell);
-      for (const text of [formattedTime === "0 min" ? "At stop (< 1 min)" : formattedTime, value.main_line_title ?? ""]) {
-        const cell = document.createElement("td");
-        cell.textContent = text;
-        row.appendChild(cell);
-      }
-      return row;
-    });
+  const tableData = response.vehicles.map((value) => {
+    const hasCoords =
+      Array.isArray(value.coords) &&
+      value.coords.length === 2 &&
+      value.coords.every(
+        (coord) =>
+          coord != null &&
+          String(coord).trim() &&
+          Number.isFinite(Number(coord)),
+      );
+    if (hasCoords) {
+      const marker = createMarker(
+        value.coords.map(Number),
+        value.lineNumber,
+        "blue",
+        value.main_line_title,
+      );
+      marker.on("click", () =>
+        addRouteToMap(value.lineNumber, value.allStations),
+      );
+      markers.push(marker);
+    }
+    const formattedTime = formatSeconds(value.secondsLeft);
+    const row = document.createElement("tr");
+    row.addEventListener("click", () =>
+      addRouteToMap(value.lineNumber, value.allStations),
+    );
+    const lineCell = document.createElement("td");
+    const lineLink = document.createElement("a");
+    lineLink.href = "#";
+    lineLink.style.color = "#FFD700";
+    lineLink.textContent = value.lineNumber ?? "";
+    lineLink.addEventListener("click", (event) => event.preventDefault());
+    lineCell.appendChild(lineLink);
+    row.appendChild(lineCell);
+    for (const text of [
+      `${formattedTime === "0 min" ? "At stop (< 1 min)" : formattedTime}${hasCoords ? "" : " · Location unavailable"}`,
+      value.main_line_title ?? "",
+    ]) {
+      const cell = document.createElement("td");
+      cell.textContent = text;
+      row.appendChild(cell);
+    }
+    return row;
+  });
   $("#tableBody").empty().append(tableData);
   $("#tabela").show();
   let group = L.featureGroup(markers).addTo(layerGroup);
-  if (recenter) map.fitBounds(group.getBounds());
+  if (recenter) map.fitBounds(group.getBounds(), { padding: [40, 40] });
 };
 
 const updateBgArrivals = (response) => {
@@ -306,33 +331,35 @@ const updateBgArrivals = (response) => {
       ...arrival,
       timestamp: Date.parse(arrival.estimatedAt || arrival.scheduledAt),
     }))
-    .filter((arrival) => Number.isFinite(arrival.timestamp) && arrival.timestamp >= now - 60_000)
+    .filter(
+      (arrival) =>
+        Number.isFinite(arrival.timestamp) && arrival.timestamp >= now - 60_000,
+    )
     .sort((a, b) => a.timestamp - b.timestamp);
 
-  $("#stationName").text(`Station: ${response.name}`).show();
-  $("#lastUpdated").text(
-    `Last updated: ${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Belgrade" })} (Yandex page; refresh every 60 seconds)`,
-  ).show();
-  $("#busRouteInfo").text("Live bus positions are shown when available. Select line to view route.").show();
+  updateStationHeader(response.name);
+  $("#busRouteInfo")
+    .text("Click on bus number to view its route on map.")
+    .show();
   $("#updateInProgress").hide();
   $("#error").hide();
   $("#tableBody").empty();
-  layerGroup.clearLayers();
-  bgVehicleLayer = undefined;
 
   const recenter = !bgStopCentered;
-  if (recenter) {
-    map.setView(response.coords, 15, { animation: true });
-    bgStopCentered = true;
-  }
-  bgStopMarker = createMarker(response.coords, undefined, "yellow", response.name);
-  L.featureGroup([bgStopMarker]).addTo(layerGroup);
-  if (bgRouteData) drawBgRoute(bgRouteData, false);
+  bgStopCoords = response.coords;
+  bgStopMarker = createMarker(
+    response.coords,
+    undefined,
+    "yellow",
+    response.name,
+  );
 
   if (!arrivals.length) {
     $("#tableContainer").hide();
-    $("#noBusesMessage").text("No live arrival estimates are available for this stop.").show();
-    drawBgVehicles([]);
+    $("#noBusesMessage")
+      .text("No live arrival estimates are available for this stop.")
+      .show();
+    drawBgVehicles([], recenter);
     return;
   }
 
@@ -341,11 +368,14 @@ const updateBgArrivals = (response) => {
   $("#tabela").show();
   const rows = arrivals.map((arrival) => {
     const row = document.createElement("tr");
-    const arrivalTime = new Date(arrival.timestamp).toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: "Europe/Belgrade",
-    });
+    const arrivalTime = new Date(arrival.timestamp).toLocaleTimeString(
+      "en-GB",
+      {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Europe/Belgrade",
+      },
+    );
     const values = [
       arrival.lineNumber,
       `${arrivalTime} (estimate)`,
@@ -358,7 +388,10 @@ const updateBgArrivals = (response) => {
         const button = document.createElement("button");
         button.type = "button";
         button.textContent = value;
-        button.setAttribute("aria-label", `View route ${value} to ${arrival.destination || "destination"}`);
+        button.setAttribute(
+          "aria-label",
+          `View route ${value} to ${arrival.destination || "destination"}`,
+        );
         cell.appendChild(button);
       } else cell.textContent = value;
       row.appendChild(cell);
@@ -366,35 +399,84 @@ const updateBgArrivals = (response) => {
     return row;
   });
   $("#tableBody").append(rows);
-  if (currQuery) return refreshBgVehicles(recenter);
+  if (currQuery) {
+    if (Array.isArray(response.vehicles))
+      drawBgVehicles(response.vehicles, recenter);
+    else return refreshBgVehicles(recenter);
+  }
 };
 
 const drawBgVehicles = (vehicles = [], recenter = false) => {
-  if (bgVehicleLayer) layerGroup.removeLayer(bgVehicleLayer);
+  if (recenter) {
+    layerGroup.clearLayers();
+    bgVehicleLayer = undefined;
+    L.featureGroup([bgStopMarker]).addTo(layerGroup);
+    if (bgRouteData) drawBgRoute(bgRouteData, false);
+  } else if (bgVehicleLayer) layerGroup.removeLayer(bgVehicleLayer);
   bgVehicleLayer = undefined;
   const markers = vehicles
-    .filter((vehicle) => Array.isArray(vehicle.coords) && vehicle.coords.length === 2 && vehicle.coords.every(Number.isFinite))
-    .map((vehicle) => createMarker(vehicle.coords, vehicle.lineNumber, "blue", `Bus ${vehicle.lineNumber}`));
-  if (!markers.length) return;
-  bgVehicleLayer = L.featureGroup(markers).addTo(layerGroup);
-  if (recenter && bgStopMarker) map.fitBounds(L.featureGroup([bgStopMarker, ...markers]).getBounds());
+    .filter(
+      (vehicle) =>
+        Array.isArray(vehicle.coords) &&
+        vehicle.coords.length === 2 &&
+        vehicle.coords.every(Number.isFinite),
+    )
+    .map((vehicle) =>
+      createMarker(
+        vehicle.coords,
+        vehicle.lineNumber,
+        "blue",
+        `Bus ${vehicle.lineNumber}`,
+      ),
+    );
+  if (markers.length)
+    bgVehicleLayer = L.featureGroup(markers).addTo(layerGroup);
+  if (recenter && bgStopMarker) {
+    if (markers.length)
+      map.fitBounds(L.featureGroup([bgStopMarker, ...markers]).getBounds(), {
+        animate: false,
+        padding: [40, 40],
+      });
+    else map.setView(bgStopCoords, 15, { animate: false });
+    bgStopCentered = true;
+  }
 };
 
 const refreshBgVehicles = async (recenter = false) => {
   const requestId = ++bgVehicleRequestId;
   const query = currQuery;
   const clearLatest = () => {
-    if (getCity() === "bg" && currQuery === query && requestId === bgVehicleRequestId) drawBgVehicles([]);
+    if (
+      getCity() === "bg" &&
+      currQuery === query &&
+      requestId === bgVehicleRequestId
+    )
+      drawBgVehicles([], recenter);
     else return true;
   };
-  const response = await doAsyncRequest(`/api/bg/poc/vehicles?stopId=${encodeURIComponent(query.uid || bgStopId)}`, "GET", undefined, clearLatest);
-  if (getCity() !== "bg" || currQuery !== query || requestId !== bgVehicleRequestId) return;
-  drawBgVehicles(Array.isArray(response?.vehicles) ? response.vehicles : [], recenter);
+  const response = await doAsyncRequest(
+    `/api/bg/vehicles?stopId=${encodeURIComponent(query.uid || bgStopId)}`,
+    "GET",
+    undefined,
+    clearLatest,
+  );
+  if (
+    getCity() !== "bg" ||
+    currQuery !== query ||
+    requestId !== bgVehicleRequestId
+  )
+    return;
+  drawBgVehicles(
+    Array.isArray(response?.vehicles) ? response.vehicles : [],
+    recenter,
+  );
 };
 
 const drawBgRoute = (route, recenter = true) => {
   if (currentPolyline) layerGroup.removeLayer(currentPolyline);
-  currentPolyline = L.polyline(route.segments, { color: "blue" }).addTo(layerGroup);
+  currentPolyline = L.polyline(route.segments, { color: "blue" }).addTo(
+    layerGroup,
+  );
   if (recenter) map.fitBounds(currentPolyline.getBounds());
 };
 
@@ -408,12 +490,21 @@ const showBgRoute = async (route) => {
     currentPolyline = null;
   }
   const response = await doAsyncRequest(
-    `/api/bg/poc/routes/${encodeURIComponent(route.lineId)}/${encodeURIComponent(route.threadId)}?stopId=${encodeURIComponent(query?.uid || bgStopId)}`,
+    `/api/bg/routes/${encodeURIComponent(route.lineId)}/${encodeURIComponent(route.threadId)}?stopId=${encodeURIComponent(query?.uid || bgStopId)}`,
     "GET",
     undefined,
-    () => getCity() !== "bg" || currQuery !== query || bgRouteSelection !== selection,
+    () =>
+      getCity() !== "bg" ||
+      currQuery !== query ||
+      bgRouteSelection !== selection,
   );
-  if (getCity() !== "bg" || currQuery !== query || bgRouteSelection !== selection || !response) return;
+  if (
+    getCity() !== "bg" ||
+    currQuery !== query ||
+    bgRouteSelection !== selection ||
+    !response
+  )
+    return;
   bgRouteData = response;
   drawBgRoute(response);
 };
@@ -426,12 +517,21 @@ const fetchBgStop = () => {
     $("#error").hide();
     const stopId = currQuery?.uid;
     if (!stopId) return;
-    const response = await doAsyncRequest(
-      `/api/bg/poc/stop?stopId=${encodeURIComponent(stopId)}`,
-      "GET",
-      undefined,
-      () => getCity() !== "bg" || currQuery?.uid !== stopId,
-    );
+    const isStale = () => getCity() !== "bg" || currQuery?.uid !== stopId;
+    const [response, vehicleResponse] = await Promise.all([
+      doAsyncRequest(
+        `/api/bg/stop?stopId=${encodeURIComponent(stopId)}`,
+        "GET",
+        undefined,
+        isStale,
+      ),
+      doAsyncRequest(
+        `/api/bg/vehicles?stopId=${encodeURIComponent(stopId)}`,
+        "GET",
+        undefined,
+        isStale,
+      ),
+    ]);
     if (!response || getCity() !== "bg") {
       $("#updateInProgress").hide();
       return;
@@ -440,15 +540,24 @@ const fetchBgStop = () => {
       $("#updateInProgress").hide();
       return;
     }
-    await updateBgArrivals(response);
-  })().finally(() => { bgStopRequest = null; });
+    await updateBgArrivals({
+      ...response,
+      vehicles: vehicleResponse?.vehicles || [],
+    });
+  })().finally(() => {
+    bgStopRequest = null;
+  });
   return bgStopRequest;
 };
 
 const fetchArrivals = async (city, query, recenter) => {
   const selectionId = genericRequestId;
   const requestId = ++arrivalRequestId;
-  const isCurrent = () => selectionId === genericRequestId && requestId === arrivalRequestId && city === getCity() && query === currQuery;
+  const isCurrent = () =>
+    selectionId === genericRequestId &&
+    requestId === arrivalRequestId &&
+    city === getCity() &&
+    query === currQuery;
   let url = `/api/stations/${city}/search?${$.param(query)}`;
   $("#updateInProgress").show();
   $("#error").hide();
@@ -483,11 +592,7 @@ const spawnInterval = (query = undefined) => {
   currInterval = clearInterval(currInterval);
   currInterval = setInterval(() => {
     fetchArrivals(city, query, false);
-  }, 30 * 1000);
-};
-
-const handleBusClick = (busNumber, fallbackStations) => {
-  addRouteToMap(busNumber, fallbackStations);
+  }, 60 * 1000);
 };
 
 const toggleSchedule = (city, uid) => {
@@ -542,15 +647,18 @@ const fetchSchedule = async (city, uid, force = false) => {
   const wrapper = document.createElement("div");
   wrapper.style.cssText = "overflow-x:auto;margin-top:8px";
   const table = document.createElement("table");
-  table.style.cssText = "color:white;font-size:0.9rem;border-collapse:collapse;width:100%";
+  table.style.cssText =
+    "color:white;font-size:0.9rem;border-collapse:collapse;width:100%";
   const head = document.createElement("thead");
   const heading = document.createElement("tr");
   const lineHeader = document.createElement("th");
   lineHeader.textContent = "#";
-  lineHeader.style.cssText = "position:sticky;left:0;background:#1a1f2e;color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;text-align:left;padding-bottom:4px;border-bottom:1px solid #333";
+  lineHeader.style.cssText =
+    "position:sticky;left:0;background:#1a1f2e;color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;text-align:left;padding-bottom:4px;border-bottom:1px solid #333";
   const timesHeader = document.createElement("th");
   timesHeader.textContent = "DEPARTURES";
-  timesHeader.style.cssText = "color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;text-align:left;padding-bottom:4px;border-bottom:1px solid #333";
+  timesHeader.style.cssText =
+    "color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;text-align:left;padding-bottom:4px;border-bottom:1px solid #333";
   heading.append(lineHeader, timesHeader);
   head.appendChild(heading);
   table.appendChild(head);
@@ -559,10 +667,12 @@ const fetchSchedule = async (city, uid, force = false) => {
     const row = document.createElement("tr");
     const lineCell = document.createElement("td");
     lineCell.textContent = line;
-    lineCell.style.cssText = "position:sticky;left:0;background:#1a1f2e;white-space:nowrap;color:#FFD700;font-size:0.85rem;font-weight:700;padding:3px 10px 3px 0;vertical-align:middle;border-bottom:1px solid rgba(255,255,255,0.05)";
+    lineCell.style.cssText =
+      "position:sticky;left:0;background:#1a1f2e;white-space:nowrap;color:#FFD700;font-size:0.85rem;font-weight:700;padding:3px 10px 3px 0;vertical-align:middle;border-bottom:1px solid rgba(255,255,255,0.05)";
     row.appendChild(lineCell);
     const timesCell = document.createElement("td");
-    timesCell.style.cssText = "white-space:nowrap;padding:3px 0 5px;border-bottom:1px solid rgba(255,255,255,0.05)";
+    timesCell.style.cssText =
+      "white-space:nowrap;padding:3px 0 5px;border-bottom:1px solid rgba(255,255,255,0.05)";
     for (const time of response.schedule[line]) {
       const nextDay = time.includes("(+24h)");
       const chip = document.createElement("span");
@@ -635,13 +745,15 @@ const addRouteToMap = async (lineNumber, fallbackStations = []) => {
       currentPolyline = L.geoJSON(data.routes[0].geometry, {
         style: { color: "blue" },
       }).addTo(layerGroup);
+      map.fitBounds(currentPolyline.getBounds(), { padding: [40, 40] });
       return;
     }
-  } catch (_) {
+  } catch {
     /* fall through */
   }
 
   currentPolyline = L.polyline(latlngs, { color: "blue" }).addTo(layerGroup);
+  map.fitBounds(currentPolyline.getBounds(), { padding: [40, 40] });
 };
 
 const initMap = () => {
@@ -811,8 +923,14 @@ const searchByCoords = async (
     createMarker([searchCoords.latitude, searchCoords.longitude], "", "green"),
   );
   const options = closestStations.map((station) => {
-    const marker = createMarker(station.station.coords, station.station.id, "yellow");
-    marker.on("click", () => $(optionsElemID).val(station.station.uid).trigger("change"));
+    const marker = createMarker(
+      station.station.coords,
+      station.station.id,
+      "yellow",
+    );
+    marker.on("click", () =>
+      $(optionsElemID).val(station.station.uid).trigger("change"),
+    );
     markers.push(marker);
     const option = document.createElement("option");
     option.value = station.station.uid;
@@ -860,12 +978,7 @@ $(document).ready(async () => {
   let stations = [];
   const fetchStations = async () => {
     const city = getCity();
-    if (!allStations[city]) {
-      if (city === "bg") {
-        const response = await doAsyncRequest("/api/bg/stops");
-        allStations.bg = (response?.stops || []).map((stop) => ({ ...stop, uid: stop.id }));
-      } else await fetchCityStations(city);
-    }
+    if (!allStations[city]) await fetchCityStations(city);
     stations = (allStations[city] || []).map((station) => ({
       name: station.name,
       id: station.id,
@@ -883,7 +996,8 @@ $(document).ready(async () => {
     stationList.forEach((station) => {
       const item = document.createElement("div");
       item.classList.add("station-item");
-      item.textContent = getCity() === "bg" ? station.name : `${station.name} (${station.id})`;
+      item.textContent =
+        getCity() === "bg" ? station.name : `${station.name} (${station.id})`;
       item.addEventListener("click", () => {
         input.value = station.name;
         dropdown.style.display = "none";
@@ -920,8 +1034,6 @@ $(document).ready(async () => {
   });
 
   // Map & tab visibility handlers
-  $(window).on("blur", handleTabOut);
-  $(window).on("focus", handleTabIn);
   initMap();
 
   // Load cities

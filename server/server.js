@@ -20,6 +20,7 @@ const resetAll = () => {
 
 const start = async () => {
   try {
+    await providerService.populateMap(true);
     await fastify.listen({ port: 3000, host: "0.0.0.0" });
   } catch (err) {
     logger.error({ err }, "Server startup failed");
