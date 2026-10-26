@@ -196,6 +196,36 @@ describe("API routes", () => {
     });
   });
 
+  it("preserves valid arrivals when individual vehicle rows are malformed", async () => {
+    _test.setHttpClient({
+      get: vi.fn().mockResolvedValue({
+        status: 200,
+        data: [
+          { station_uid: "4970", station_name: "Main Station" },
+          {
+            line_number: "7",
+            seconds_left: "120",
+            line_title: "7",
+            all_stations: [{ coordinates: { latitude: "44.8", longitude: "20.4" } }],
+          },
+          { line_number: "8", line_title: "8" },
+          { line_number: "9", seconds_left: "unknown" },
+          { line_number: {}, seconds_left: 30 },
+        ],
+      }),
+      post: vi.fn(),
+    });
+
+    const response = await fastify.inject({ method: "GET", url: "/api/stations/ns/search?uid=4970" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().vehicles).toEqual([expect.objectContaining({
+      lineNumber: "7",
+      secondsLeft: "120",
+      allStations: [{ latitude: 44.8, longitude: 20.4 }],
+    })]);
+  });
+
   it("returns 400 for empty V1 response when station is not cached", async () => {
     _test.setHttpClient({
       get: vi.fn().mockResolvedValue({ status: 200, data: [] }),
@@ -344,6 +374,24 @@ describe("API routes", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json().message).toContain("must match pattern");
+  });
+
+  it("rejects impossible schedule dates and accepts leap dates", async () => {
+    _test.setState({
+      allStations: { ns: { station: { uid: "station", id: "1", name: "Stop", lines: [] } } },
+      cacheMeta: { ns: { loadedAt: Date.now() } },
+    });
+    const post = vi.fn();
+    _test.setHttpClient({ get: vi.fn(), post });
+
+    const impossible = await fastify.inject({ method: "GET", url: "/api/stations/ns/schedule?uid=station&date=2025-02-29" });
+    expect(impossible.statusCode).toBe(400);
+    expect(impossible.json()).toEqual({ error: "Invalid schedule date" });
+    expect(post).not.toHaveBeenCalled();
+
+    const leap = await fastify.inject({ method: "GET", url: "/api/stations/ns/schedule?uid=station&date=2024-02-29" });
+    expect(leap.statusCode).toBe(200);
+    expect(leap.json().date).toBe("2024-02-29");
   });
 
   it("loads the station map before resolving an ID search on cold start", async () => {
@@ -691,6 +739,30 @@ describe("API routes", () => {
       },
       date: "2026-04-29",
     });
+  });
+
+  it("bounds timetable concurrency and deduplicates station lines", async () => {
+    _test.setState({
+      allStations: { ns: { station: { uid: "station", id: "1", name: "Stop", lines: ["1", "1", "2", "3", "4", "5"] } } },
+      cacheMeta: { ns: { loadedAt: Date.now() } },
+    });
+    let active = 0;
+    let maximum = 0;
+    const post = vi.fn(async () => {
+      active++;
+      maximum = Math.max(maximum, active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active--;
+      return { status: 200, data: [] };
+    });
+    _test.setHttpClient({ get: vi.fn(), post });
+
+    const response = await fastify.inject({ method: "GET", url: "/api/stations/ns/schedule?uid=station&date=2026-04-29" });
+
+    expect(response.statusCode).toBe(200);
+    expect(post).toHaveBeenCalledTimes(10);
+    expect(maximum).toBeLessThanOrEqual(6);
+    expect(response.json().schedule).toEqual({});
   });
 
   it("proxies route requests to OSRM", async () => {

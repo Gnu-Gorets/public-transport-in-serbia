@@ -9,7 +9,7 @@ const {
 const { getRoute } = require("../services/routeService");
 const { getStationSchedule } = require("../services/scheduleService");
 const { getBelgradeStop, getBelgradeRoute, getBelgradeVehicles } = require("../services/yandexBelgradeService");
-const { sendError } = require("../errors");
+const { badRequest, sendError } = require("../errors");
 const {
   bgRouteParams,
   bgStopQuery,
@@ -113,6 +113,14 @@ function registerApiRoutes(fastify) {
     handle(async (req, reply) => {
       const { city } = req.params;
       const { uid, date } = req.query;
+      if (date) {
+        const [year, month, day] = date.split("-").map(Number);
+        const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+        const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        if (year < 1 || month < 1 || month > 12 || day < 1 || day > daysInMonth[month - 1]) {
+          throw badRequest("Invalid schedule date");
+        }
+      }
       const response = await getStationSchedule(city, uid, date);
       if (!response) return reply.status(404).send({ error: "Station not found" });
       reply.send(response);

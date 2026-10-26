@@ -9,7 +9,8 @@ const require = createRequire(import.meta.url);
 const scriptPath = resolve("static/script.js");
 
 const createMarker = () => ({
-  bindPopup() {
+  bindPopup(text) {
+    this.popup = text;
     return this;
   },
   bindTooltip(text) {
@@ -25,7 +26,7 @@ function loadUiScript() {
   const dom = new JSDOM(
     `<!doctype html>
     <body>
-      <select id="city"><option value="bg">Belgrade</option><option value="ns">Novi Sad</option></select>
+      <select id="city"><option value="bg">Belgrade</option><option value="ns">Novi Sad</option><option value="nis">Nis</option></select>
       <div id="stationControls">
         <select id="searchMode"><option value="name">Name</option><option value="coords">Coords</option></select>
         <div class="name-search"><input id="name-input" /><div id="dropdown"></div></div>
@@ -114,6 +115,8 @@ function loadUiScript() {
   const source = `${readFileSync(scriptPath, "utf8")}
     window.__ui = {
       fetchSchedule,
+      fetchArrivals,
+      searchByCoords,
       findClosestStations,
       formatSeconds,
       cancelInterval,
@@ -129,6 +132,9 @@ function loadUiScript() {
       },
       getStations(city) {
         return allStations[city];
+      },
+      setQuery(query) {
+        currQuery = query;
       },
       setLines(city, lines) {
         allLines[city] = lines;
@@ -217,6 +223,7 @@ describe("UI behavior", () => {
     expect($("#stationName").text()).toContain("Stadion Partizan");
     expect($("#stationName").text()).not.toContain("6739029064");
     expect(dom.window.L.featureGroup.mock.calls[0][0][0].tooltip).toBeUndefined();
+    expect(dom.window.L.featureGroup.mock.calls[0][0][0].popup.textContent).toBe("Stadion Partizan · 278");
     expect($("#tableContainer").css("display")).not.toBe("none");
     expect($("#tabela").css("display")).not.toBe("none");
     expect($("#tableBody").text()).toContain("40");
@@ -420,6 +427,123 @@ describe("UI behavior", () => {
     expect(map.fitBounds).toHaveBeenCalledWith("bounds");
   });
 
+  it("renders provider markup as text in arrivals and schedule", async () => {
+    const { $, dom, ui } = context;
+    ui.updateArrivals({
+      name: '<img src=x onerror=alert(1)>', id: '1', uid: 'u', coords: [44, 20],
+      vehicles: [{ lineNumber: '<svg onload=alert(1)>', secondsLeft: 60, main_line_title: '<b>route</b>', coords: [44, 20], allStations: [] }],
+    }, false);
+    expect($('#stationName img, #tableBody svg, #tableBody b')).toHaveLength(0);
+    expect($('#tableBody').text()).toContain('<b>route</b>');
+    const markers = dom.window.L.featureGroup.mock.calls[0][0];
+    expect(markers[0].popup.textContent).toBe('<img src=x onerror=alert(1)> (1)');
+    expect(markers[1].popup.textContent).toBe('<b>route</b>');
+    expect(markers[1].tooltip.textContent).toBe('<svg onload=alert(1)>');
+    $.ajax = vi.fn().mockResolvedValue({ date: '2026-04-29', schedule: { '<img src=x>': ['<script>alert(1)</script>'] } });
+    await ui.fetchSchedule('bg', 'u', true);
+    expect($('#scheduleContainer img, #scheduleContainer script')).toHaveLength(0);
+    expect($('#scheduleContainer').text()).toContain('<img src=x>');
+  });
+
+  it("renders nearby station options as text", async () => {
+    const { $, ui } = context;
+    $("#city").val("ns");
+    ui.setStations("ns", [{ uid: "u", id: "<svg>", name: "<img src=x>", coords: [44, 20] }]);
+    await ui.searchByCoords({ latitude: 44, longitude: 20 }, "#stationsMaxDistance-input", "#coords-input");
+    expect($("#coords-input img, #coords-input svg")).toHaveLength(0);
+    expect($("#coords-input option").text()).toContain("<img src=x>");
+  });
+
+  it("keeps arrivals without vehicle coordinates out of Leaflet markers", () => {
+    const { $, dom, ui } = context;
+    ui.updateArrivals({
+      name: "Stop", id: "1", uid: "u", coords: [44, 20],
+      vehicles: [{ lineNumber: "7", secondsLeft: 60, coords: [null, undefined], allStations: [] }],
+    }, false);
+    expect($("#tableBody").text()).toContain("7");
+    expect(dom.window.L.featureGroup.mock.calls[0][0]).toHaveLength(1);
+  });
+
+  it("ignores older arrival responses for same stop and after city changes", async () => {
+    const { $, ui } = context;
+    const query = { uid: "station" };
+    const deferred = () => {
+      let resolve;
+      const promise = new Promise((done) => { resolve = done; });
+      return { promise, resolve };
+    };
+    const first = deferred();
+    const second = deferred();
+    $.ajax = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    $("#city").val("ns");
+    ui.setStations("ns", []);
+    ui.setStations("nis", []);
+    await ui.onCityChange();
+    ui.setQuery(query);
+
+    const older = ui.fetchArrivals("ns", query, false);
+    const newer = ui.fetchArrivals("ns", query, false);
+    second.resolve({ name: "New result", id: "2", uid: query.uid, coords: [44, 20], vehicles: [] });
+    await newer;
+    first.resolve({ name: "Old result", id: "1", uid: query.uid, coords: [44, 20], vehicles: [] });
+    await older;
+    expect($("#stationName").text()).toBe("Station: New result (2)");
+
+    const stale = deferred();
+    $.ajax.mockReturnValueOnce(stale.promise);
+    ui.setQuery(query);
+    const pending = ui.fetchArrivals("ns", query, false);
+    $("#city").val("nis");
+    await ui.onCityChange();
+    stale.resolve({ name: "Wrong city", id: "3", uid: query.uid, coords: [44, 20], vehicles: [] });
+    await pending;
+    expect($("#stationName").text()).toBe("Station: New result (2)");
+  });
+
+  it("loads route map only when route fallback needs it", async () => {
+    const { $, dom, ui } = context;
+    ui.setStations("ns", [
+      { uid: "a", coords: [44.1, 20.1] },
+      { uid: "b", coords: [44.2, 20.2] },
+    ]);
+    $("#city").val("ns");
+    $.ajax = vi.fn().mockResolvedValue({ "7_A": ["a", "b"] });
+    dom.window.fetch.mockResolvedValue({ json: async () => ({ code: "Ok", routes: [] }) });
+
+    await ui.onCityChange();
+    expect($.ajax).not.toHaveBeenCalled();
+    await ui.addRouteToMap("7", []);
+    expect($.ajax).toHaveBeenCalledWith({ url: "/api/lines/ns", type: "GET", data: {} });
+  });
+
+  it("does not reuse cached schedules across cities with same uid", async () => {
+    const { $, ui } = context;
+    $.ajax = vi.fn().mockResolvedValue({ date: "2026-04-29", schedule: { 7: ["10:00"] } });
+    $("#city").val("ns");
+    ui.setStations("ns", []);
+    ui.setStations("nis", []);
+    await ui.onCityChange();
+    await ui.fetchSchedule("ns", "shared", true);
+    $("#city").val("nis");
+    await ui.onCityChange();
+    await ui.fetchSchedule("nis", "shared");
+    expect($.ajax).toHaveBeenCalledTimes(2);
+    expect($.ajax.mock.calls[1][0].url).toBe("/api/stations/nis/schedule?uid=shared");
+  });
+
+  it("sorts line names without a numeric prefix", () => {
+    const { $, ui } = context;
+    ui.updateArrivals({
+      name: "Stop", id: "1", uid: "u", coords: [44, 20],
+      vehicles: [
+        { lineNumber: "EKO1", secondsLeft: 10, coords: [44, 20], allStations: [] },
+        { lineNumber: "7A", secondsLeft: 20, coords: [44, 20], allStations: [] },
+      ],
+    }, false);
+    expect($("#tableBody tr").first().text()).toContain("7A");
+    expect($("#tableBody tr").last().text()).toContain("EKO1");
+  });
+
   it("routes ordered bus stops along roads", async () => {
     const geometry = { type: "LineString", coordinates: [[20.1, 44.1], [20.15, 44.15], [20.2, 44.2]] };
     const { dom, ui } = context;
@@ -499,6 +623,8 @@ describe("UI behavior", () => {
     expect($("#scheduleContainer").text()).toContain("DEPARTURES");
     expect($("#scheduleContainer").text()).toContain("23:57");
     expect($("#scheduleContainer").text()).toContain("23:58*");
+    expect($("#scheduleContainer > div").css("overflow-x")).toBe("auto");
+    expect($("#scheduleContainer span").first().css("display")).toBe("inline-block");
   });
 
   it("sorts nearby stations by distance", async () => {
