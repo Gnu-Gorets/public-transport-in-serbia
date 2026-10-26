@@ -22,7 +22,7 @@ const createMarker = () => ({
   },
 });
 
-function loadUiScript() {
+function loadUiScript(runReady = false) {
   const dom = new JSDOM(
     `<!doctype html>
     <body>
@@ -66,7 +66,10 @@ function loadUiScript() {
 
   delete require.cache[require.resolve("jquery")];
   const $ = require("jquery");
-  $.fn.ready = function ready() {
+  let readyCallback;
+  let readyPromise;
+  $.fn.ready = function ready(callback) {
+    if (runReady) readyCallback = callback;
     return this;
   };
 
@@ -112,9 +115,18 @@ function loadUiScript() {
         return this;
       },
     })),
+    map: vi.fn(() => ({ setView: vi.fn() })),
+    layerGroup: vi.fn(() => ({
+      addTo() {
+        return this;
+      },
+      clearLayers: vi.fn(),
+    })),
+    control: { layers: vi.fn(() => ({ addTo: vi.fn() })) },
   };
 
-  const source = `${readFileSync(scriptPath, "utf8")}
+  const source = `const mapLayers = { Transport: { addTo() {} } };
+    ${readFileSync(scriptPath, "utf8")}
     window.__ui = {
       fetchSchedule,
       fetchCityStations,
@@ -152,8 +164,12 @@ function loadUiScript() {
 
   vm.runInContext(source, dom.getInternalVMContext());
   dom.window.__ui.setMapStubs(map, layerGroup);
+  if (runReady) {
+    $.ajax = vi.fn().mockResolvedValue({ bg: "Belgrade", ns: "Novi Sad" });
+    readyPromise = readyCallback();
+  }
 
-  return { dom, $, map, layerGroup, ui: dom.window.__ui };
+  return { dom, $, map, layerGroup, ui: dom.window.__ui, readyPromise };
 }
 
 describe("UI behavior", () => {
@@ -165,6 +181,35 @@ describe("UI behavior", () => {
   });
 
   afterEach(() => context.ui.cancelInterval());
+
+  it("loads Belgrade catalog on dropdown focus, not city change", async () => {
+    const readyContext = loadUiScript(true);
+    context = readyContext;
+    readyContext.$.ajax = vi.fn(({ url }) => {
+      if (url === "/api/cities")
+        return Promise.resolve({ ns: "Novi Sad", bg: "Belgrade" });
+      if (url === "/api/bg/stops")
+        return Promise.resolve({ stops: [{ id: "123", name: "Stop" }] });
+      return Promise.resolve([]);
+    });
+    await readyContext.readyPromise;
+    readyContext.dom.window.document.getElementById("city").value = "bg";
+    await readyContext.ui.onCityChange();
+    expect(readyContext.$.ajax).not.toHaveBeenCalledWith(
+      expect.objectContaining({ url: "/api/bg/stops" }),
+    );
+    readyContext.dom.window.document
+      .getElementById("name-input")
+      .dispatchEvent(new readyContext.dom.window.Event("focus"));
+    await vi.waitFor(() =>
+      expect(readyContext.ui.getStations("bg")).toEqual([
+        { id: "123", name: "Stop", uid: "123" },
+      ]),
+    );
+    expect(readyContext.$.ajax).toHaveBeenCalledWith(
+      expect.objectContaining({ url: "/api/bg/stops" }),
+    );
+  });
 
   it("loads Belgrade catalog through shared station loader", async () => {
     const { $, ui } = context;

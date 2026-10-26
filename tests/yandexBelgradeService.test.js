@@ -17,6 +17,24 @@ describe("Belgrade stop catalog", () => {
     expect(belgradeStops).toBe(source);
     expect(belgradeStops.stops).toHaveLength(2125);
     expect(belgradeStops.routes).toHaveLength(92);
+    expect(
+      Object.fromEntries(
+        ["bus", "tram", "minibus", "trolleybus"].map((type) => [
+          type,
+          belgradeStops.routes.filter((route) => route.type === type).length,
+        ]),
+      ),
+    ).toEqual({ bus: 77, tram: 9, minibus: 3, trolleybus: 3 });
+    const routeNames = new Set(belgradeStops.routes.map(({ route }) => route));
+    expect(
+      belgradeStops.stops.every(
+        ({ routes }) =>
+          routes.length > 0 &&
+          routes.every((route) =>
+            routeNames.has(route.replace(/^(?:tram|minibus|trolleybus):/, "")),
+          ),
+      ),
+    ).toBe(true);
     expect(belgradeStops.routes).toContainEqual(
       expect.objectContaining({
         route: "511",
@@ -245,6 +263,26 @@ describe("Yandex Belgrade routes", () => {
     expect(url).toContain("/maps/api/masstransit/getVehiclesInfoWithRegion?");
     expect(new URL(url).searchParams.get("lineId")).toBe("1704912322");
     expect(options.headers.Cookie).toBe("yandexuid=opaque");
+  });
+
+  it("maps upstream HTTP failures to gateway errors for both request types", async () => {
+    const pageFailure = vi
+      .fn()
+      .mockRejectedValue(new Error("page unavailable"));
+    setHttpClient({ get: pageFailure });
+    await expect(getBelgradeStop("6739029064")).rejects.toMatchObject({
+      statusCode: 502,
+    });
+
+    const vehicleFailure = vi
+      .fn()
+      .mockResolvedValueOnce({ status: 200, data: stopHtml })
+      .mockResolvedValueOnce({ status: 200, data: routeHtml() })
+      .mockRejectedValueOnce(new Error("vehicles unavailable"));
+    setHttpClient({ get: vehicleFailure });
+    await expect(getBelgradeVehicles("6739029064")).rejects.toMatchObject({
+      statusCode: 502,
+    });
   });
 
   it("rejects incomplete live-position responses after refreshing CSRF token", async () => {
