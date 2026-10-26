@@ -376,7 +376,9 @@ const updateBgArrivals = (response) => {
   arrivals.sort((a, b) => {
     const [aNum, aSuffix] = parseLine(a.lineNumber);
     const [bNum, bSuffix] = parseLine(b.lineNumber);
-    return aNum - bNum || aSuffix.localeCompare(bSuffix) || a.timestamp - b.timestamp;
+    return (
+      aNum - bNum || aSuffix.localeCompare(bSuffix) || a.timestamp - b.timestamp
+    );
   });
   const rows = arrivals.map((arrival) => {
     const row = document.createElement("tr");
