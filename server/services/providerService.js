@@ -35,20 +35,33 @@ function rebuildIdUidMap(city) {
 }
 
 async function populateMap(force = false) {
-  await Promise.all(Object.keys(apikeys).map(async (city) => {
-    if (!force && state.idUidMap[city] && !isStationsCacheExpired(city)) return;
-    try {
-      await getAllStations(city);
-      logger.info(`Populating map finished for ${city}`);
-    } catch (err) {
-      logger.error({ err }, `Populating map failed for ${city}`);
-    }
-  }));
+  await Promise.all(
+    Object.keys(apikeys).map(async (city) => {
+      if (!force && state.idUidMap[city] && !isStationsCacheExpired(city))
+        return;
+      try {
+        await getAllStations(city);
+        logger.info(`Populating map finished for ${city}`);
+      } catch (err) {
+        logger.error({ err }, `Populating map failed for ${city}`);
+      }
+    }),
+  );
 }
 
-async function request(method, url, apikey, { payload, timeout = GET_TIMEOUT_MS, contentType } = {}) {
-  const headers = { "X-Api-Authentication": apikey, "User-Agent": "okhttp/4.10.0" };
-  if (payload) headers["Content-Type"] = contentType || "application/x-www-form-urlencoded";
+async function request(
+  method,
+  url,
+  apikey,
+  { payload, timeout = GET_TIMEOUT_MS, contentType } = {},
+) {
+  const headers = {
+    "X-Api-Authentication": apikey,
+    "User-Agent": "okhttp/4.10.0",
+  };
+  if (payload)
+    headers["Content-Type"] =
+      contentType || "application/x-www-form-urlencoded";
   try {
     const response = payload
       ? await getHttpClient()[method](url, payload, { headers, timeout })
@@ -64,7 +77,10 @@ async function request(method, url, apikey, { payload, timeout = GET_TIMEOUT_MS,
 async function getLineTimetable(city, lineNumber, direction, date) {
   const url = `${apikeys[city].url}/publicapi/v1/timetable/timetable.php`;
   const payload = `action=get_timetable&line_number_for_display=${encodeURIComponent(lineNumber)}&direction_id_for_display=${encodeURIComponent(direction)}&date=${date}&time=`;
-  return request("post", url, apikeys[city].key, { payload, timeout: TIMETABLE_TIMEOUT_MS });
+  return request("post", url, apikeys[city].key, {
+    payload,
+    timeout: TIMETABLE_TIMEOUT_MS,
+  });
 }
 
 function getStationUid(city, query) {
@@ -83,7 +99,9 @@ function emptyStationResponse(city, uid) {
     city,
     name: station?.name,
     uid,
-    id: state.uidIdMap[city]?.[String(uid)] || (station?.id == null ? "0" : String(station.id)),
+    id:
+      state.uidIdMap[city]?.[String(uid)] ||
+      (station?.id == null ? "0" : String(station.id)),
     coords: station?.coords || [0, 0],
     vehicles: [],
   };
@@ -92,16 +110,24 @@ function emptyStationResponse(city, uid) {
 async function getStationInfoV1(city, uid) {
   const url = `${apikeys[city].url}/publicapi/v1/announcement/announcement.php?ibfm=TM000001&action=get_announcement_data&station_uid=${encodeURIComponent(uid)}`;
   const resp = await request("get", url, apikeys[city].key);
-  if (resp === "") throw upstreamError(`Endpoint returned nothing (perhaps they changed API?)`);
-  if (!Array.isArray(resp) || resp.some((row) => !row || typeof row !== "object" || Array.isArray(row))) {
+  if (resp === "")
+    throw upstreamError(
+      `Endpoint returned nothing (perhaps they changed API?)`,
+    );
+  if (
+    !Array.isArray(resp) ||
+    resp.some((row) => !row || typeof row !== "object" || Array.isArray(row))
+  ) {
     throw upstreamError("Endpoint returned invalid station data");
   }
   if (resp.length === 0) {
     if (!state.allStations[city]?.[uid]) throw badRequest("Station not found");
     return emptyStationResponse(city, uid);
   }
-  if (resp[0].success === false) throw badRequest(`Endpoint returned error (perhaps invalid ID?)`);
-  if (resp[0].station_uid == null) throw upstreamError("Endpoint returned invalid station data");
+  if (resp[0].success === false)
+    throw badRequest(`Endpoint returned error (perhaps invalid ID?)`);
+  if (resp[0].station_uid == null)
+    throw upstreamError("Endpoint returned invalid station data");
   return transformStationResponse(resp, city);
 }
 
@@ -112,11 +138,20 @@ async function getStationInfoV2(city, uid) {
     apikeys[city].v2_key,
     apikeys[city].v2_iv,
   );
-  const resp = await request("post", url, apikeys[city].key, { payload: `action=data_bulletin&base=${base}` });
-  if (resp === "") throw upstreamError(`Endpoint returned nothing (perhaps they changed API?)`);
-  const decoded = JSON.parse(crypto.decrypt(resp, apikeys[city].v2_key, apikeys[city].v2_iv));
-  if (decoded["success"] == false) throw badRequest(`Endpoint returned error (perhaps invalid ID?)`);
-  if (!decoded["data"] || decoded["data"].length === 0) return emptyStationResponse(city, uid);
+  const resp = await request("post", url, apikeys[city].key, {
+    payload: `action=data_bulletin&base=${base}`,
+  });
+  if (resp === "")
+    throw upstreamError(
+      `Endpoint returned nothing (perhaps they changed API?)`,
+    );
+  const decoded = JSON.parse(
+    crypto.decrypt(resp, apikeys[city].v2_key, apikeys[city].v2_iv),
+  );
+  if (decoded["success"] == false)
+    throw badRequest(`Endpoint returned error (perhaps invalid ID?)`);
+  if (!decoded["data"] || decoded["data"].length === 0)
+    return emptyStationResponse(city, uid);
   return transformStationResponse(decoded["data"], city);
 }
 
@@ -143,21 +178,35 @@ async function fetchAndCacheStations(city) {
     markCacheLoaded(city, now());
   } catch (err) {
     const age = now() - (state.cacheMeta[city]?.loadedAt || 0);
-    if (!hadCachedStations || age >= STATIONS_CACHE_TTL_MS + STATIONS_CACHE_STALE_MS) throw err;
+    if (
+      !hadCachedStations ||
+      age >= STATIONS_CACHE_TTL_MS + STATIONS_CACHE_STALE_MS
+    )
+      throw err;
     markCacheError(city, err);
-    logger.warn({ err }, `Station cache refresh failed for ${city}; serving stale data`);
+    logger.warn(
+      { err },
+      `Station cache refresh failed for ${city}; serving stale data`,
+    );
   }
 }
 
 async function getAllStations(city) {
   if (!state.allStations[city] || isStationsCacheExpired(city)) {
     if (!inFlight[city]) {
-      inFlight[city] = fetchAndCacheStations(city).finally(() => { delete inFlight[city]; });
+      inFlight[city] = fetchAndCacheStations(city).finally(() => {
+        delete inFlight[city];
+      });
     }
     const refresh = inFlight[city];
     const age = now() - (state.cacheMeta[city]?.loadedAt || 0);
-    if (state.allStations[city] && age < STATIONS_CACHE_TTL_MS + STATIONS_CACHE_STALE_MS) {
-      refresh.catch((err) => logger.error({ err }, `Refreshing stations failed for ${city}`));
+    if (
+      state.allStations[city] &&
+      age < STATIONS_CACHE_TTL_MS + STATIONS_CACHE_STALE_MS
+    ) {
+      refresh.catch((err) =>
+        logger.error({ err }, `Refreshing stations failed for ${city}`),
+      );
     } else {
       await refresh;
     }
@@ -166,7 +215,12 @@ async function getAllStations(city) {
 }
 
 function getAvailableCities() {
-  return { bg: "Belgrade", ...Object.fromEntries(Object.entries(apikeys).map(([id, city]) => [id, city.name])) };
+  return {
+    bg: "Belgrade",
+    ...Object.fromEntries(
+      Object.entries(apikeys).map(([id, city]) => [id, city.name]),
+    ),
+  };
 }
 
 module.exports = {
@@ -176,8 +230,14 @@ module.exports = {
   getStationInfo,
   populateMap,
   _test: {
-    setNow: (nextNow) => { now = nextNow; },
-    resetNow: () => { now = () => Date.now(); },
-    resetInFlight: () => { for (const key of Object.keys(inFlight)) delete inFlight[key]; },
+    setNow: (nextNow) => {
+      now = nextNow;
+    },
+    resetNow: () => {
+      now = () => Date.now();
+    },
+    resetInFlight: () => {
+      for (const key of Object.keys(inFlight)) delete inFlight[key];
+    },
   },
 };

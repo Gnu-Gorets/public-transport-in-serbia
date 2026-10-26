@@ -1,9 +1,9 @@
-import { createRequire } from "node:module";
+import { JSDOM } from "jsdom";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import vm from "node:vm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { JSDOM } from "jsdom";
 
 const require = createRequire(import.meta.url);
 const scriptPath = resolve("static/script.js");
@@ -103,7 +103,9 @@ function loadUiScript() {
       addTo() {
         return this;
       },
-      getBounds() { return "route-bounds"; },
+      getBounds() {
+        return "route-bounds";
+      },
     })),
     geoJSON: vi.fn(() => ({
       addTo() {
@@ -212,31 +214,53 @@ describe("UI behavior", () => {
     expect($("#searchMode option[value=coords]").prop("disabled")).toBe(true);
     expect($(".name-search").css("display")).not.toBe("none");
     expect($(".coords-search").css("display")).toBe("none");
-    ui.setStations("bg", [{
-      uid: "6739029064", id: "6739029064", name: "Stadion Partizan · 278", coords: [44.786, 20.4577],
-    }]);
+    ui.setStations("bg", [
+      {
+        uid: "6739029064",
+        id: "6739029064",
+        name: "Stadion Partizan · 278",
+        coords: [44.786, 20.4577],
+      },
+    ]);
     $("#name-input").val("Stadion Partizan · 278");
     await ui.submitByName();
-    expect(request).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/stop?stopId=6739029064" }));
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({ url: "/api/bg/poc/stop?stopId=6739029064" }),
+    );
     expect(request).toHaveBeenCalledTimes(2);
     expect(timer).toHaveBeenCalledOnce();
     expect($("#stationName").text()).toContain("Stadion Partizan");
     expect($("#stationName").text()).not.toContain("6739029064");
-    expect(dom.window.L.featureGroup.mock.calls[0][0][0].tooltip).toBeUndefined();
-    expect(dom.window.L.featureGroup.mock.calls[0][0][0].popup.textContent).toBe("Stadion Partizan · 278");
+    expect(
+      dom.window.L.featureGroup.mock.calls[0][0][0].tooltip,
+    ).toBeUndefined();
+    expect(
+      dom.window.L.featureGroup.mock.calls[0][0][0].popup.textContent,
+    ).toBe("Stadion Partizan · 278");
     expect($("#tableContainer").css("display")).not.toBe("none");
     expect($("#tabela").css("display")).not.toBe("none");
     expect($("#tableBody").text()).toContain("40");
     expect($("#tableBody").text()).toContain("estimate");
     expect($("#tableBody tr")).toHaveLength(1);
     expect($("#tableBody").text()).not.toContain("scheduled");
-    expect($("#busRouteInfo").text()).toBe("Click on bus number to view its route on map.");
+    expect($("#busRouteInfo").text()).toBe(
+      "Click on bus number to view its route on map.",
+    );
     expect($("#busRouteInfo").text()).not.toContain("View schedule");
-    expect(map.setView).toHaveBeenCalledWith([44.786, 20.4577], 15, { animate: false });
+    expect(map.setView).toHaveBeenCalledWith([44.786, 20.4577], 15, {
+      animate: false,
+    });
     expect(dom.window.L.featureGroup.mock.calls[0][0]).toHaveLength(1);
     ui.updateBgArrivals({
-      name: "Stadion Partizan · 278", coords: [44.786, 20.4577],
-      arrivals: [{ lineNumber: "41", scheduledAt: new Date(Date.now() + 300_000).toISOString(), isEstimated: false }],
+      name: "Stadion Partizan · 278",
+      coords: [44.786, 20.4577],
+      arrivals: [
+        {
+          lineNumber: "41",
+          scheduledAt: new Date(Date.now() + 300_000).toISOString(),
+          isEstimated: false,
+        },
+      ],
     });
     expect($("#tableContainer").css("display")).toBe("none");
     expect($("#noBusesMessage").text()).toContain("No live arrival estimates");
@@ -256,8 +280,20 @@ describe("UI behavior", () => {
   it("recenters the map when selecting another BG stop", async () => {
     const { $, map, ui } = context;
     const stops = {
-      first: { id: "1", uid: "1", name: "First", coords: [44.8, 20.4], arrivals: [] },
-      second: { id: "2", uid: "2", name: "Second", coords: [44.9, 20.5], arrivals: [] },
+      first: {
+        id: "1",
+        uid: "1",
+        name: "First",
+        coords: [44.8, 20.4],
+        arrivals: [],
+      },
+      second: {
+        id: "2",
+        uid: "2",
+        name: "Second",
+        coords: [44.9, 20.5],
+        arrivals: [],
+      },
     };
     await ui.onCityChange();
     ui.setStations("bg", Object.values(stops));
@@ -271,63 +307,135 @@ describe("UI behavior", () => {
     $("#name-input").val("Second");
     await ui.submitByName();
 
-    expect(map.setView).toHaveBeenCalledWith(stops.first.coords, 15, { animate: false });
-    expect(map.setView).toHaveBeenCalledWith(stops.second.coords, 15, { animate: false });
+    expect(map.setView).toHaveBeenCalledWith(stops.first.coords, 15, {
+      animate: false,
+    });
+    expect(map.setView).toHaveBeenCalledWith(stops.second.coords, 15, {
+      animate: false,
+    });
   });
 
   it("shows matched live BG buses on stop map and clears them after empty refresh", async () => {
     const { $, dom, layerGroup, map, ui } = context;
     const route = { lineId: "1704912322", threadId: "4898716406" };
     const stop = {
-      name: "Stadion Partizan · 278", id: "6739029064", uid: "6739029064", coords: [44.786, 20.4577],
-      arrivals: [{ lineNumber: "40", destination: "Zvezdara", estimatedAt: new Date(Date.now() + 60_000).toISOString(), isEstimated: true, vehicleId: "belgrade|P82023", route }],
+      name: "Stadion Partizan · 278",
+      id: "6739029064",
+      uid: "6739029064",
+      coords: [44.786, 20.4577],
+      arrivals: [
+        {
+          lineNumber: "40",
+          destination: "Zvezdara",
+          estimatedAt: new Date(Date.now() + 60_000).toISOString(),
+          isEstimated: true,
+          vehicleId: "belgrade|P82023",
+          route,
+        },
+      ],
     };
-    const vehicle = { id: "belgrade|P82023", lineNumber: "40", coords: [44.71, 20.41] };
+    const vehicle = {
+      id: "belgrade|P82023",
+      lineNumber: "40",
+      coords: [44.71, 20.41],
+    };
     await ui.onCityChange();
-    const request = vi.fn(({ url }) => Promise.resolve(url.startsWith("/api/bg/poc/vehicles") ? { vehicles: [vehicle] } : stop));
+    const request = vi.fn(({ url }) =>
+      Promise.resolve(
+        url.startsWith("/api/bg/poc/vehicles") ? { vehicles: [vehicle] } : stop,
+      ),
+    );
     $.ajax = request;
     const marker = vi.spyOn(dom.window.L, "marker");
-    ui.setStations("bg", [{ uid: stop.id, id: stop.id, name: stop.name, coords: stop.coords }]);
+    ui.setStations("bg", [
+      { uid: stop.id, id: stop.id, name: stop.name, coords: stop.coords },
+    ]);
     $("#name-input").val(stop.name);
     await ui.submitByName();
 
-    expect(request).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/vehicles?stopId=6739029064" }));
-    expect(marker).toHaveBeenCalledWith(vehicle.coords, expect.objectContaining({ icon: expect.anything() }));
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "/api/bg/poc/vehicles?stopId=6739029064",
+      }),
+    );
+    expect(marker).toHaveBeenCalledWith(
+      vehicle.coords,
+      expect.objectContaining({ icon: expect.anything() }),
+    );
     expect(map.fitBounds).toHaveBeenCalledWith("bounds", { animate: false });
 
-    request.mockImplementation(({ url }) => Promise.resolve(url.startsWith("/api/bg/poc/vehicles") ? { vehicles: [] } : stop));
+    request.mockImplementation(({ url }) =>
+      Promise.resolve(
+        url.startsWith("/api/bg/poc/vehicles") ? { vehicles: [] } : stop,
+      ),
+    );
     const removeCount = layerGroup.removeLayer.mock.calls.length;
     await ui.updateBgArrivals(stop);
     expect(layerGroup.removeLayer).toHaveBeenCalledTimes(removeCount + 1);
-    expect(marker.mock.calls.filter(([coords]) => coords[0] === vehicle.coords[0] && coords[1] === vehicle.coords[1])).toHaveLength(1);
+    expect(
+      marker.mock.calls.filter(
+        ([coords]) =>
+          coords[0] === vehicle.coords[0] && coords[1] === vehicle.coords[1],
+      ),
+    ).toHaveLength(1);
   });
 
   it("opens BG route from arrival line and draws route in blue", async () => {
     const { $, dom, map, ui } = context;
     const route = { lineId: "1704912322", threadId: "4898716406" };
     const data = {
-      ...route, name: "40",
-      stops: [{ name: "Banjica", coords: [44.7, 20.4] }, { name: "Zvezdara", coords: [44.72, 20.42] }],
-      segments: [[[44.7, 20.4], [44.71, 20.41], [44.72, 20.42]]],
+      ...route,
+      name: "40",
+      stops: [
+        { name: "Banjica", coords: [44.7, 20.4] },
+        { name: "Zvezdara", coords: [44.72, 20.42] },
+      ],
+      segments: [
+        [
+          [44.7, 20.4],
+          [44.71, 20.41],
+          [44.72, 20.42],
+        ],
+      ],
     };
     const stop = {
-      name: "Stadion Partizan", id: "6739029064", coords: [44.786, 20.4577],
-      arrivals: [{ lineNumber: "40", destination: "Zvezdara", estimatedAt: new Date(Date.now() + 60_000).toISOString(), isEstimated: true, route }],
+      name: "Stadion Partizan",
+      id: "6739029064",
+      coords: [44.786, 20.4577],
+      arrivals: [
+        {
+          lineNumber: "40",
+          destination: "Zvezdara",
+          estimatedAt: new Date(Date.now() + 60_000).toISOString(),
+          isEstimated: true,
+          route,
+        },
+      ],
     };
     await ui.onCityChange();
     $.ajax = vi.fn().mockResolvedValue(data);
     ui.updateBgArrivals(stop);
     $("#tableBody tr").first().trigger("click");
     await new Promise((resolve) => setImmediate(resolve));
-    expect($.ajax).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/routes/1704912322/4898716406?stopId=6739029064" }));
+    expect($.ajax).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "/api/bg/poc/routes/1704912322/4898716406?stopId=6739029064",
+      }),
+    );
     expect($("#scheduleSection").css("display")).toBe("none");
     expect($("#scheduleContainer").text()).toBe("");
     expect($("#scheduleInfo").text()).not.toContain("Route 40");
-    expect(dom.window.L.polyline).toHaveBeenCalledWith(data.segments, { color: "blue" });
+    expect(dom.window.L.polyline).toHaveBeenCalledWith(data.segments, {
+      color: "blue",
+    });
     expect(map.fitBounds).toHaveBeenCalledWith("route-bounds");
     ui.updateBgArrivals(stop);
     expect(dom.window.L.polyline).toHaveBeenCalledTimes(1);
-    expect(dom.window.L.featureGroup.mock.calls.every(([markers]) => markers.length === 1)).toBe(true);
+    expect(
+      dom.window.L.featureGroup.mock.calls.every(
+        ([markers]) => markers.length === 1,
+      ),
+    ).toBe(true);
   });
 
   it("keeps arrivals when BG route fails and ignores route response after city change", async () => {
@@ -336,8 +444,18 @@ describe("UI behavior", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const route = { lineId: "1", threadId: "2" };
     ui.updateBgArrivals({
-      name: "Stadion Partizan", id: "278", coords: [44.786, 20.4577],
-      arrivals: [{ lineNumber: "40", destination: "Zvezdara", estimatedAt: new Date(Date.now() + 60_000).toISOString(), isEstimated: true, route }],
+      name: "Stadion Partizan",
+      id: "278",
+      coords: [44.786, 20.4577],
+      arrivals: [
+        {
+          lineNumber: "40",
+          destination: "Zvezdara",
+          estimatedAt: new Date(Date.now() + 60_000).toISOString(),
+          isEstimated: true,
+          route,
+        },
+      ],
     });
     $.ajax = vi.fn().mockRejectedValue(new Error("upstream failed"));
     await ui.showBgRoute(route);
@@ -345,7 +463,12 @@ describe("UI behavior", () => {
     expect($("#scheduleSection").css("display")).toBe("none");
     expect($("#error").css("display")).not.toBe("none");
     let finish;
-    $.ajax.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    $.ajax.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
     const pending = ui.showBgRoute({ lineId: "1", threadId: "2" });
     ui.setStations("ns", []);
     ui.setLines("ns", {});
@@ -372,7 +495,12 @@ describe("UI behavior", () => {
 
     $("#searchMode").val("coords");
     ui.setStations("bg", [
-      { uid: "station-1", name: "Main Station", id: "42", coords: [44.8, 20.4] },
+      {
+        uid: "station-1",
+        name: "Main Station",
+        id: "42",
+        coords: [44.8, 20.4],
+      },
     ]);
     context.dom.window.navigator.geolocation = {
       getCurrentPosition(success) {
@@ -430,37 +558,77 @@ describe("UI behavior", () => {
 
   it("renders provider markup as text in arrivals and schedule", async () => {
     const { $, dom, ui } = context;
-    ui.updateArrivals({
-      name: '<img src=x onerror=alert(1)>', id: '1', uid: 'u', coords: [44, 20],
-      vehicles: [{ lineNumber: '<svg onload=alert(1)>', secondsLeft: 60, main_line_title: '<b>route</b>', coords: [44, 20], allStations: [] }],
-    }, false);
-    expect($('#stationName img, #tableBody svg, #tableBody b')).toHaveLength(0);
-    expect($('#tableBody').text()).toContain('<b>route</b>');
+    ui.updateArrivals(
+      {
+        name: "<img src=x onerror=alert(1)>",
+        id: "1",
+        uid: "u",
+        coords: [44, 20],
+        vehicles: [
+          {
+            lineNumber: "<svg onload=alert(1)>",
+            secondsLeft: 60,
+            main_line_title: "<b>route</b>",
+            coords: [44, 20],
+            allStations: [],
+          },
+        ],
+      },
+      false,
+    );
+    expect($("#stationName img, #tableBody svg, #tableBody b")).toHaveLength(0);
+    expect($("#tableBody").text()).toContain("<b>route</b>");
     const markers = dom.window.L.featureGroup.mock.calls[0][0];
-    expect(markers[0].popup.textContent).toBe('<img src=x onerror=alert(1)> (1)');
-    expect(markers[1].popup.textContent).toBe('<b>route</b>');
-    expect(markers[1].tooltip.textContent).toBe('<svg onload=alert(1)>');
-    $.ajax = vi.fn().mockResolvedValue({ date: '2026-04-29', schedule: { '<img src=x>': ['<script>alert(1)</script>'] } });
-    await ui.fetchSchedule('bg', 'u', true);
-    expect($('#scheduleContainer img, #scheduleContainer script')).toHaveLength(0);
-    expect($('#scheduleContainer').text()).toContain('<img src=x>');
+    expect(markers[0].popup.textContent).toBe(
+      "<img src=x onerror=alert(1)> (1)",
+    );
+    expect(markers[1].popup.textContent).toBe("<b>route</b>");
+    expect(markers[1].tooltip.textContent).toBe("<svg onload=alert(1)>");
+    $.ajax = vi.fn().mockResolvedValue({
+      date: "2026-04-29",
+      schedule: { "<img src=x>": ["<script>alert(1)</script>"] },
+    });
+    await ui.fetchSchedule("bg", "u", true);
+    expect($("#scheduleContainer img, #scheduleContainer script")).toHaveLength(
+      0,
+    );
+    expect($("#scheduleContainer").text()).toContain("<img src=x>");
   });
 
   it("renders nearby station options as text", async () => {
     const { $, ui } = context;
     $("#city").val("ns");
-    ui.setStations("ns", [{ uid: "u", id: "<svg>", name: "<img src=x>", coords: [44, 20] }]);
-    await ui.searchByCoords({ latitude: 44, longitude: 20 }, "#stationsMaxDistance-input", "#coords-input");
+    ui.setStations("ns", [
+      { uid: "u", id: "<svg>", name: "<img src=x>", coords: [44, 20] },
+    ]);
+    await ui.searchByCoords(
+      { latitude: 44, longitude: 20 },
+      "#stationsMaxDistance-input",
+      "#coords-input",
+    );
     expect($("#coords-input img, #coords-input svg")).toHaveLength(0);
     expect($("#coords-input option").text()).toContain("<img src=x>");
   });
 
   it("keeps arrivals without vehicle coordinates out of Leaflet markers", () => {
     const { $, dom, ui } = context;
-    ui.updateArrivals({
-      name: "Stop", id: "1", uid: "u", coords: [44, 20],
-      vehicles: [{ lineNumber: "7", secondsLeft: 60, coords: [null, undefined], allStations: [] }],
-    }, false);
+    ui.updateArrivals(
+      {
+        name: "Stop",
+        id: "1",
+        uid: "u",
+        coords: [44, 20],
+        vehicles: [
+          {
+            lineNumber: "7",
+            secondsLeft: 60,
+            coords: [null, undefined],
+            allStations: [],
+          },
+        ],
+      },
+      false,
+    );
     expect($("#tableBody").text()).toContain("7");
     expect(dom.window.L.featureGroup.mock.calls[0][0]).toHaveLength(1);
   });
@@ -470,12 +638,17 @@ describe("UI behavior", () => {
     const query = { uid: "station" };
     const deferred = () => {
       let resolve;
-      const promise = new Promise((done) => { resolve = done; });
+      const promise = new Promise((done) => {
+        resolve = done;
+      });
       return { promise, resolve };
     };
     const first = deferred();
     const second = deferred();
-    $.ajax = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    $.ajax = vi
+      .fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
     $("#city").val("ns");
     ui.setStations("ns", []);
     ui.setStations("nis", []);
@@ -484,9 +657,21 @@ describe("UI behavior", () => {
 
     const older = ui.fetchArrivals("ns", query, false);
     const newer = ui.fetchArrivals("ns", query, false);
-    second.resolve({ name: "New result", id: "2", uid: query.uid, coords: [44, 20], vehicles: [] });
+    second.resolve({
+      name: "New result",
+      id: "2",
+      uid: query.uid,
+      coords: [44, 20],
+      vehicles: [],
+    });
     await newer;
-    first.resolve({ name: "Old result", id: "1", uid: query.uid, coords: [44, 20], vehicles: [] });
+    first.resolve({
+      name: "Old result",
+      id: "1",
+      uid: query.uid,
+      coords: [44, 20],
+      vehicles: [],
+    });
     await older;
     expect($("#stationName").text()).toBe("Station: New result (2)");
 
@@ -496,7 +681,13 @@ describe("UI behavior", () => {
     const pending = ui.fetchArrivals("ns", query, false);
     $("#city").val("nis");
     await ui.onCityChange();
-    stale.resolve({ name: "Wrong city", id: "3", uid: query.uid, coords: [44, 20], vehicles: [] });
+    stale.resolve({
+      name: "Wrong city",
+      id: "3",
+      uid: query.uid,
+      coords: [44, 20],
+      vehicles: [],
+    });
     await pending;
     expect($("#stationName").text()).toBe("Station: New result (2)");
   });
@@ -509,17 +700,25 @@ describe("UI behavior", () => {
     ]);
     $("#city").val("ns");
     $.ajax = vi.fn().mockResolvedValue({ "7_A": ["a", "b"] });
-    dom.window.fetch.mockResolvedValue({ json: async () => ({ code: "Ok", routes: [] }) });
+    dom.window.fetch.mockResolvedValue({
+      json: async () => ({ code: "Ok", routes: [] }),
+    });
 
     await ui.onCityChange();
     expect($.ajax).not.toHaveBeenCalled();
     await ui.addRouteToMap("7", []);
-    expect($.ajax).toHaveBeenCalledWith({ url: "/api/lines/ns", type: "GET", data: {} });
+    expect($.ajax).toHaveBeenCalledWith({
+      url: "/api/lines/ns",
+      type: "GET",
+      data: {},
+    });
   });
 
   it("does not reuse cached schedules across cities with same uid", async () => {
     const { $, ui } = context;
-    $.ajax = vi.fn().mockResolvedValue({ date: "2026-04-29", schedule: { 7: ["10:00"] } });
+    $.ajax = vi
+      .fn()
+      .mockResolvedValue({ date: "2026-04-29", schedule: { 7: ["10:00"] } });
     $("#city").val("ns");
     ui.setStations("ns", []);
     ui.setStations("nis", []);
@@ -529,24 +728,49 @@ describe("UI behavior", () => {
     await ui.onCityChange();
     await ui.fetchSchedule("nis", "shared");
     expect($.ajax).toHaveBeenCalledTimes(2);
-    expect($.ajax.mock.calls[1][0].url).toBe("/api/stations/nis/schedule?uid=shared");
+    expect($.ajax.mock.calls[1][0].url).toBe(
+      "/api/stations/nis/schedule?uid=shared",
+    );
   });
 
   it("sorts line names without a numeric prefix", () => {
     const { $, ui } = context;
-    ui.updateArrivals({
-      name: "Stop", id: "1", uid: "u", coords: [44, 20],
-      vehicles: [
-        { lineNumber: "EKO1", secondsLeft: 10, coords: [44, 20], allStations: [] },
-        { lineNumber: "7A", secondsLeft: 20, coords: [44, 20], allStations: [] },
-      ],
-    }, false);
+    ui.updateArrivals(
+      {
+        name: "Stop",
+        id: "1",
+        uid: "u",
+        coords: [44, 20],
+        vehicles: [
+          {
+            lineNumber: "EKO1",
+            secondsLeft: 10,
+            coords: [44, 20],
+            allStations: [],
+          },
+          {
+            lineNumber: "7A",
+            secondsLeft: 20,
+            coords: [44, 20],
+            allStations: [],
+          },
+        ],
+      },
+      false,
+    );
     expect($("#tableBody tr").first().text()).toContain("7A");
     expect($("#tableBody tr").last().text()).toContain("EKO1");
   });
 
   it("routes ordered bus stops along roads", async () => {
-    const geometry = { type: "LineString", coordinates: [[20.1, 44.1], [20.15, 44.15], [20.2, 44.2]] };
+    const geometry = {
+      type: "LineString",
+      coordinates: [
+        [20.1, 44.1],
+        [20.15, 44.15],
+        [20.2, 44.2],
+      ],
+    };
     const { dom, ui } = context;
     ui.setStations("bg", [
       { uid: "first", coords: [44.1, 20.1] },
@@ -581,7 +805,10 @@ describe("UI behavior", () => {
       "/api/route?coords=20.1%2C44.1%3B20.2%2C44.2",
     );
     expect(dom.window.L.polyline).toHaveBeenCalledWith(
-      [[44.1, 20.1], [44.2, 20.2]],
+      [
+        [44.1, 20.1],
+        [44.2, 20.2],
+      ],
       { color: "blue" },
     );
   });
@@ -625,7 +852,9 @@ describe("UI behavior", () => {
     expect($("#scheduleContainer").text()).toContain("23:57");
     expect($("#scheduleContainer").text()).toContain("23:58*");
     expect($("#scheduleContainer > div").css("overflow-x")).toBe("auto");
-    expect($("#scheduleContainer span").first().css("display")).toBe("inline-block");
+    expect($("#scheduleContainer span").first().css("display")).toBe(
+      "inline-block",
+    );
   });
 
   it("sorts nearby stations by distance", async () => {

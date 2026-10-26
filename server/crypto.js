@@ -14,8 +14,11 @@ const encrypt = (input, b64key, b64iv) => {
   const key = CryptoJS.enc.Base64.parse(b64key);
   const iv = CryptoJS.enc.Base64.parse(b64iv);
   return encodeURIComponent(
-    CryptoJS.AES.encrypt(input, key, { iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 })
-      .ciphertext.toString(CryptoJS.enc.Base64),
+    CryptoJS.AES.encrypt(input, key, {
+      iv,
+      mode: CryptoJS.mode.CBC,
+      padding: CryptoJS.pad.Pkcs7,
+    }).ciphertext.toString(CryptoJS.enc.Base64),
   );
 };
 

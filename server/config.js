@@ -22,4 +22,6 @@ if (process.env.NIS_KEY) apikeys.nis.key = process.env.NIS_KEY;
 if (process.env.NIS_URL) apikeys.nis.url = process.env.NIS_URL;
 
 // Belgrade stays configured but is temporarily unavailable until its provider API works again.
-module.exports = Object.fromEntries(Object.entries(apikeys).filter(([city]) => city !== "bg"));
+module.exports = Object.fromEntries(
+  Object.entries(apikeys).filter(([city]) => city !== "bg"),
+);

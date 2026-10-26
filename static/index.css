@@ -21,7 +21,12 @@ body {
   min-height: 100%;
   margin: 0;
   padding: 0;
-  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family:
+    "Inter",
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    sans-serif;
   color: var(--text);
   background: url("Pics/beograd.jpg") center center / cover no-repeat fixed;
   display: flex;
@@ -38,7 +43,6 @@ body {
   padding: 1rem 1.25rem 2rem;
   box-sizing: border-box;
 }
-
 
 /* ===== Header ===== */
 .app-header {
@@ -98,7 +102,9 @@ body {
   border-radius: var(--radius-sm) !important;
   font-size: 0.95rem;
   height: 2.6em;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 
 .input:focus,
@@ -147,7 +153,10 @@ input[type="range"] {
   font-weight: 600;
   letter-spacing: 0.04em;
   height: 2.6em;
-  transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+  transition:
+    background 0.2s,
+    transform 0.1s,
+    box-shadow 0.2s;
 }
 
 .button.is-primary:hover {
@@ -194,7 +203,7 @@ input[type="range"] {
 
 /* ===== Notification ===== */
 .notification.is-info {
-  background: rgba(32, 156, 238, 0.10) !important;
+  background: rgba(32, 156, 238, 0.1) !important;
   border: 1px solid rgba(32, 156, 238, 0.22);
   color: var(--text);
   border-radius: 10px;
@@ -219,7 +228,7 @@ input[type="range"] {
 }
 
 #tabela thead th {
-  background: rgba(26, 188, 156, 0.10);
+  background: rgba(26, 188, 156, 0.1);
   color: var(--accent);
   border-bottom: 2px solid rgba(26, 188, 156, 0.35);
   padding: 10px 14px;
@@ -299,7 +308,9 @@ input[type="range"] {
   cursor: pointer;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   font-size: 0.88rem;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
 
 #dropdown .station-item:hover {
