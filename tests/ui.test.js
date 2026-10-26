@@ -245,6 +245,28 @@ describe("UI behavior", () => {
     ui.cancelInterval();
   });
 
+  it("recenters the map when selecting another BG stop", async () => {
+    const { $, map, ui } = context;
+    const stops = {
+      first: { id: "1", uid: "1", name: "First", coords: [44.8, 20.4], arrivals: [] },
+      second: { id: "2", uid: "2", name: "Second", coords: [44.9, 20.5], arrivals: [] },
+    };
+    await ui.onCityChange();
+    ui.setStations("bg", Object.values(stops));
+    $.ajax = vi.fn(({ url }) => {
+      if (url.includes("vehicles")) return Promise.resolve({ vehicles: [] });
+      return Promise.resolve(stops[url.endsWith("1") ? "first" : "second"]);
+    });
+
+    $("#name-input").val("First");
+    await ui.submitByName();
+    $("#name-input").val("Second");
+    await ui.submitByName();
+
+    expect(map.setView).toHaveBeenCalledWith(stops.first.coords, 15, { animation: true });
+    expect(map.setView).toHaveBeenCalledWith(stops.second.coords, 15, { animation: true });
+  });
+
   it("shows matched live BG buses on stop map and clears them after empty refresh", async () => {
     const { $, dom, layerGroup, map, ui } = context;
     const route = { lineId: "1704912322", threadId: "4898716406" };

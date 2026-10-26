@@ -603,6 +603,7 @@ const submitByName = () => {
   currQuery = { uid: station?.uid || selectedValue };
   if (city === "bg") {
     currInterval = clearInterval(currInterval);
+    bgStopCentered = false;
     const refresh = fetchBgStop();
     currInterval = setInterval(fetchBgStop, 60 * 1000);
     return refresh;
