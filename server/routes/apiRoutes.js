@@ -8,7 +8,11 @@ const {
 } = require("../services/providerService");
 const { getRoute } = require("../services/routeService");
 const { getStationSchedule } = require("../services/scheduleService");
-const { getBelgradeStop, getBelgradeRoute, getBelgradeVehicles } = require("../services/yandexBelgradeService");
+const {
+  getBelgradeStop,
+  getBelgradeRoute,
+  getBelgradeVehicles,
+} = require("../services/yandexBelgradeService");
 const { badRequest, sendError } = require("../errors");
 const {
   bgRouteParams,
@@ -20,35 +24,48 @@ const {
 } = require("./schemas");
 
 const handle = (fn, fallback) => async (req, reply) => {
-  try { await fn(req, reply); }
-  catch (err) { req.log.error({ err }); sendError(reply, err, fallback); }
+  try {
+    await fn(req, reply);
+  } catch (err) {
+    req.log.error({ err });
+    sendError(reply, err, fallback);
+  }
 };
 
 function registerApiRoutes(fastify) {
   fastify.register(async (app) => {
-    app.get(
+    const registerBgEndpoint = (path, schema, getData, fallback) => {
+      app.get(
+        path,
+        { schema },
+        handle(async (req, reply) => {
+          reply.header("Cache-Control", "no-store");
+          reply.send(await getData(req));
+        }, fallback),
+      );
+    };
+    registerBgEndpoint(
       "/api/bg/poc/routes/:lineId/:threadId",
-      { schema: { params: bgRouteParams, querystring: bgStopQuery } },
-      handle(async (req, reply) => {
-        reply.header("Cache-Control", "no-store");
-        reply.send(await getBelgradeRoute(req.params.lineId, req.params.threadId, req.query.stopId));
-      }, "Failed to fetch Yandex route"),
+      { params: bgRouteParams, querystring: bgStopQuery },
+      (req) =>
+        getBelgradeRoute(
+          req.params.lineId,
+          req.params.threadId,
+          req.query.stopId,
+        ),
+      "Failed to fetch Yandex route",
     );
-    app.get(
+    registerBgEndpoint(
       "/api/bg/poc/stop",
-      { schema: { querystring: bgStopQuery } },
-      handle(async (req, reply) => {
-        reply.header("Cache-Control", "no-store");
-        reply.send(await getBelgradeStop(req.query.stopId));
-      }, "Failed to fetch Yandex stop"),
+      { querystring: bgStopQuery },
+      (req) => getBelgradeStop(req.query.stopId),
+      "Failed to fetch Yandex stop",
     );
-    app.get(
+    registerBgEndpoint(
       "/api/bg/poc/vehicles",
-      { schema: { querystring: bgStopQuery } },
-      handle(async (req, reply) => {
-        reply.header("Cache-Control", "no-store");
-        reply.send(await getBelgradeVehicles(req.query.stopId));
-      }, "Failed to fetch Yandex vehicle positions"),
+      { querystring: bgStopQuery },
+      (req) => getBelgradeVehicles(req.query.stopId),
+      "Failed to fetch Yandex vehicle positions",
     );
   });
 
@@ -79,7 +96,10 @@ function registerApiRoutes(fastify) {
     { schema: { params: cityParams } },
     handle(async (req, reply) => {
       const stations = await getAllStations(req.params.city);
-      const hash = crypto.createHash("sha256").update(JSON.stringify(stations)).digest("hex");
+      const hash = crypto
+        .createHash("sha256")
+        .update(JSON.stringify(stations))
+        .digest("hex");
       reply.header("Cache-Control", "public, max-age=3600");
       reply.send({ hash });
     }, "Failed to compute stations hash"),
@@ -115,14 +135,35 @@ function registerApiRoutes(fastify) {
       const { uid, date } = req.query;
       if (date) {
         const [year, month, day] = date.split("-").map(Number);
-        const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-        const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-        if (year < 1 || month < 1 || month > 12 || day < 1 || day > daysInMonth[month - 1]) {
+        const leapYear =
+          year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+        const daysInMonth = [
+          31,
+          leapYear ? 29 : 28,
+          31,
+          30,
+          31,
+          30,
+          31,
+          31,
+          30,
+          31,
+          30,
+          31,
+        ];
+        if (
+          year < 1 ||
+          month < 1 ||
+          month > 12 ||
+          day < 1 ||
+          day > daysInMonth[month - 1]
+        ) {
           throw badRequest("Invalid schedule date");
         }
       }
       const response = await getStationSchedule(city, uid, date);
-      if (!response) return reply.status(404).send({ error: "Station not found" });
+      if (!response)
+        return reply.status(404).send({ error: "Station not found" });
       reply.send(response);
     }, "Failed to fetch schedule"),
   );
