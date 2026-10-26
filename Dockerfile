@@ -6,7 +6,7 @@ RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/main >> /etc/apk/repositorie
   && apk add --no-cache git nodejs-current npm \
   && addgroup -S app \
   && adduser -S -G app app \
-  && git clone --depth 1 https://gitlab.com/Gor_ets/public-transport-in-serbia.git /app \
+  && git clone --depth 1 https://github.com/Gnu-Gorets/public-transport-in-serbia.git /app \
   && rm -rf /app/.git /app/tests \
   && apk del git \
   && chown -R app:app /app

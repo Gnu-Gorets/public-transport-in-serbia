@@ -1,21 +1,33 @@
+# Version control and CI
 .git
 .gitignore
-.gitlab-ci.yml
+.github/
 
+# Dependencies
 node_modules/
 .npm/
 
+# Environment files and secrets
+.env*
+
+# Logs
 logs/
 *.log
 npm-debug.log*
 
-.env
-.env.*
-
+# Tests and coverage
 coverage/
 *.lcov
-
 tests/
 *.test.js
 *.spec.js
 vitest.config.*
+
+# Documentation and development-only files
+docs/
+AGENTS.md
+Dockerfile_local
+LICENSE
+README.md
+eslint.config.mjs
+.prettierrc.json
