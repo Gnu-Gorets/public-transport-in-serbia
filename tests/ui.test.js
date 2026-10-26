@@ -412,6 +412,33 @@ describe("UI behavior", () => {
     expect($("#stationName").text()).not.toContain("Stale");
   });
 
+  it("ignores a BG stop response after another stop is selected", async () => {
+    const { $, ui } = context;
+    let resolveStop;
+    let resolveVehicles;
+    await ui.onCityChange();
+    ui.setQuery({ uid: "first" });
+    $.ajax = vi.fn(
+      ({ url }) =>
+        new Promise((resolve) => {
+          if (url.includes("/stop?")) resolveStop = resolve;
+          else resolveVehicles = resolve;
+        }),
+    );
+    const pending = ui.fetchBgStop();
+    ui.setQuery({ uid: "second" });
+    resolveStop({
+      id: "first",
+      uid: "first",
+      name: "Stale stop",
+      coords: [44, 20],
+      arrivals: [],
+    });
+    resolveVehicles({ vehicles: [] });
+    await pending;
+    expect($("#stationName").text()).not.toContain("Stale stop");
+  });
+
   it("shows matched live BG buses on stop map and clears them after empty refresh", async () => {
     const { $, dom, layerGroup, map, ui } = context;
     const route = { lineId: "1704912322", threadId: "4898716406" };
