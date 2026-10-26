@@ -225,6 +225,8 @@ const updateArrivals = (response, recenter) => {
   markers.push(createMarker(response.coords, "", "yellow", name));
 
   if (response.vehicles.length === 0) {
+    L.featureGroup(markers).addTo(layerGroup);
+    if (recenter) map.setView(response.coords, 15, { animate: false });
     $("#busRouteInfo").hide();
     $("#tableContainer").hide();
     $("#noBusesMessage").show();
