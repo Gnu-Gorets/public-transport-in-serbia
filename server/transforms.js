@@ -36,20 +36,24 @@ function transformStationResponse(response, city) {
       parseFloat(response[0].gpsy ?? 0),
       parseFloat(response[0].gpsx ?? 0),
     ],
-    vehicles: response[0].just_coordinates == "1" ? [] : response.map((v) => ({
-      lineNumber: v.line_number,
-      lineName: v.line_title,
-      secondsLeft: v.seconds_left,
-      stationsBetween: v.stations_between,
-      main_line_title: v.main_line_title,
-      stationName: v.vehicles?.[0]?.station_name,
-      garageNo: v.vehicles?.[0]?.garageNo,
-      coords: [v.vehicles?.[0]?.lat, v.vehicles?.[0]?.lng],
-      allStations: (v.all_stations || []).map((s) => ({
-        latitude: s.coordinates.latitude,
-        longitude: s.coordinates.longitude,
+    vehicles: response[0].just_coordinates == "1" ? [] : response
+      .filter((v) => v && v.line_number != null && String(v.line_number).trim() && v.seconds_left != null && String(v.seconds_left).trim())
+      .map((v) => ({
+        lineNumber: v.line_number,
+        lineName: v.line_title,
+        secondsLeft: v.seconds_left,
+        stationsBetween: v.stations_between,
+        main_line_title: v.main_line_title,
+        stationName: v.vehicles?.[0]?.station_name,
+        garageNo: v.vehicles?.[0]?.garageNo,
+        coords: [v.vehicles?.[0]?.lat, v.vehicles?.[0]?.lng],
+        allStations: (Array.isArray(v.all_stations) ? v.all_stations : [])
+          .filter((s) => s?.coordinates && Number.isFinite(s.coordinates.latitude) && Number.isFinite(s.coordinates.longitude))
+          .map((s) => ({
+            latitude: s.coordinates.latitude,
+            longitude: s.coordinates.longitude,
+          })),
       })),
-    })),
   };
 }
 
