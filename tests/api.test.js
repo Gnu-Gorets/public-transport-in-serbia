@@ -95,7 +95,7 @@ describe("API routes", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toContain("text/html");
     expect(response.body).toContain("Serbia++");
-    expect(response.body).toContain("static/script.js?v=bg-live-vehicles-1");
+    expect(response.body).toContain("static/script.js?v=bg-yellow-vehicles-2");
   });
 
   it("serves the checked-in Belgrade stop catalog locally", async () => {
