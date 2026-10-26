@@ -117,6 +117,7 @@ function loadUiScript() {
   const source = `${readFileSync(scriptPath, "utf8")}
     window.__ui = {
       fetchSchedule,
+      fetchCityStations,
       fetchArrivals,
       searchByCoords,
       findClosestStations,
@@ -164,6 +165,13 @@ describe("UI behavior", () => {
   });
 
   afterEach(() => context.ui.cancelInterval());
+
+  it("loads Belgrade catalog through shared station loader", async () => {
+    const { $, ui } = context;
+    vi.spyOn($, "ajax").mockResolvedValue({ stops: [{ id: "123", name: "Stop" }] });
+    await ui.fetchCityStations("bg");
+    expect(ui.getStations("bg")).toEqual([{ id: "123", name: "Stop", uid: "123" }]);
+  });
 
   it("uses native Leaflet map without Yandex iframe or link", () => {
     const html = readFileSync(resolve("static/index.html"), "utf8");

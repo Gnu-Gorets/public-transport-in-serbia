@@ -89,13 +89,16 @@ const doAsyncRequest = async (url, type = "GET", data = {}, errorHandler) => {
 };
 
 const fetchCityStations = async (city) => {
-  let response = await doAsyncRequest(
-    `/api/stations/${city}/all`,
+  const isBelgrade = city === "bg";
+  const response = await doAsyncRequest(
+    isBelgrade ? "/api/bg/stops" : `/api/stations/${city}/all`,
     "GET",
     undefined,
-    () => city !== getCity(),
+    isBelgrade ? undefined : () => city !== getCity(),
   );
-  allStations[city] = response;
+  allStations[city] = isBelgrade
+    ? (response?.stops || []).map((stop) => ({ ...stop, uid: stop.id }))
+    : response;
 };
 
 const fetchCityLines = async (city) => {
@@ -978,15 +981,7 @@ $(document).ready(async () => {
   let stations = [];
   const fetchStations = async () => {
     const city = getCity();
-    if (!allStations[city]) {
-      if (city === "bg") {
-        const response = await doAsyncRequest("/api/bg/stops");
-        allStations.bg = (response?.stops || []).map((stop) => ({
-          ...stop,
-          uid: stop.id,
-        }));
-      } else await fetchCityStations(city);
-    }
+    if (!allStations[city]) await fetchCityStations(city);
     stations = (allStations[city] || []).map((station) => ({
       name: station.name,
       id: station.id,
