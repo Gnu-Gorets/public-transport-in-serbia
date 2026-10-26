@@ -297,15 +297,17 @@ async function getBelgradeVehicles(stopId) {
   const stop = await getBelgradeStop(stopId);
   const routes = new Map();
   for (const arrival of stop.arrivals) {
-    if (!arrival.isEstimated || !arrival.route) continue;
+    if (!arrival.isEstimated || !arrival.vehicleId || !arrival.route) continue;
     const key = `${arrival.route.lineId}:${arrival.route.threadId}`;
-    routes.set(key, { reference: arrival.route });
+    const route = routes.get(key) || { reference: arrival.route, vehicleIds: new Set() };
+    route.vehicleIds.add(arrival.vehicleId);
+    routes.set(key, route);
   }
   if (!routes.size) return { vehicles: [] };
 
   const results = await Promise.allSettled([...routes.values()].map(async ({ reference, vehicleIds }) => {
     const { route, config, pageUrl } = await getRoutePage(reference.lineId, reference.threadId, stopId);
-    return fetchVehiclePositions(route, config, pageUrl);
+    return (await fetchVehiclePositions(route, config, pageUrl)).filter((vehicle) => vehicleIds.has(vehicle.id));
   }));
   const successful = results.filter((result) => result.status === "fulfilled");
   if (!successful.length) throw results[0].reason;
