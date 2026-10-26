@@ -84,7 +84,7 @@ describe("Yandex Belgrade routes", () => {
     expect(() => _test.parseVehiclePositions({}, "1704912322")).toThrow();
   });
 
-  it("fetches uncached live positions and keeps only vehicles expected at stop", async () => {
+  it("fetches all live vehicles on routes serving the stop", async () => {
     const position = { properties: { VehicleMetaData: { id: "belgrade|P82023", Transport: { lineId: "1704912322", name: "40" } } }, features: [{ geometry: { coordinates: [[20.41, 44.71]] } }] };
     const otherVehicle = { properties: { VehicleMetaData: { id: "belgrade|P82099", Transport: { lineId: "1704912322", name: "40" } } }, features: [{ geometry: { coordinates: [[20.42, 44.72]] } }] };
     const get = vi.fn()
@@ -94,7 +94,10 @@ describe("Yandex Belgrade routes", () => {
       .mockResolvedValueOnce({ status: 200, data: { data: { vehicles: [position] } } });
     setHttpClient({ get });
 
-    await expect(getBelgradeVehicles("6739029064")).resolves.toEqual({ vehicles: [{ id: "belgrade|P82023", lineNumber: "40", coords: [44.71, 20.41] }] });
+    await expect(getBelgradeVehicles("6739029064")).resolves.toEqual({ vehicles: [
+      { id: "belgrade|P82023", lineNumber: "40", coords: [44.71, 20.41] },
+      { id: "belgrade|P82099", lineNumber: "40", coords: [44.72, 20.42] },
+    ] });
     await expect(getBelgradeVehicles("6739029064")).resolves.toEqual({ vehicles: [{ id: "belgrade|P82023", lineNumber: "40", coords: [44.71, 20.41] }] });
     expect(get).toHaveBeenCalledTimes(4);
     const [url, options] = get.mock.calls[2];
