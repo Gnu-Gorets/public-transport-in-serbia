@@ -37,7 +37,15 @@ function transformStationResponse(response, city) {
       parseFloat(response[0].gpsx ?? 0),
     ],
     vehicles: response[0].just_coordinates == "1" ? [] : response
-      .filter((v) => v && v.line_number != null && String(v.line_number).trim() && v.seconds_left != null && String(v.seconds_left).trim())
+      .filter((v) => {
+        const lineNumber = v?.line_number;
+        const secondsLeft = v?.seconds_left;
+        return (typeof lineNumber === "string" || typeof lineNumber === "number") &&
+          String(lineNumber).trim() &&
+          (typeof secondsLeft === "string" || typeof secondsLeft === "number") &&
+          String(secondsLeft).trim() &&
+          Number.isFinite(Number(secondsLeft));
+      })
       .map((v) => ({
         lineNumber: v.line_number,
         lineName: v.line_title,
@@ -48,10 +56,16 @@ function transformStationResponse(response, city) {
         garageNo: v.vehicles?.[0]?.garageNo,
         coords: [v.vehicles?.[0]?.lat, v.vehicles?.[0]?.lng],
         allStations: (Array.isArray(v.all_stations) ? v.all_stations : [])
-          .filter((s) => s?.coordinates && Number.isFinite(s.coordinates.latitude) && Number.isFinite(s.coordinates.longitude))
+          .filter((s) => {
+            const latitude = s?.coordinates?.latitude;
+            const longitude = s?.coordinates?.longitude;
+            return latitude != null && longitude != null &&
+              String(latitude).trim() && String(longitude).trim() &&
+              Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude));
+          })
           .map((s) => ({
-            latitude: s.coordinates.latitude,
-            longitude: s.coordinates.longitude,
+            latitude: Number(s.coordinates.latitude),
+            longitude: Number(s.coordinates.longitude),
           })),
       })),
   };

@@ -5,8 +5,8 @@ let allStations = {};
 let allLines = {};
 let mapInitialized = false;
 let currentPolyline = null;
-let scheduleLoadedUid = null;
 let genericRequestId = 0;
+let arrivalRequestId = 0;
 let scheduleLoadedKey = null;
 let scheduleRequestId = 0;
 let currentCity;
@@ -80,22 +80,20 @@ const doAsyncRequest = async (url, type = "GET", data = {}, errorHandler) => {
       error.responseText,
     );
 
-    $("#error").text(`Error updating data: ${errorMessage}`);
-    $("#error").show();
-
-    if (errorHandler) {
-      errorHandler(error);
+    if (errorHandler?.(error) !== true) {
+      $("#error").text(`Error updating data: ${errorMessage}`);
+      $("#error").show();
     }
   }
 };
 
 const fetchCityStations = async (city) => {
-  let response = await doAsyncRequest(`/api/stations/${city}/all`);
+  let response = await doAsyncRequest(`/api/stations/${city}/all`, "GET", undefined, () => city !== getCity());
   allStations[city] = response;
 };
 
 const fetchCityLines = async (city) => {
-  const response = await doAsyncRequest(`/api/lines/${city}`);
+  const response = await doAsyncRequest(`/api/lines/${city}`, "GET", undefined, () => city !== getCity());
   allLines[city] = response;
 };
 
@@ -131,8 +129,8 @@ const onCityChange = async () => {
   currInterval = clearInterval(currInterval);
   genericRequestId++;
   scheduleRequestId++;
+  currQuery = undefined;
   if (isBelgrade || wasBelgrade) {
-    currQuery = undefined;
     bgVehicleRequestId++;
     bgVehicleLayer = undefined;
     bgStopMarker = undefined;
@@ -141,7 +139,6 @@ const onCityChange = async () => {
   if (isBelgrade) {
     $("#searchMode").val("name");
     onSearchModeChange();
-    scheduleLoadedUid = null;
     bgStopCentered = false;
     bgRouteData = undefined;
     bgRouteSelection = undefined;
@@ -242,30 +239,39 @@ const updateArrivals = (response, recenter) => {
   info.appendChild(scheduleLink);
   $("#busRouteInfo").show();
 
+  const parseLine = (line) => {
+    const value = String(line ?? "");
+    const match = value.match(/^(\d+)(\D*)/);
+    return match ? [Number(match[1]), match[2]] : [Infinity, value];
+  };
   response.vehicles.sort((a, b) => {
-    const [, aNum = "", aLetter = ""] = String(a.lineNumber ?? "").match(/^(\d+)(\D*)/) || [];
-    const [, bNum = "", bLetter = ""] = String(b.lineNumber ?? "").match(/^(\d+)(\D*)/) || [];
-    if (aNum !== bNum) {
-      return parseInt(aNum) - parseInt(bNum);
-    }
-    if (aLetter !== bLetter) {
-      return aLetter.localeCompare(bLetter);
-    }
-    return a.secondsLeft - b.secondsLeft;
+    const [aNum, aSuffix] = parseLine(a.lineNumber);
+    const [bNum, bSuffix] = parseLine(b.lineNumber);
+    if (aNum !== bNum) return aNum - bNum;
+    const lineOrder = aSuffix.localeCompare(bSuffix);
+    if (lineOrder) return lineOrder;
+    const aSeconds = Number(a.secondsLeft);
+    const bSeconds = Number(b.secondsLeft);
+    return (Number.isFinite(aSeconds) ? aSeconds : Infinity) -
+      (Number.isFinite(bSeconds) ? bSeconds : Infinity);
   });
 
   const tableData = response.vehicles
     .map((value) => {
-      let marker = createMarker(
-        value.coords,
-        value.lineNumber,
-        "blue",
-        value.main_line_title,
-      );
-      marker.on("click", () =>
-        handleBusClick(value.lineNumber, value.allStations),
-      );
-      markers.push(marker);
+      const hasCoords = Array.isArray(value.coords) && value.coords.length === 2 &&
+        value.coords.every((coord) => coord != null && String(coord).trim() && Number.isFinite(Number(coord)));
+      if (hasCoords) {
+        const marker = createMarker(
+          value.coords.map(Number),
+          value.lineNumber,
+          "blue",
+          value.main_line_title,
+        );
+        marker.on("click", () =>
+          handleBusClick(value.lineNumber, value.allStations),
+        );
+        markers.push(marker);
+      }
       const formattedTime = formatSeconds(value.secondsLeft);
       const row = document.createElement("tr");
       row.addEventListener("click", () => handleBusClick(value.lineNumber, value.allStations));
@@ -319,9 +325,7 @@ const updateBgArrivals = (response) => {
     map.setView(response.coords, 15, { animation: true });
     bgStopCentered = true;
   }
-  const popup = document.createElement("span");
-  popup.textContent = response.name;
-  bgStopMarker = createMarker(response.coords, undefined, "yellow", popup);
+  bgStopMarker = createMarker(response.coords, undefined, "yellow", response.name);
   L.featureGroup([bgStopMarker]).addTo(layerGroup);
   if (bgRouteData) drawBgRoute(bgRouteData, false);
 
@@ -381,6 +385,7 @@ const refreshBgVehicles = async (recenter = false) => {
   const query = currQuery;
   const clearLatest = () => {
     if (getCity() === "bg" && currQuery === query && requestId === bgVehicleRequestId) drawBgVehicles([]);
+    else return true;
   };
   const response = await doAsyncRequest(`/api/bg/poc/vehicles?stopId=${encodeURIComponent(query.uid || bgStopId)}`, "GET", undefined, clearLatest);
   if (getCity() !== "bg" || currQuery !== query || requestId !== bgVehicleRequestId) return;
@@ -402,7 +407,12 @@ const showBgRoute = async (route) => {
     layerGroup.removeLayer(currentPolyline);
     currentPolyline = null;
   }
-  const response = await doAsyncRequest(`/api/bg/poc/routes/${encodeURIComponent(route.lineId)}/${encodeURIComponent(route.threadId)}?stopId=${encodeURIComponent(query?.uid || bgStopId)}`);
+  const response = await doAsyncRequest(
+    `/api/bg/poc/routes/${encodeURIComponent(route.lineId)}/${encodeURIComponent(route.threadId)}?stopId=${encodeURIComponent(query?.uid || bgStopId)}`,
+    "GET",
+    undefined,
+    () => getCity() !== "bg" || currQuery !== query || bgRouteSelection !== selection,
+  );
   if (getCity() !== "bg" || currQuery !== query || bgRouteSelection !== selection || !response) return;
   bgRouteData = response;
   drawBgRoute(response);
@@ -416,7 +426,12 @@ const fetchBgStop = () => {
     $("#error").hide();
     const stopId = currQuery?.uid;
     if (!stopId) return;
-    const response = await doAsyncRequest(`/api/bg/poc/stop?stopId=${encodeURIComponent(stopId)}`);
+    const response = await doAsyncRequest(
+      `/api/bg/poc/stop?stopId=${encodeURIComponent(stopId)}`,
+      "GET",
+      undefined,
+      () => getCity() !== "bg" || currQuery?.uid !== stopId,
+    );
     if (!response || getCity() !== "bg") {
       $("#updateInProgress").hide();
       return;
@@ -431,28 +446,30 @@ const fetchBgStop = () => {
 };
 
 const fetchArrivals = async (city, query, recenter) => {
-  const requestId = genericRequestId;
+  const selectionId = genericRequestId;
+  const requestId = ++arrivalRequestId;
+  const isCurrent = () => selectionId === genericRequestId && requestId === arrivalRequestId && city === getCity() && query === currQuery;
   let url = `/api/stations/${city}/search?${$.param(query)}`;
   $("#updateInProgress").show();
   $("#error").hide();
 
   let response = await doAsyncRequest(url, "GET", undefined, (error) => {
-    if (requestId !== genericRequestId || city !== getCity() || query !== currQuery) return;
+    if (!isCurrent()) return true;
     console.error("Error sending request:", error);
     $("#updateInProgress").hide();
     $("#error").text(
       `Error updating data: ${error?.responseJSON?.message || "Invalid response"}`,
     );
     $("#error").show();
+    return true;
   });
 
   // Проверяем, что response определён
+  if (!isCurrent()) return;
   if (!response) {
     $("#updateInProgress").hide();
     return;
   }
-
-  if (requestId !== genericRequestId || city !== getCity() || query !== currQuery) return;
   updateArrivals(response, recenter);
 };
 
@@ -498,6 +515,9 @@ const fetchSchedule = async (city, uid, force = false) => {
 
   const response = await doAsyncRequest(
     `/api/stations/${city}/schedule?uid=${encodeURIComponent(uid)}`,
+    "GET",
+    undefined,
+    () => requestId !== scheduleRequestId || city !== getCity(),
   );
   if (requestId !== scheduleRequestId || city !== getCity()) return;
   if (!response?.schedule) {
@@ -519,14 +539,19 @@ const fetchSchedule = async (city, uid, force = false) => {
   $("#scheduleInfo").text(`Schedule for ${formattedDate}:`);
 
   const container = document.getElementById("scheduleContainer");
+  const wrapper = document.createElement("div");
+  wrapper.style.cssText = "overflow-x:auto;margin-top:8px";
   const table = document.createElement("table");
+  table.style.cssText = "color:white;font-size:0.9rem;border-collapse:collapse;width:100%";
   const head = document.createElement("thead");
   const heading = document.createElement("tr");
-  for (const label of ["#", "DEPARTURES"]) {
-    const cell = document.createElement("th");
-    cell.textContent = label;
-    heading.appendChild(cell);
-  }
+  const lineHeader = document.createElement("th");
+  lineHeader.textContent = "#";
+  lineHeader.style.cssText = "position:sticky;left:0;background:#1a1f2e;color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;text-align:left;padding-bottom:4px;border-bottom:1px solid #333";
+  const timesHeader = document.createElement("th");
+  timesHeader.textContent = "DEPARTURES";
+  timesHeader.style.cssText = "color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;text-align:left;padding-bottom:4px;border-bottom:1px solid #333";
+  heading.append(lineHeader, timesHeader);
   head.appendChild(heading);
   table.appendChild(head);
   const body = document.createElement("tbody");
@@ -534,11 +559,14 @@ const fetchSchedule = async (city, uid, force = false) => {
     const row = document.createElement("tr");
     const lineCell = document.createElement("td");
     lineCell.textContent = line;
+    lineCell.style.cssText = "position:sticky;left:0;background:#1a1f2e;white-space:nowrap;color:#FFD700;font-size:0.85rem;font-weight:700;padding:3px 10px 3px 0;vertical-align:middle;border-bottom:1px solid rgba(255,255,255,0.05)";
     row.appendChild(lineCell);
     const timesCell = document.createElement("td");
+    timesCell.style.cssText = "white-space:nowrap;padding:3px 0 5px;border-bottom:1px solid rgba(255,255,255,0.05)";
     for (const time of response.schedule[line]) {
       const nextDay = time.includes("(+24h)");
       const chip = document.createElement("span");
+      chip.style.cssText = `display:inline-block;background:rgba(255,255,255,0.12);padding:2px 6px;border-radius:4px;margin:1px;white-space:nowrap;font-size:0.82rem;${nextDay ? "opacity:0.55" : ""}`;
       chip.textContent = `${time.replace("(+24h)", "").trim()}${nextDay ? "*" : ""}`;
       timesCell.appendChild(chip);
     }
@@ -546,8 +574,8 @@ const fetchSchedule = async (city, uid, force = false) => {
     body.appendChild(row);
   }
   table.appendChild(body);
-  container.replaceChildren(table);
-  scheduleLoadedUid = uid;
+  wrapper.appendChild(table);
+  container.replaceChildren(wrapper);
   scheduleLoadedKey = key;
 };
 
@@ -755,7 +783,6 @@ const findClosestStations = async (
 const cancelInterval = () => {
   currInterval = clearInterval(currInterval);
   currQuery = undefined;
-  scheduleLoadedUid = null;
   layerGroup.clearLayers();
   toggleTable();
   $("#stationName").hide();

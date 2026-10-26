@@ -202,8 +202,15 @@ describe("API routes", () => {
         status: 200,
         data: [
           { station_uid: "4970", station_name: "Main Station" },
-          { line_number: "7", seconds_left: "120", line_title: "7" },
+          {
+            line_number: "7",
+            seconds_left: "120",
+            line_title: "7",
+            all_stations: [{ coordinates: { latitude: "44.8", longitude: "20.4" } }],
+          },
           { line_number: "8", line_title: "8" },
+          { line_number: "9", seconds_left: "unknown" },
+          { line_number: {}, seconds_left: 30 },
         ],
       }),
       post: vi.fn(),
@@ -212,7 +219,11 @@ describe("API routes", () => {
     const response = await fastify.inject({ method: "GET", url: "/api/stations/ns/search?uid=4970" });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json().vehicles).toEqual([expect.objectContaining({ lineNumber: "7", secondsLeft: "120" })]);
+    expect(response.json().vehicles).toEqual([expect.objectContaining({
+      lineNumber: "7",
+      secondsLeft: "120",
+      allStations: [{ latitude: 44.8, longitude: 20.4 }],
+    })]);
   });
 
   it("returns 400 for empty V1 response when station is not cached", async () => {
