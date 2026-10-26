@@ -22,7 +22,7 @@ const createMarker = () => ({
   },
 });
 
-function loadUiScript(runReady = false) {
+function loadUiScript(runReady = false, initialAjax) {
   const dom = new JSDOM(
     `<!doctype html>
     <body>
@@ -165,7 +165,9 @@ function loadUiScript(runReady = false) {
   vm.runInContext(source, dom.getInternalVMContext());
   dom.window.__ui.setMapStubs(map, layerGroup);
   if (runReady) {
-    $.ajax = vi.fn().mockResolvedValue({ bg: "Belgrade", ns: "Novi Sad" });
+    $.ajax =
+      initialAjax ||
+      vi.fn().mockResolvedValue({ bg: "Belgrade", ns: "Novi Sad" });
     readyPromise = readyCallback();
   }
 
@@ -209,6 +211,61 @@ describe("UI behavior", () => {
     expect(readyContext.$.ajax).toHaveBeenCalledWith(
       expect.objectContaining({ url: "/api/bg/stops" }),
     );
+  });
+
+  it("keeps failed BG catalog load cached as empty for later focus", async () => {
+    const readyContext = loadUiScript(true);
+    context = readyContext;
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    readyContext.$.ajax = vi.fn(({ url }) => {
+      if (url === "/api/cities")
+        return Promise.resolve({ ns: "Novi Sad", bg: "Belgrade" });
+      if (url === "/api/bg/stops") return Promise.reject(new Error("offline"));
+      return Promise.resolve([]);
+    });
+    await readyContext.readyPromise;
+    const input = readyContext.dom.window.document.getElementById("name-input");
+    readyContext.dom.window.document.getElementById("city").value = "bg";
+    input.dispatchEvent(new readyContext.dom.window.Event("focus"));
+    await vi.waitFor(() =>
+      expect(readyContext.$.ajax).toHaveBeenCalledWith(
+        expect.objectContaining({ url: "/api/bg/stops" }),
+      ),
+    );
+    await vi.waitFor(() =>
+      expect(readyContext.ui.getStations("bg")).toEqual([]),
+    );
+    input.dispatchEvent(new readyContext.dom.window.Event("focus"));
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(
+      readyContext.$.ajax.mock.calls.filter(
+        ([{ url }]) => url === "/api/bg/stops",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("retries failed NS catalog loads while leaving station cache unset", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const request = vi.fn(({ url }) => {
+      if (url === "/api/cities")
+        return Promise.resolve({ ns: "Novi Sad", bg: "Belgrade" });
+      return Promise.reject(new Error("offline"));
+    });
+    const readyContext = loadUiScript(true, request);
+    context = readyContext;
+    await readyContext.readyPromise;
+    expect(readyContext.ui.getStations("ns")).toBeUndefined();
+    readyContext.dom.window.document
+      .getElementById("name-input")
+      .dispatchEvent(new readyContext.dom.window.Event("focus"));
+    await vi.waitFor(() =>
+      expect(
+        request.mock.calls.filter(
+          ([{ url }]) => url === "/api/stations/ns/all",
+        ),
+      ).toHaveLength(2),
+    );
+    expect(readyContext.ui.getStations("ns")).toBeUndefined();
   });
 
   it("loads Belgrade catalog through shared station loader", async () => {
@@ -286,8 +343,12 @@ describe("UI behavior", () => {
     );
     expect(request).toHaveBeenCalledTimes(2);
     expect(timer).toHaveBeenCalledOnce();
-    expect($("#stationName").text()).toContain("Stadion Partizan");
+    expect($("#stationName").text()).toBe("Station: Stadion Partizan · 278");
     expect($("#stationName").text()).not.toContain("6739029064");
+    expect($("#lastUpdated").text()).toMatch(
+      /^Last updated: \d{2}:\d{2}:\d{2} \(auto refresh - 60 seconds\)$/,
+    );
+    expect($("#updateInProgress").css("display")).toBe("none");
     expect(
       dom.window.L.featureGroup.mock.calls[0][0][0].tooltip,
     ).toBeUndefined();
@@ -642,6 +703,7 @@ describe("UI behavior", () => {
   it("renders arrivals and sorts vehicles by line number", () => {
     const { $, layerGroup, map, ui } = context;
 
+    $("#updateInProgress").show();
     ui.updateArrivals(
       {
         name: "Main Station",
@@ -673,6 +735,10 @@ describe("UI behavior", () => {
       .map((row) => $(row).text().replace(/\s+/g, " ").trim());
 
     expect($("#stationName").text()).toBe("Station: Main Station (42)");
+    expect($("#lastUpdated").text()).toMatch(
+      /^Last updated: \d{2}:\d{2}:\d{2} \(auto refresh - 60 seconds\)$/,
+    );
+    expect($("#updateInProgress").css("display")).toBe("none");
     expect(rows[0]).toContain("7");
     expect(rows[0]).toContain("2 min");
     expect(rows[1]).toContain("12");

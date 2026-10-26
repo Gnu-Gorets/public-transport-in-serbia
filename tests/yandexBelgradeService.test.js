@@ -262,7 +262,17 @@ describe("Yandex Belgrade routes", () => {
     const [url, options] = get.mock.calls[2];
     expect(url).toContain("/maps/api/masstransit/getVehiclesInfoWithRegion?");
     expect(new URL(url).searchParams.get("lineId")).toBe("1704912322");
-    expect(options.headers.Cookie).toBe("yandexuid=opaque");
+    expect(options.headers).toMatchObject({
+      Accept: "application/json",
+      "User-Agent": "SerbiaTransport/1.0",
+      Cookie: "yandexuid=opaque",
+      "X-Retpath-Y": expect.stringContaining("/maps/10522/belgrade/routes/"),
+    });
+    expect(get.mock.calls[1][1].headers).toMatchObject({
+      Accept: "text/html",
+      "User-Agent": "SerbiaTransport/1.0",
+      Cookie: "yandexuid=opaque",
+    });
   });
 
   it("returns vehicles from successful routes when another route request fails", async () => {
@@ -364,7 +374,12 @@ describe("Yandex Belgrade routes", () => {
     expect(new URL(get.mock.calls[3][0]).searchParams.get("csrfToken")).toBe(
       "fresh-token",
     );
-    expect(get.mock.calls[3][1].headers.Cookie).toBe("challenge=updated");
+    expect(get.mock.calls[3][1].headers).toMatchObject({
+      Accept: "application/json",
+      "User-Agent": "SerbiaTransport/1.0",
+      Cookie: "challenge=updated",
+      "X-Retpath-Y": expect.stringContaining("/maps/10522/belgrade/routes/"),
+    });
   });
 
   it("rejects wrong direction, invalid geometry and CAPTCHA", () => {
