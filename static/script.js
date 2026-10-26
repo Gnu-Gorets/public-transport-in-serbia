@@ -366,6 +366,16 @@ const updateBgArrivals = (response) => {
   $("#noBusesMessage").hide();
   $("#tableContainer").show();
   $("#tabela").show();
+  const parseLine = (line) => {
+    const value = String(line ?? "");
+    const match = value.match(/^(\d+)(\D*)/);
+    return match ? [Number(match[1]), match[2]] : [Infinity, value];
+  };
+  arrivals.sort((a, b) => {
+    const [aNum, aSuffix] = parseLine(a.lineNumber);
+    const [bNum, bSuffix] = parseLine(b.lineNumber);
+    return aNum - bNum || aSuffix.localeCompare(bSuffix) || a.timestamp - b.timestamp;
+  });
   const rows = arrivals.map((arrival) => {
     const row = document.createElement("tr");
     const arrivalTime = new Date(arrival.timestamp).toLocaleTimeString(
@@ -388,6 +398,7 @@ const updateBgArrivals = (response) => {
         const button = document.createElement("button");
         button.type = "button";
         button.textContent = value;
+        button.style.color = "#FFD700";
         button.setAttribute(
           "aria-label",
           `View route ${value} to ${arrival.destination || "destination"}`,
@@ -425,7 +436,7 @@ const drawBgVehicles = (vehicles = [], recenter = false) => {
       createMarker(
         vehicle.coords,
         vehicle.lineNumber,
-        "blue",
+        "yellow",
         `Bus ${vehicle.lineNumber}`,
       ),
     );
