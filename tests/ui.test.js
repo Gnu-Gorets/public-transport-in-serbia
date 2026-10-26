@@ -420,6 +420,20 @@ describe("UI behavior", () => {
     expect(map.fitBounds).toHaveBeenCalledWith("bounds");
   });
 
+  it("renders provider markup as text in arrivals and schedule", async () => {
+    const { $, ui } = context;
+    ui.updateArrivals({
+      name: '<img src=x onerror=alert(1)>', id: '1', uid: 'u', coords: [44, 20],
+      vehicles: [{ lineNumber: '<svg onload=alert(1)>', secondsLeft: 60, main_line_title: '<b>route</b>', coords: [44, 20], allStations: [] }],
+    }, false);
+    expect($('#stationName img, #tableBody svg, #tableBody b')).toHaveLength(0);
+    expect($('#tableBody').text()).toContain('<b>route</b>');
+    $.ajax = vi.fn().mockResolvedValue({ date: '2026-04-29', schedule: { '<img src=x>': ['<script>alert(1)</script>'] } });
+    await ui.fetchSchedule('bg', 'u', true);
+    expect($('#scheduleContainer img, #scheduleContainer script')).toHaveLength(0);
+    expect($('#scheduleContainer').text()).toContain('<img src=x>');
+  });
+
   it("routes ordered bus stops along roads", async () => {
     const geometry = { type: "LineString", coordinates: [[20.1, 44.1], [20.15, 44.15], [20.2, 44.2]] };
     const { dom, ui } = context;

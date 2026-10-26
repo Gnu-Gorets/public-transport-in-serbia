@@ -6,6 +6,9 @@ let allLines = {};
 let mapInitialized = false;
 let currentPolyline = null;
 let scheduleLoadedUid = null;
+let genericRequestId = 0;
+let scheduleLoadedKey = null;
+let scheduleRequestId = 0;
 let currentCity;
 let bgStopCentered = false;
 let bgStopRequest;
@@ -35,14 +38,20 @@ const createMarker = (
   popupText = undefined,
 ) => {
   let marker = new L.marker(coords, { icon: coloredIcon(color) });
-  if (popupText)
-    marker.bindPopup(popupText, { autoClose: false, closeOnClick: false });
-  if (name)
-    marker.bindTooltip(name, {
+  if (popupText) {
+    const popup = document.createElement("span");
+    popup.textContent = popupText;
+    marker.bindPopup(popup, { autoClose: false, closeOnClick: false });
+  }
+  if (name) {
+    const tooltip = document.createElement("span");
+    tooltip.textContent = name;
+    marker.bindTooltip(tooltip, {
       permanent: true,
       direction: "center",
       className: "my-labels",
     });
+  }
   return marker;
 };
 
@@ -71,7 +80,7 @@ const doAsyncRequest = async (url, type = "GET", data = {}, errorHandler) => {
       error.responseText,
     );
 
-    $("#error").html(`Error updating data: ${errorMessage}`);
+    $("#error").text(`Error updating data: ${errorMessage}`);
     $("#error").show();
 
     if (errorHandler) {
@@ -119,8 +128,10 @@ const onCityChange = async () => {
   $("#map").show();
   $("#updateInProgress, #stationName, #lastUpdated, #busRouteInfo, #error, #noBusesMessage, #tableContainer, #scheduleSection").hide();
 
+  currInterval = clearInterval(currInterval);
+  genericRequestId++;
+  scheduleRequestId++;
   if (isBelgrade || wasBelgrade) {
-    currInterval = clearInterval(currInterval);
     currQuery = undefined;
     bgVehicleRequestId++;
     bgVehicleLayer = undefined;
@@ -148,7 +159,6 @@ const onCityChange = async () => {
   moveMapToCityCentre(city);
   const promises = [];
   if (!allStations[city]) promises.push(fetchCityStations(city));
-  if (!allLines[city]) promises.push(fetchCityLines(city));
   await Promise.all(promises);
 };
 
@@ -193,8 +203,8 @@ const updateArrivals = (response, recenter) => {
   let date = new Date();
 
   let name = `${response.name} (${response.id})`;
-  $("#stationName").html(`Station: ${name}`);
-  $("#lastUpdated").html(
+  $("#stationName").text(`Station: ${name}`);
+  $("#lastUpdated").text(
     `Last updated: ${date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Belgrade" })} (auto refresh - 30 seconds)`,
   );
   $("#stationName").show();
@@ -218,15 +228,23 @@ const updateArrivals = (response, recenter) => {
   $("#tableContainer").show();
   const city = getCity();
   const uid = response.uid;
-  $("#busRouteInfo")
-    .html(
-      `Click on bus number to view its route on map. &nbsp;|&nbsp; <a id="scheduleToggle" href="#" style="color:#1abc9c" onclick="event.preventDefault();toggleSchedule('${city}','${uid}')">View schedule</a>`,
-    )
-    .show();
+  const info = document.getElementById("busRouteInfo");
+  info.replaceChildren(document.createTextNode("Click on bus number to view its route on map. | "));
+  const scheduleLink = document.createElement("a");
+  scheduleLink.id = "scheduleToggle";
+  scheduleLink.href = "#";
+  scheduleLink.style.color = "#1abc9c";
+  scheduleLink.textContent = "View schedule";
+  scheduleLink.addEventListener("click", (event) => {
+    event.preventDefault();
+    toggleSchedule(city, uid);
+  });
+  info.appendChild(scheduleLink);
+  $("#busRouteInfo").show();
 
   response.vehicles.sort((a, b) => {
-    const [aNum, aLetter] = a.lineNumber.match(/^(\d+)(\D*)/).slice(1);
-    const [bNum, bLetter] = b.lineNumber.match(/^(\d+)(\D*)/).slice(1);
+    const [, aNum = "", aLetter = ""] = String(a.lineNumber ?? "").match(/^(\d+)(\D*)/) || [];
+    const [, bNum = "", bLetter = ""] = String(b.lineNumber ?? "").match(/^(\d+)(\D*)/) || [];
     if (aNum !== bNum) {
       return parseInt(aNum) - parseInt(bNum);
     }
@@ -249,18 +267,24 @@ const updateArrivals = (response, recenter) => {
       );
       markers.push(marker);
       const formattedTime = formatSeconds(value.secondsLeft);
-      const stationsJson = JSON.stringify(value.allStations)
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&apos;");
-
-      return `<tr onclick="handleBusClick('${value.lineNumber}', ${stationsJson})">
-                      <td><a href="#" style="color: #FFD700;" onclick="event.preventDefault();">${value.lineNumber}</a></td>
-                      <td>${formattedTime === "0 min" ? "At stop (< 1 min)" : formattedTime}</td>
-                      <td>${value.main_line_title}</td>
-                  </tr>`;
-    })
-    .join("");
-  $("#tableBody").html(tableData);
+      const row = document.createElement("tr");
+      row.addEventListener("click", () => handleBusClick(value.lineNumber, value.allStations));
+      const lineCell = document.createElement("td");
+      const lineLink = document.createElement("a");
+      lineLink.href = "#";
+      lineLink.style.color = "#FFD700";
+      lineLink.textContent = value.lineNumber ?? "";
+      lineLink.addEventListener("click", (event) => event.preventDefault());
+      lineCell.appendChild(lineLink);
+      row.appendChild(lineCell);
+      for (const text of [formattedTime === "0 min" ? "At stop (< 1 min)" : formattedTime, value.main_line_title ?? ""]) {
+        const cell = document.createElement("td");
+        cell.textContent = text;
+        row.appendChild(cell);
+      }
+      return row;
+    });
+  $("#tableBody").empty().append(tableData);
   $("#tabela").show();
   let group = L.featureGroup(markers).addTo(layerGroup);
   if (recenter) map.fitBounds(group.getBounds());
@@ -407,14 +431,16 @@ const fetchBgStop = () => {
 };
 
 const fetchArrivals = async (city, query, recenter) => {
+  const requestId = genericRequestId;
   let url = `/api/stations/${city}/search?${$.param(query)}`;
   $("#updateInProgress").show();
   $("#error").hide();
 
   let response = await doAsyncRequest(url, "GET", undefined, (error) => {
+    if (requestId !== genericRequestId || city !== getCity() || query !== currQuery) return;
     console.error("Error sending request:", error);
     $("#updateInProgress").hide();
-    $("#error").html(
+    $("#error").text(
       `Error updating data: ${error?.responseJSON?.message || "Invalid response"}`,
     );
     $("#error").show();
@@ -426,6 +452,7 @@ const fetchArrivals = async (city, query, recenter) => {
     return;
   }
 
+  if (requestId !== genericRequestId || city !== getCity() || query !== currQuery) return;
   updateArrivals(response, recenter);
 };
 
@@ -458,26 +485,29 @@ const toggleSchedule = (city, uid) => {
 };
 
 const fetchSchedule = async (city, uid, force = false) => {
-  if (!force && scheduleLoadedUid === uid) {
+  const key = `${city}:${uid}`;
+  const requestId = ++scheduleRequestId;
+  if (!force && scheduleLoadedKey === key) {
     $("#scheduleSection").show();
     return;
   }
   $("#scheduleSection").hide();
-  $("#scheduleInfo").html("Loading schedule...");
+  $("#scheduleInfo").text("Loading schedule...");
   $("#scheduleSection").show();
-  $("#scheduleContainer").html("");
+  $("#scheduleContainer").empty();
 
   const response = await doAsyncRequest(
     `/api/stations/${city}/schedule?uid=${encodeURIComponent(uid)}`,
   );
+  if (requestId !== scheduleRequestId || city !== getCity()) return;
   if (!response?.schedule) {
-    $("#scheduleInfo").html("Failed to load schedule.");
+    $("#scheduleInfo").text("Failed to load schedule.");
     return;
   }
 
   const lines = Object.keys(response.schedule);
   if (!lines.length) {
-    $("#scheduleInfo").html("No upcoming departures today.");
+    $("#scheduleInfo").text("No upcoming departures today.");
     return;
   }
 
@@ -486,36 +516,39 @@ const fetchSchedule = async (city, uid, force = false) => {
     parts.length === 3 && parts[0].length === 4
       ? `${parseInt(parts[2])}/${parseInt(parts[1])}/${parts[0]}`
       : response.date;
-  $("#scheduleInfo").html(`Schedule for ${formattedDate}:`);
+  $("#scheduleInfo").text(`Schedule for ${formattedDate}:`);
 
-  const makeChip = (t) => {
-    const isNextDay = t.includes("(+24h)");
-    const clean = t.replace("(+24h)", "").trim();
-    return `<span style="display:inline-block;background:rgba(255,255,255,0.12);padding:2px 6px;border-radius:4px;margin:1px;white-space:nowrap;font-size:0.82rem;${isNextDay ? "opacity:0.55" : ""}">${clean}${isNextDay ? "*" : ""}</span>`;
-  };
-
-  const tableRows = lines
-    .map((line) => {
-      const allChips = response.schedule[line].map(makeChip).join("");
-      return `<tr>
-        <td style="position:sticky;left:0;background:#1a1f2e;white-space:nowrap;color:#FFD700;font-size:0.85rem;font-weight:700;padding:3px 10px 3px 0;vertical-align:middle;border-bottom:1px solid rgba(255,255,255,0.05)">${line}</td>
-        <td style="white-space:nowrap;padding:3px 0 5px;border-bottom:1px solid rgba(255,255,255,0.05)">${allChips}</td>
-      </tr>`;
-    })
-    .join("");
-
-  $("#scheduleContainer").html(`
-    <div style="overflow-x:auto;margin-top:8px">
-      <table style="color:white;font-size:0.9rem;border-collapse:collapse;width:100%">
-        <thead><tr>
-          <th style="position:sticky;left:0;background:#1a1f2e;color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;text-align:left;padding-bottom:4px;border-bottom:1px solid #333">#</th>
-          <th style="color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;text-align:left;padding-bottom:4px;border-bottom:1px solid #333">DEPARTURES</th>
-        </tr></thead>
-        <tbody>${tableRows}</tbody>
-      </table>
-    </div>
-  `);
+  const container = document.getElementById("scheduleContainer");
+  const table = document.createElement("table");
+  const head = document.createElement("thead");
+  const heading = document.createElement("tr");
+  for (const label of ["#", "DEPARTURES"]) {
+    const cell = document.createElement("th");
+    cell.textContent = label;
+    heading.appendChild(cell);
+  }
+  head.appendChild(heading);
+  table.appendChild(head);
+  const body = document.createElement("tbody");
+  for (const line of lines) {
+    const row = document.createElement("tr");
+    const lineCell = document.createElement("td");
+    lineCell.textContent = line;
+    row.appendChild(lineCell);
+    const timesCell = document.createElement("td");
+    for (const time of response.schedule[line]) {
+      const nextDay = time.includes("(+24h)");
+      const chip = document.createElement("span");
+      chip.textContent = `${time.replace("(+24h)", "").trim()}${nextDay ? "*" : ""}`;
+      timesCell.appendChild(chip);
+    }
+    row.appendChild(timesCell);
+    body.appendChild(row);
+  }
+  table.appendChild(body);
+  container.replaceChildren(table);
   scheduleLoadedUid = uid;
+  scheduleLoadedKey = key;
 };
 
 const addRouteToMap = async (lineNumber, fallbackStations = []) => {
@@ -532,14 +565,20 @@ const addRouteToMap = async (lineNumber, fallbackStations = []) => {
     .filter((coords) => coords.every(Number.isFinite));
   let latlngs = arrivalStops.length > 1 ? arrivalStops : undefined;
 
-  if (!latlngs && cityLines && cityStations) {
+  if (!latlngs && (!cityLines || !cityStations)) {
+    if (!cityStations) await fetchCityStations(city);
+    if (!allLines[city]) await fetchCityLines(city);
+  }
+  const routeLines = allLines[city];
+  const routeStations = allStations[city];
+  if (!latlngs && routeLines && routeStations) {
     const stationMap = {};
-    cityStations.forEach((s) => {
+    routeStations.forEach((s) => {
       stationMap[String(s.uid)] = s.coords;
     });
 
     for (const dir of ["A", "B"]) {
-      const uids = cityLines[`${lineNumber}_${dir}`];
+      const uids = routeLines[`${lineNumber}_${dir}`];
       if (!uids) continue;
       const stops = uids
         .map((uid) => stationMap[String(uid)])
@@ -600,6 +639,8 @@ const submitByName = () => {
     (s) => s.name === selectedValue || s.id === selectedValue,
   );
   if (city === "bg" && !station) return;
+  genericRequestId++;
+  scheduleRequestId++;
   currQuery = { uid: station?.uid || selectedValue };
   if (city === "bg") {
     currInterval = clearInterval(currInterval);
@@ -613,6 +654,8 @@ const submitByName = () => {
 
 const submitByCoords = () => {
   let uid = encodeURIComponent($("#coords-input").val().trim());
+  genericRequestId++;
+  scheduleRequestId++;
   currQuery = { uid: uid };
   spawnInterval(currQuery);
 };
@@ -656,7 +699,7 @@ const getUserLocation = async () => {
           resolve(userLocation);
         },
         (error) => {
-          $("#error").html("Error retrieving location.");
+          $("#error").text("Error retrieving location.");
           $("#error").show();
           reject(error.message);
         },
@@ -740,20 +783,16 @@ const searchByCoords = async (
   markers.push(
     createMarker([searchCoords.latitude, searchCoords.longitude], "", "green"),
   );
-  let options = closestStations.map((station) => {
-    let marker = createMarker(
-      station.station.coords,
-      station.station.id,
-      "yellow",
-    );
-    marker.on("click", () => {
-      $(optionsElemID).val(station.station.uid).trigger("change");
-    });
+  const options = closestStations.map((station) => {
+    const marker = createMarker(station.station.coords, station.station.id, "yellow");
+    marker.on("click", () => $(optionsElemID).val(station.station.uid).trigger("change"));
     markers.push(marker);
-
-    return `<option value="${station.station.uid}">${station.station.name} (${station.station.id}) | ${station.distance}m</option>`;
+    const option = document.createElement("option");
+    option.value = station.station.uid;
+    option.textContent = `${station.station.name} (${station.station.id}) | ${station.distance}m`;
+    return option;
   });
-  $(optionsElemID).html(options).trigger("change");
+  $(optionsElemID).empty().append(options).trigger("change");
 
   let group = new L.featureGroup(markers).addTo(layerGroup);
   map.fitBounds(group.getBounds());
@@ -808,7 +847,7 @@ $(document).ready(async () => {
   };
 
   function showDropdown(stationList) {
-    dropdown.innerHTML = "";
+    dropdown.replaceChildren();
     if (stationList.length === 0) {
       dropdown.style.display = "none";
       return;
@@ -860,10 +899,13 @@ $(document).ready(async () => {
 
   // Load cities
   const response = await doAsyncRequest("/api/cities");
-  const cities = Object.entries(response).map(
-    ([key, value]) => `<option value="${key}">${value}</option>`,
-  );
-  $("#city").html(cities);
+  const cities = Object.entries(response).map(([key, value]) => {
+    const option = document.createElement("option");
+    option.value = key;
+    option.textContent = value;
+    return option;
+  });
+  $("#city").empty().append(cities);
   onCityChange();
   onSearchModeChange();
 
