@@ -261,6 +261,7 @@ describe("API routes", () => {
             all_stations: [
               { coordinates: { latitude: "44.8", longitude: "20.4" } },
             ],
+            vehicles: [{ lat: "0.00000000", lng: "0.00000000" }],
           },
           { line_number: "8", line_title: "8" },
           { line_number: "9", seconds_left: "unknown" },
@@ -280,6 +281,7 @@ describe("API routes", () => {
       expect.objectContaining({
         lineNumber: "7",
         secondsLeft: "120",
+        coords: null,
         allStations: [{ latitude: 44.8, longitude: 20.4 }],
       }),
     ]);

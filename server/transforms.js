@@ -53,33 +53,46 @@ function transformStationResponse(response, city) {
                 Number.isFinite(Number(secondsLeft))
               );
             })
-            .map((v) => ({
-              lineNumber: v.line_number,
-              lineName: v.line_title,
-              secondsLeft: v.seconds_left,
-              stationsBetween: v.stations_between,
-              main_line_title: v.main_line_title,
-              stationName: v.vehicles?.[0]?.station_name,
-              garageNo: v.vehicles?.[0]?.garageNo,
-              coords: [v.vehicles?.[0]?.lat, v.vehicles?.[0]?.lng],
-              allStations: (Array.isArray(v.all_stations) ? v.all_stations : [])
-                .filter((s) => {
-                  const latitude = s?.coordinates?.latitude;
-                  const longitude = s?.coordinates?.longitude;
-                  return (
-                    latitude != null &&
-                    longitude != null &&
-                    String(latitude).trim() &&
-                    String(longitude).trim() &&
-                    Number.isFinite(Number(latitude)) &&
-                    Number.isFinite(Number(longitude))
-                  );
-                })
-                .map((s) => ({
-                  latitude: Number(s.coordinates.latitude),
-                  longitude: Number(s.coordinates.longitude),
-                })),
-            })),
+            .map((v) => {
+              const latitude = Number(v.vehicles?.[0]?.lat);
+              const longitude = Number(v.vehicles?.[0]?.lng);
+              return {
+                lineNumber: v.line_number,
+                lineName: v.line_title,
+                secondsLeft: v.seconds_left,
+                stationsBetween: v.stations_between,
+                main_line_title: v.main_line_title,
+                stationName: v.vehicles?.[0]?.station_name,
+                garageNo: v.vehicles?.[0]?.garageNo,
+                coords:
+                  Number.isFinite(latitude) &&
+                  Number.isFinite(longitude) &&
+                  latitude !== 0 &&
+                  longitude !== 0
+                    ? [latitude, longitude]
+                    : null,
+                allStations: (Array.isArray(v.all_stations)
+                  ? v.all_stations
+                  : []
+                )
+                  .filter((s) => {
+                    const latitude = s?.coordinates?.latitude;
+                    const longitude = s?.coordinates?.longitude;
+                    return (
+                      latitude != null &&
+                      longitude != null &&
+                      String(latitude).trim() &&
+                      String(longitude).trim() &&
+                      Number.isFinite(Number(latitude)) &&
+                      Number.isFinite(Number(longitude))
+                    );
+                  })
+                  .map((s) => ({
+                    latitude: Number(s.coordinates.latitude),
+                    longitude: Number(s.coordinates.longitude),
+                  })),
+              };
+            }),
   };
 }
 

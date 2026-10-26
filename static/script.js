@@ -145,6 +145,8 @@ const onCityChange = async () => {
   ).hide();
 
   currInterval = clearInterval(currInterval);
+  layerGroup.clearLayers();
+  currentPolyline = null;
   genericRequestId++;
   scheduleRequestId++;
   currQuery = undefined;
@@ -304,7 +306,7 @@ const updateArrivals = (response, recenter) => {
     lineCell.appendChild(lineLink);
     row.appendChild(lineCell);
     for (const text of [
-      formattedTime === "0 min" ? "At stop (< 1 min)" : formattedTime,
+      `${formattedTime === "0 min" ? "At stop (< 1 min)" : formattedTime}${hasCoords ? "" : " · Location unavailable"}`,
       value.main_line_title ?? "",
     ]) {
       const cell = document.createElement("td");

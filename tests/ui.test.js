@@ -784,6 +784,32 @@ describe("UI behavior", () => {
     });
   });
 
+  it("keeps arrivals visible when vehicle coordinates are unavailable", () => {
+    const { $, dom, ui } = context;
+    ui.updateArrivals(
+      {
+        name: "Main Station",
+        id: "42",
+        uid: "station-1",
+        coords: [45.2865, 19.8144],
+        vehicles: [
+          {
+            lineNumber: "1GL",
+            secondsLeft: 793,
+            main_line_title: "KLISA - CENTAR - LIMAN 1",
+            coords: null,
+            allStations: [],
+          },
+        ],
+      },
+      true,
+    );
+
+    expect($("#tableBody tr").text()).toContain("1GL");
+    expect($("#tableBody tr").text()).toContain("Location unavailable");
+    expect(dom.window.L.featureGroup.mock.calls[0][0]).toHaveLength(1);
+  });
+
   it("renders provider markup as text in arrivals and schedule", async () => {
     const { $, dom, ui } = context;
     ui.updateArrivals(
