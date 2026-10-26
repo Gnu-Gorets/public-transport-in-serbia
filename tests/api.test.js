@@ -5,7 +5,25 @@ import server from "../server/server.js";
 const require = createRequire(import.meta.url);
 const logger = require("../server/logger.js");
 const providerService = require("../server/services/providerService.js");
+const yandexBelgradeService = require("../server/services/yandexBelgradeService.js");
+const belgradeStops = require("../server/data/yandex-belgrade-bus-stops.json");
+const { validateStops } = require("../server/services/belgradeStopsService.js");
 const { fastify, _test } = server;
+
+const yandexStopPage = `<script type="application/json" class="state-view">${JSON.stringify({
+  config: {
+    masstransitStop: {
+      id: "6739029064",
+      name: "Стадион Партизан · 278",
+      coordinates: [20.4577, 44.786],
+      transports: [{
+        name: "40",
+        type: "trolleybus",
+        threads: [{ BriefSchedule: { Events: [{ Scheduled: { value: "1792943111" }, Estimated: { value: "1792943178" } }] } }],
+      }],
+    },
+  },
+})}</script>`;
 
 const stationsResponse = (name = "Main Station", id = "42", uid = "station-1") => ({
   stations: [
@@ -32,6 +50,7 @@ const stationsResponse = (name = "Main Station", id = "42", uid = "station-1") =
 describe("API routes", () => {
   beforeEach(() => {
     _test.resetState();
+    yandexBelgradeService._test.resetCache();
   });
 
   afterEach(() => {
@@ -40,25 +59,6 @@ describe("API routes", () => {
 
   afterAll(async () => {
     await fastify.close();
-  });
-
-  it("prewarms configured cities concurrently", async () => {
-    let active = 0;
-    let maxActive = 0;
-    _test.setHttpClient({
-      get: vi.fn(),
-      post: vi.fn(async () => {
-        active++;
-        maxActive = Math.max(maxActive, active);
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        active--;
-        return { status: 200, data: stationsResponse() };
-      }),
-    });
-
-    await providerService.populateMap(true);
-
-    expect(maxActive).toBe(3);
   });
 
   it("serves the UI entrypoint", async () => {
@@ -70,12 +70,27 @@ describe("API routes", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toContain("text/html");
     expect(response.body).toContain("Serbia++");
+    expect(response.body).toContain("static/script.js?v=bg-live-vehicles-1");
+  });
+
+  it("validates Belgrade catalog IDs, names, coordinates, and uniqueness", () => {
+    const valid = { updatedAt: "2026-10-27", stops: [{ id: "1", name: "Stop", coords: [44.8, 20.4] }] };
+    expect(validateStops(valid)).toBe(valid);
+    expect(() => validateStops({ ...valid, stops: [...valid.stops, valid.stops[0]] })).toThrow();
+    expect(() => validateStops({ ...valid, stops: [{ ...valid.stops[0], coords: [0, 0] }] })).toThrow();
+  });
+
+  it("serves the checked-in Belgrade stop catalog locally", async () => {
+    const response = await fastify.inject({ method: "GET", url: "/api/bg/stops" });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("public, max-age=3600");
+    expect(response.json()).toEqual(belgradeStops);
   });
 
   it("requires uid when requesting a station schedule", async () => {
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/stations/bg/schedule",
+      url: "/api/stations/ns/schedule",
     });
 
     expect(response.statusCode).toBe(400);
@@ -85,14 +100,14 @@ describe("API routes", () => {
   it("returns 404 when schedule station is unknown", async () => {
     _test.setState({
       allStations: {
-        bg: {},
+        ns: {},
       },
-      cacheMeta: { bg: { loadedAt: Date.now() } },
+      cacheMeta: { ns: { loadedAt: Date.now() } },
     });
 
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/stations/bg/schedule?uid=missing&date=2026-04-29",
+      url: "/api/stations/ns/schedule?uid=missing&date=2026-04-29",
     });
 
     expect(response.statusCode).toBe(404);
@@ -102,21 +117,21 @@ describe("API routes", () => {
   it("returns 400 for invalid station search query", async () => {
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/stations/bg/search",
+      url: "/api/stations/ns/search",
     });
 
     expect(response.statusCode).toBe(400);
     expect(response.json().message).toContain("must match a schema in anyOf");
   });
 
-  it("lists configured cities without requiring upstream availability", async () => {
+  it("lists Belgrade without enabling its provider endpoints", async () => {
     const httpClient = { get: vi.fn(), post: vi.fn().mockRejectedValue(new Error("provider unavailable")) };
     _test.setHttpClient(httpClient);
 
     const first = await fastify.inject({ method: "GET", url: "/api/cities" });
     const second = await fastify.inject({ method: "GET", url: "/api/cities" });
 
-    const expected = { ns: "Novi Sad", bg: "Belgrade", nis: "Nis" };
+    const expected = { bg: "Belgrade", ns: "Novi Sad", nis: "Nis" };
     expect(first.statusCode).toBe(200);
     expect(first.json()).toEqual(expected);
     expect(second.json()).toEqual(expected);
@@ -216,6 +231,101 @@ describe("API routes", () => {
     expect(response.statusCode).toBe(400);
   });
 
+
+  it("serves repeated Belgrade stop requests from 30-second cache", async () => {
+    const get = vi.fn().mockResolvedValue({ status: 200, data: yandexStopPage });
+    _test.setHttpClient({ get, post: vi.fn() });
+
+    const responses = await Promise.all(Array.from({ length: 3 }, () =>
+      fastify.inject({ method: "GET", url: "/api/bg/poc/stop?stopId=6739029064" }),
+    ));
+
+    expect(responses.map((response) => response.statusCode)).toEqual([200, 200, 200]);
+    expect(responses[0].headers["cache-control"]).toBe("no-store");
+    expect(responses[0].json()).toMatchObject({
+      city: "bg",
+      uid: "6739029064",
+      coords: [44.786, 20.4577],
+      arrivals: [{ lineNumber: "40", isEstimated: true }],
+    });
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("serves uncached BG vehicle positions with no-store", async () => {
+    const get = vi.fn().mockResolvedValue({ status: 200, data: yandexStopPage });
+    _test.setHttpClient({ get, post: vi.fn() });
+
+    const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/vehicles?stopId=6739029064" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.json()).toEqual({ vehicles: [] });
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns Yandex parsing failures instead of cached success data", async () => {
+    const get = vi.fn().mockResolvedValue({ status: 200, data: "<html>captcha</html>" });
+    _test.setHttpClient({ get, post: vi.fn() });
+
+    const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/stop?stopId=6739029064" });
+
+    expect(response.statusCode).toBe(502);
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("serves BG route stops and geometry for matching direction", async () => {
+    const html = yandexStopPage.replace('"type":"trolleybus"', '"type":"trolleybus","lineId":"123","uri":"ymapsbm1://transit/line?id=123","seoname":"40"')
+      .replace('"threads":[{', '"threads":[{"threadId":"456",');
+    const routeHtml = `<script type="application/json" class="state-view">${JSON.stringify({
+      config: { masstransitLine: { features: [{
+        properties: { ThreadMetaData: { id: "456", lineId: "123", name: "40" } },
+        features: [
+          { id: "a", name: "Бањица", coordinates: [20.4, 44.7] },
+          { points: [[20.4, 44.7], [20.5, 44.8]] },
+          { id: "b", name: "Звездара", coordinates: [20.5, 44.8] },
+        ],
+      }] } },
+    })}</script>`;
+    const get = vi.fn().mockResolvedValueOnce({ status: 200, data: html })
+      .mockResolvedValueOnce({ status: 200, data: routeHtml });
+    _test.setHttpClient({ get, post: vi.fn() });
+    const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/routes/123/456?stopId=6739029064" });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.json()).toMatchObject({
+      lineId: "123", threadId: "456",
+      stops: [{ name: "Banjica", coords: [44.7, 20.4] }, { name: "Zvezdara", coords: [44.8, 20.5] }],
+      segments: [[[44.7, 20.4], [44.8, 20.5]]],
+    });
+
+  });
+
+  it("validates BG route identifiers before upstream calls", async () => {
+    const get = vi.fn();
+    _test.setHttpClient({ get, post: vi.fn() });
+    const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/routes/invalid/123" });
+    expect(response.statusCode).toBe(400);
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("rejects BG routes not supplied by stop metadata", async () => {
+    const get = vi.fn().mockResolvedValue({ status: 200, data: yandexStopPage });
+    _test.setHttpClient({ get, post: vi.fn() });
+    const response = await fastify.inject({ method: "GET", url: "/api/bg/poc/routes/123/456?stopId=6739029064" });
+    expect(response.statusCode).toBe(404);
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects disabled Belgrade endpoints", async () => {
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/api/stations/bg/all",
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().message).toContain("must be equal to one of the allowed values");
+  });
+
   it("returns 400 for unknown city params", async () => {
     const response = await fastify.inject({
       method: "GET",
@@ -229,25 +339,48 @@ describe("API routes", () => {
   it("returns 400 for invalid schedule date format", async () => {
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/stations/bg/schedule?uid=station-1&date=29-04-2026",
+      url: "/api/stations/ns/schedule?uid=station-1&date=29-04-2026",
     });
 
     expect(response.statusCode).toBe(400);
     expect(response.json().message).toContain("must match pattern");
   });
 
-  it("returns 400 when id search is requested before city map is populated", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
+  it("loads the station map before resolving an ID search on cold start", async () => {
+    const httpClient = {
+      get: vi.fn().mockResolvedValue({ status: 200, data: [] }),
+      post: vi.fn().mockResolvedValue({ status: 200, data: stationsResponse() }),
+    };
+    _test.setHttpClient(httpClient);
 
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/stations/bg/search?id=42",
+      url: "/api/stations/ns/search?id=42",
     });
 
-    expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({
-      error: "Map for bg is not populated yet",
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ uid: "station-1", name: "Main Station", coords: [44.8, 20.4] });
+    expect(httpClient.post).toHaveBeenCalledOnce();
+    expect(httpClient.get).toHaveBeenCalledWith(
+      expect.stringContaining("station_uid=station-1"),
+      expect.any(Object),
+    );
+  });
+
+  it("rejects IDs absent from a populated station map", async () => {
+    _test.setNow(() => 1_000);
+    _test.setState({
+      allStations: { ns: { known: { uid: "known", id: "42", name: "Known", coords: [44.8, 20.4] } } },
+      cacheMeta: { ns: { loadedAt: 1_000 } },
     });
+    const httpClient = { get: vi.fn(), post: vi.fn() };
+    _test.setHttpClient(httpClient);
+
+    const response = await fastify.inject({ method: "GET", url: "/api/stations/ns/search?id=404" });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "Station not found" });
+    expect(httpClient.get).not.toHaveBeenCalled();
   });
 
   it("returns 502 when station provider request fails", async () => {
@@ -259,7 +392,7 @@ describe("API routes", () => {
 
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/stations/bg/all",
+      url: "/api/stations/ns/all",
     });
 
     expect(response.statusCode).toBe(502);
@@ -270,7 +403,7 @@ describe("API routes", () => {
     _test.setNow(() => 1_000);
     _test.setState({
       allStations: {
-        bg: {
+        ns: {
           "station-1": {
             uid: "station-1",
             id: "42",
@@ -281,12 +414,12 @@ describe("API routes", () => {
         },
       },
       allLines: {
-        bg: {
+        ns: {
           "7_A": ["station-1"],
         },
       },
       cacheMeta: {
-        bg: {
+        ns: {
           loadedAt: 1_000,
         },
       },
@@ -299,7 +432,7 @@ describe("API routes", () => {
 
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/stations/bg/all",
+      url: "/api/stations/ns/all",
     });
 
     expect(response.statusCode).toBe(200);
@@ -319,7 +452,7 @@ describe("API routes", () => {
     _test.setNow(() => 9 * 24 * 60 * 60 * 1000);
     _test.setState({
       allStations: {
-        bg: {
+        ns: {
           old: {
             uid: "old",
             id: "1",
@@ -330,7 +463,7 @@ describe("API routes", () => {
         },
       },
       cacheMeta: {
-        bg: {
+        ns: {
           loadedAt: 1_000,
         },
       },
@@ -346,7 +479,7 @@ describe("API routes", () => {
 
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/stations/bg/all",
+      url: "/api/stations/ns/all",
     });
 
     expect(response.statusCode).toBe(200);
@@ -360,7 +493,7 @@ describe("API routes", () => {
       },
     ]);
     expect(httpClient.post).toHaveBeenCalledWith(
-      "https://announcement-bgnaplata.ticketing.rs/publicapi/v1/networkextended.php",
+      "https://online.nsmart.rs/publicapi/v1/networkextended.php",
       JSON.stringify({ action: "get_cities_extended" }),
       expect.objectContaining({
         headers: expect.objectContaining({ "Content-Type": "application/json" }),
@@ -372,7 +505,7 @@ describe("API routes", () => {
     _test.setNow(() => 2 * 24 * 60 * 60 * 1000);
     _test.setState({
       allStations: {
-        bg: {
+        ns: {
           "station-1": {
             uid: "station-1",
             id: "42",
@@ -382,7 +515,7 @@ describe("API routes", () => {
           },
         },
       },
-      cacheMeta: { bg: { loadedAt: 1_000 } },
+      cacheMeta: { ns: { loadedAt: 1_000 } },
     });
     let finishRefresh;
     const httpClient = {
@@ -391,14 +524,14 @@ describe("API routes", () => {
     };
     _test.setHttpClient(httpClient);
 
-    const response = await fastify.inject({ method: "GET", url: "/api/stations/bg/all" });
+    const response = await fastify.inject({ method: "GET", url: "/api/stations/ns/all" });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()[0].name).toBe("Stale Station");
     expect(httpClient.post).toHaveBeenCalledOnce();
     finishRefresh({ status: 200, data: stationsResponse("Fresh Station", "42", "station-1") });
     await vi.waitFor(async () => {
-      const refreshed = await fastify.inject({ method: "GET", url: "/api/stations/bg/all" });
+      const refreshed = await fastify.inject({ method: "GET", url: "/api/stations/ns/all" });
       expect(refreshed.json()[0].name).toBe("Fresh Station");
     });
   });
@@ -408,7 +541,7 @@ describe("API routes", () => {
     _test.setNow(() => 2 * 24 * 60 * 60 * 1000);
     _test.setState({
       allStations: {
-        bg: {
+        ns: {
           "station-1": {
             uid: "station-1",
             id: "42",
@@ -419,7 +552,7 @@ describe("API routes", () => {
         },
       },
       cacheMeta: {
-        bg: {
+        ns: {
           loadedAt: 1_000,
         },
       },
@@ -431,7 +564,7 @@ describe("API routes", () => {
 
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/stations/bg/all",
+      url: "/api/stations/ns/all",
     });
 
     expect(response.statusCode).toBe(200);
@@ -446,7 +579,7 @@ describe("API routes", () => {
     ]);
     await vi.waitFor(() => expect(warn).toHaveBeenCalledWith(
       expect.objectContaining({ err: expect.any(Error) }),
-      "Station cache refresh failed for bg; serving stale data",
+      "Station cache refresh failed for ns; serving stale data",
     ));
   });
 
@@ -454,12 +587,12 @@ describe("API routes", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     _test.setNow(() => 9 * 24 * 60 * 60 * 1000);
     _test.setState({
-      allStations: { bg: { old: { uid: "old", id: "1", name: "Old Station", coords: [], lines: [] } } },
-      cacheMeta: { bg: { loadedAt: 1_000 } },
+      allStations: { ns: { old: { uid: "old", id: "1", name: "Old Station", coords: [], lines: [] } } },
+      cacheMeta: { ns: { loadedAt: 1_000 } },
     });
     _test.setHttpClient({ get: vi.fn(), post: vi.fn().mockRejectedValue(new Error("provider unavailable")) });
 
-    const response = await fastify.inject({ method: "GET", url: "/api/stations/bg/all" });
+    const response = await fastify.inject({ method: "GET", url: "/api/stations/ns/all" });
 
     expect(response.statusCode).toBe(502);
     expect(response.json()).toEqual({ error: "provider unavailable" });
@@ -468,9 +601,9 @@ describe("API routes", () => {
   it("refreshes stale station cache before serving lines", async () => {
     _test.setNow(() => 2 * 24 * 60 * 60 * 1000);
     _test.setState({
-      allStations: { bg: { old: { uid: "old", id: "1", name: "Old", lines: [] } } },
-      allLines: { bg: { old: ["old"] } },
-      cacheMeta: { bg: { loadedAt: 1_000 } },
+      allStations: { ns: { old: { uid: "old", id: "1", name: "Old", lines: [] } } },
+      allLines: { ns: { old: ["old"] } },
+      cacheMeta: { ns: { loadedAt: 1_000 } },
     });
     const httpClient = {
       get: vi.fn(),
@@ -478,7 +611,7 @@ describe("API routes", () => {
     };
     _test.setHttpClient(httpClient);
 
-    const response = await fastify.inject({ method: "GET", url: "/api/lines/bg" });
+    const response = await fastify.inject({ method: "GET", url: "/api/lines/ns" });
 
     expect(response.statusCode).toBe(200);
     expect(httpClient.post).toHaveBeenCalledOnce();
@@ -487,8 +620,8 @@ describe("API routes", () => {
   it("checks station cache freshness before serving schedules", async () => {
     _test.setNow(() => 2 * 24 * 60 * 60 * 1000);
     _test.setState({
-      allStations: { bg: { "station-1": { uid: "station-1", id: "42", name: "Main Station", lines: [] } } },
-      cacheMeta: { bg: { loadedAt: 1_000 } },
+      allStations: { ns: { "station-1": { uid: "station-1", id: "42", name: "Main Station", lines: [] } } },
+      cacheMeta: { ns: { loadedAt: 1_000 } },
     });
     const httpClient = {
       get: vi.fn(),
@@ -498,7 +631,7 @@ describe("API routes", () => {
 
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/stations/bg/schedule?uid=station-1&date=2026-04-29",
+      url: "/api/stations/ns/schedule?uid=station-1&date=2026-04-29",
     });
 
     expect(response.statusCode).toBe(200);
@@ -508,7 +641,7 @@ describe("API routes", () => {
   it("builds a station schedule from timetable responses", async () => {
     _test.setState({
       allStations: {
-        bg: {
+        ns: {
           "station-1": {
             uid: "station-1",
             id: "42",
@@ -517,7 +650,7 @@ describe("API routes", () => {
           },
         },
       },
-      cacheMeta: { bg: { loadedAt: Date.now() } },
+      cacheMeta: { ns: { loadedAt: Date.now() } },
     });
 
     const httpClient = {
@@ -547,7 +680,7 @@ describe("API routes", () => {
 
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/stations/bg/schedule?uid=station-1&date=2026-04-29",
+      url: "/api/stations/ns/schedule?uid=station-1&date=2026-04-29",
     });
 
     expect(response.statusCode).toBe(200);

@@ -1,7 +1,9 @@
-FROM alpine:3.23.4
+FROM alpine:3.24.3
 
-# Update and install necessary packages
-RUN apk add --no-cache git curl nodejs npm
+# Install Node.js 26 and runtime packages
+RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/main >> /etc/apk/repositories \
+  && echo https://dl-cdn.alpinelinux.org/alpine/edge/community >> /etc/apk/repositories \
+  && apk add --no-cache git curl nodejs-current npm
 
 # Create a non-root user for the application
 RUN addgroup -S app && adduser -S -G app app

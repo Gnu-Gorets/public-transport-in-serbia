@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import vm from "node:vm";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JSDOM } from "jsdom";
 
 const require = createRequire(import.meta.url);
@@ -12,7 +12,8 @@ const createMarker = () => ({
   bindPopup() {
     return this;
   },
-  bindTooltip() {
+  bindTooltip(text) {
+    this.tooltip = text;
     return this;
   },
   on() {
@@ -24,8 +25,12 @@ function loadUiScript() {
   const dom = new JSDOM(
     `<!doctype html>
     <body>
-      <select id="city"><option value="bg">Belgrade</option></select>
-      <select id="searchMode"><option value="name">Name</option><option value="coords">Coords</option></select>
+      <select id="city"><option value="bg">Belgrade</option><option value="ns">Novi Sad</option></select>
+      <div id="stationControls">
+        <select id="searchMode"><option value="name">Name</option><option value="coords">Coords</option></select>
+        <div class="name-search"><input id="name-input" /><div id="dropdown"></div></div>
+        <div class="coords-search"></div>
+      </div>
       <input id="submit" />
       <input id="stationsMaxDistance-input" value="350" />
       <select id="coords-input"></select>
@@ -38,7 +43,7 @@ function loadUiScript() {
       <p id="error"></p>
       <div id="noBusesMessage"></div>
       <div id="tableContainer"></div>
-      <table id="tabela"><tbody id="tableBody"></tbody></table>
+      <table id="tabela" style="display:none"><thead id="thead"><tr><th>#</th><th>ETA</th><th>Route</th></tr></thead><tbody id="tableBody"></tbody></table>
       <div id="scheduleSection"></div>
       <p id="scheduleInfo"></p>
       <div id="scheduleContainer"></div>
@@ -75,6 +80,7 @@ function loadUiScript() {
 
   dom.window.$ = $;
   dom.window.jQuery = $;
+  dom.window.changeBg = vi.fn();
   dom.window.console = console;
   dom.window.fetch = vi.fn();
   dom.window.L = {
@@ -96,6 +102,7 @@ function loadUiScript() {
       addTo() {
         return this;
       },
+      getBounds() { return "route-bounds"; },
     })),
     geoJSON: vi.fn(() => ({
       addTo() {
@@ -109,11 +116,24 @@ function loadUiScript() {
       fetchSchedule,
       findClosestStations,
       formatSeconds,
+      cancelInterval,
+      onCityChange,
       onSearchModeChange,
+      submitByName,
+      fetchBgStop,
+      showBgRoute,
       updateArrivals,
+      updateBgArrivals,
       setStations(city, stations) {
         allStations[city] = stations;
       },
+      getStations(city) {
+        return allStations[city];
+      },
+      setLines(city, lines) {
+        allLines[city] = lines;
+      },
+      addRouteToMap,
       setMapStubs(nextMap, nextLayerGroup) {
         map = nextMap;
         layerGroup = nextLayerGroup;
@@ -133,6 +153,199 @@ describe("UI behavior", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     context = loadUiScript();
+  });
+
+  afterEach(() => context.ui.cancelInterval());
+
+  it("uses native Leaflet map without Yandex iframe or link", () => {
+    const html = readFileSync(resolve("static/index.html"), "utf8");
+    expect(html).toContain('<div id="map"></div>');
+    expect(html).not.toContain("bgYandexMap");
+    expect(html).not.toContain("bgTransportLink");
+    expect(html).not.toContain("yandex.com/map-widget");
+  });
+
+  it("requires explicit BG stop selection and restores controls for NS", async () => {
+    const { $, dom, map, ui } = context;
+    const timer = vi.spyOn(dom.window, "setInterval");
+    const request = vi.spyOn($, "ajax").mockResolvedValue({
+      city: "bg",
+      name: "Stadion Partizan · 278",
+      uid: "6739029064",
+      id: "6739029064",
+      coords: [44.786, 20.4577],
+      arrivals: [
+        {
+          lineNumber: "40",
+          destination: "Zvezdara",
+          scheduledAt: new Date(Date.now() + 120_000).toISOString(),
+          estimatedAt: new Date(Date.now() + 120_000).toISOString(),
+          isEstimated: true,
+        },
+        {
+          lineNumber: "41",
+          destination: "Studentski trg",
+          scheduledAt: new Date(Date.now() + 300_000).toISOString(),
+          estimatedAt: null,
+          isEstimated: false,
+        },
+      ],
+    });
+    $("#city").val("bg");
+
+    await ui.onCityChange();
+
+    expect(request).not.toHaveBeenCalled();
+    expect(timer).not.toHaveBeenCalled();
+    expect($("#stationName").css("display")).toBe("none");
+    expect($("#tableContainer").css("display")).toBe("none");
+    expect(dom.window.L.featureGroup).not.toHaveBeenCalled();
+    expect($("#map").css("display")).not.toBe("none");
+    expect($("#stationControls").css("display")).not.toBe("none");
+    expect($("#searchMode").val()).toBe("name");
+    expect($("#searchMode option[value=coords]").prop("disabled")).toBe(true);
+    expect($(".name-search").css("display")).not.toBe("none");
+    expect($(".coords-search").css("display")).toBe("none");
+    ui.setStations("bg", [{
+      uid: "6739029064", id: "6739029064", name: "Stadion Partizan · 278", coords: [44.786, 20.4577],
+    }]);
+    $("#name-input").val("Stadion Partizan · 278");
+    await ui.submitByName();
+    expect(request).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/stop?stopId=6739029064" }));
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(timer).toHaveBeenCalledOnce();
+    expect($("#stationName").text()).toContain("Stadion Partizan");
+    expect($("#stationName").text()).not.toContain("6739029064");
+    expect(dom.window.L.featureGroup.mock.calls[0][0][0].tooltip).toBeUndefined();
+    expect($("#tableContainer").css("display")).not.toBe("none");
+    expect($("#tabela").css("display")).not.toBe("none");
+    expect($("#tableBody").text()).toContain("40");
+    expect($("#tableBody").text()).toContain("estimate");
+    expect($("#tableBody").text()).not.toContain("41");
+    expect($("#tableBody").text()).not.toContain("scheduled");
+    expect($("#busRouteInfo").text()).toContain("Live bus positions are shown when available.");
+    expect(map.setView).toHaveBeenCalledWith([44.786, 20.4577], 15, { animation: true });
+    expect(dom.window.L.featureGroup.mock.calls[0][0]).toHaveLength(1);
+    ui.updateBgArrivals({
+      name: "Stadion Partizan · 278", coords: [44.786, 20.4577],
+      arrivals: [{ lineNumber: "41", scheduledAt: new Date(Date.now() + 300_000).toISOString(), isEstimated: false }],
+    });
+    expect($("#tableContainer").css("display")).toBe("none");
+    expect($("#noBusesMessage").text()).toContain("No live arrival estimates");
+
+    ui.setStations("ns", []);
+    ui.setLines("ns", {});
+    $("#city").val("ns");
+    await ui.onCityChange();
+    expect($("#stationControls").css("display")).not.toBe("none");
+    expect($("#searchMode option[value=coords]").prop("disabled")).toBe(false);
+    expect($("#map").css("display")).not.toBe("none");
+    expect($("#thead th").eq(1).text()).toBe("ETA");
+    expect($("#thead th").eq(2).text()).toBe("Route");
+    ui.cancelInterval();
+  });
+
+  it("recenters the map when selecting another BG stop", async () => {
+    const { $, map, ui } = context;
+    const stops = {
+      first: { id: "1", uid: "1", name: "First", coords: [44.8, 20.4], arrivals: [] },
+      second: { id: "2", uid: "2", name: "Second", coords: [44.9, 20.5], arrivals: [] },
+    };
+    await ui.onCityChange();
+    ui.setStations("bg", Object.values(stops));
+    $.ajax = vi.fn(({ url }) => {
+      if (url.includes("vehicles")) return Promise.resolve({ vehicles: [] });
+      return Promise.resolve(stops[url.endsWith("1") ? "first" : "second"]);
+    });
+
+    $("#name-input").val("First");
+    await ui.submitByName();
+    $("#name-input").val("Second");
+    await ui.submitByName();
+
+    expect(map.setView).toHaveBeenCalledWith(stops.first.coords, 15, { animation: true });
+    expect(map.setView).toHaveBeenCalledWith(stops.second.coords, 15, { animation: true });
+  });
+
+  it("shows matched live BG buses on stop map and clears them after empty refresh", async () => {
+    const { $, dom, layerGroup, map, ui } = context;
+    const route = { lineId: "1704912322", threadId: "4898716406" };
+    const stop = {
+      name: "Stadion Partizan · 278", id: "6739029064", uid: "6739029064", coords: [44.786, 20.4577],
+      arrivals: [{ lineNumber: "40", destination: "Zvezdara", estimatedAt: new Date(Date.now() + 60_000).toISOString(), isEstimated: true, vehicleId: "belgrade|P82023", route }],
+    };
+    const vehicle = { id: "belgrade|P82023", lineNumber: "40", coords: [44.71, 20.41] };
+    await ui.onCityChange();
+    const request = vi.fn(({ url }) => Promise.resolve(url.startsWith("/api/bg/poc/vehicles") ? { vehicles: [vehicle] } : stop));
+    $.ajax = request;
+    const marker = vi.spyOn(dom.window.L, "marker");
+    ui.setStations("bg", [{ uid: stop.id, id: stop.id, name: stop.name, coords: stop.coords }]);
+    $("#name-input").val(stop.name);
+    await ui.submitByName();
+
+    expect(request).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/vehicles?stopId=6739029064" }));
+    expect(marker).toHaveBeenCalledWith(vehicle.coords, expect.objectContaining({ icon: expect.anything() }));
+    expect(map.fitBounds).toHaveBeenCalledWith("bounds");
+
+    request.mockImplementation(({ url }) => Promise.resolve(url.startsWith("/api/bg/poc/vehicles") ? { vehicles: [] } : stop));
+    const clearCount = layerGroup.clearLayers.mock.calls.length;
+    await ui.updateBgArrivals(stop);
+    expect(layerGroup.clearLayers).toHaveBeenCalledTimes(clearCount + 1);
+    expect(marker.mock.calls.filter(([coords]) => coords[0] === vehicle.coords[0] && coords[1] === vehicle.coords[1])).toHaveLength(1);
+  });
+
+  it("opens BG route from arrival line and draws route in blue", async () => {
+    const { $, dom, map, ui } = context;
+    const route = { lineId: "1704912322", threadId: "4898716406" };
+    const data = {
+      ...route, name: "40",
+      stops: [{ name: "Banjica", coords: [44.7, 20.4] }, { name: "Zvezdara", coords: [44.72, 20.42] }],
+      segments: [[[44.7, 20.4], [44.71, 20.41], [44.72, 20.42]]],
+    };
+    const stop = {
+      name: "Stadion Partizan", id: "6739029064", coords: [44.786, 20.4577],
+      arrivals: [{ lineNumber: "40", destination: "Zvezdara", estimatedAt: new Date(Date.now() + 60_000).toISOString(), isEstimated: true, route }],
+    };
+    await ui.onCityChange();
+    $.ajax = vi.fn().mockResolvedValue(data);
+    ui.updateBgArrivals(stop);
+    $("#tableBody tr").first().trigger("click");
+    await new Promise((resolve) => setImmediate(resolve));
+    expect($.ajax).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/routes/1704912322/4898716406?stopId=6739029064" }));
+    expect($("#scheduleSection").css("display")).toBe("none");
+    expect($("#scheduleContainer").text()).toBe("");
+    expect($("#scheduleInfo").text()).not.toContain("Route 40");
+    expect(dom.window.L.polyline).toHaveBeenCalledWith(data.segments, { color: "blue" });
+    expect(map.fitBounds).toHaveBeenCalledWith("route-bounds");
+    ui.updateBgArrivals(stop);
+    expect(dom.window.L.polyline).toHaveBeenCalledTimes(2);
+    expect(dom.window.L.featureGroup.mock.calls.every(([markers]) => markers.length === 1)).toBe(true);
+  });
+
+  it("keeps arrivals when BG route fails and ignores route response after city change", async () => {
+    const { $, ui } = context;
+    await ui.onCityChange();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const route = { lineId: "1", threadId: "2" };
+    ui.updateBgArrivals({
+      name: "Stadion Partizan", id: "278", coords: [44.786, 20.4577],
+      arrivals: [{ lineNumber: "40", destination: "Zvezdara", estimatedAt: new Date(Date.now() + 60_000).toISOString(), isEstimated: true, route }],
+    });
+    $.ajax = vi.fn().mockRejectedValue(new Error("upstream failed"));
+    await ui.showBgRoute(route);
+    expect($("#tableBody").text()).toContain("40");
+    expect($("#scheduleSection").css("display")).toBe("none");
+    expect($("#error").css("display")).not.toBe("none");
+    let finish;
+    $.ajax.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    const pending = ui.showBgRoute({ lineId: "1", threadId: "2" });
+    ui.setStations("ns", []);
+    ui.setLines("ns", {});
+    $("#city").val("ns");
+    await ui.onCityChange();
+    finish({ name: "40", stops: [], segments: [] });
+    await pending;
+    expect($("#scheduleSection").css("display")).toBe("none");
   });
 
   it("formats seconds as whole minutes", () => {
@@ -205,6 +418,47 @@ describe("UI behavior", () => {
       animation: true,
     });
     expect(map.fitBounds).toHaveBeenCalledWith("bounds");
+  });
+
+  it("routes ordered bus stops along roads", async () => {
+    const geometry = { type: "LineString", coordinates: [[20.1, 44.1], [20.15, 44.15], [20.2, 44.2]] };
+    const { dom, ui } = context;
+    ui.setStations("bg", [
+      { uid: "first", coords: [44.1, 20.1] },
+      { uid: "second", coords: [44.2, 20.2] },
+    ]);
+    ui.setLines("bg", { "7_A": ["first", "second"] });
+    dom.window.fetch.mockResolvedValue({
+      json: async () => ({ code: "Ok", routes: [{ geometry }] }),
+    });
+
+    await ui.addRouteToMap("7", []);
+
+    expect(dom.window.fetch).toHaveBeenCalledWith(
+      "/api/route?coords=20.1%2C44.1%3B20.2%2C44.2",
+    );
+    expect(dom.window.L.geoJSON).toHaveBeenCalledWith(geometry, {
+      style: { color: "blue" },
+    });
+  });
+
+  it("falls back to straight stop connections when road routing fails", async () => {
+    const { dom, ui } = context;
+    const stops = [
+      { latitude: 44.1, longitude: 20.1 },
+      { latitude: 44.2, longitude: 20.2 },
+    ];
+    dom.window.fetch.mockRejectedValue(new Error("routing unavailable"));
+
+    await ui.addRouteToMap("7", stops);
+
+    expect(dom.window.fetch).toHaveBeenCalledWith(
+      "/api/route?coords=20.1%2C44.1%3B20.2%2C44.2",
+    );
+    expect(dom.window.L.polyline).toHaveBeenCalledWith(
+      [[44.1, 20.1], [44.2, 20.2]],
+      { color: "blue" },
+    );
   });
 
   it("shows an empty-state message when no vehicles are arriving", () => {

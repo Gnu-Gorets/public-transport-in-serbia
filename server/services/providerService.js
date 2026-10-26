@@ -13,6 +13,7 @@ const { badRequest, upstreamError } = require("../errors");
 const STATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const STATIONS_CACHE_STALE_MS = 7 * STATIONS_CACHE_TTL_MS;
 const GET_TIMEOUT_MS = 5000;
+const STATIONS_TIMEOUT_MS = 15000;
 const TIMETABLE_TIMEOUT_MS = 10000;
 let now = () => Date.now();
 const inFlight = {};
@@ -31,18 +32,6 @@ function rebuildIdUidMap(city) {
       state.uidIdMap[city][String(station.uid)] = String(station.id);
     }
   }
-}
-
-async function populateMap(force = false) {
-  await Promise.all(Object.keys(apikeys).map(async (city) => {
-    if (!force && state.idUidMap[city] && !isStationsCacheExpired(city)) return;
-    try {
-      await getAllStations(city);
-      logger.info(`Populating map finished for ${city}`);
-    } catch (err) {
-      logger.error({ err }, `Populating map failed for ${city}`);
-    }
-  }));
 }
 
 async function request(method, url, apikey, { payload, timeout = GET_TIMEOUT_MS, contentType } = {}) {
@@ -69,8 +58,9 @@ async function getLineTimetable(city, lineNumber, direction, date) {
 function getStationUid(city, query) {
   if (query.uid) return query.uid;
   if (query.id) {
-    if (!state.idUidMap[city]) throw badRequest(`Map for ${city} is not populated yet`);
-    return state.idUidMap[city][query.id.toString()];
+    const uid = state.idUidMap[city]?.[query.id.toString()];
+    if (!uid) throw badRequest("Station not found");
+    return uid;
   }
   throw badRequest("Invalid query");
 }
@@ -119,6 +109,7 @@ async function getStationInfoV2(city, uid) {
 }
 
 async function getStationInfo(city, query) {
+  if (query.id) await getAllStations(city);
   const uid = getStationUid(city, query);
   if (apikeys[city].api === "v1") return getStationInfoV1(city, uid);
   if (apikeys[city].api === "v2") return getStationInfoV2(city, uid);
@@ -132,6 +123,7 @@ async function fetchAndCacheStations(city) {
     const response = await request("post", url, apikeys[city].key, {
       payload: JSON.stringify({ action: "get_cities_extended" }),
       contentType: "application/json",
+      timeout: STATIONS_TIMEOUT_MS,
     });
     state.allStations[city] = transformAllStationsResponse(response);
     state.allLines[city] = transformAllLinesResponse(response);
@@ -162,7 +154,7 @@ async function getAllStations(city) {
 }
 
 function getAvailableCities() {
-  return Object.fromEntries(Object.entries(apikeys).map(([id, city]) => [id, city.name]));
+  return { bg: "Belgrade", ...Object.fromEntries(Object.entries(apikeys).map(([id, city]) => [id, city.name])) };
 }
 
 module.exports = {
@@ -170,7 +162,6 @@ module.exports = {
   getAvailableCities,
   getLineTimetable,
   getStationInfo,
-  populateMap,
   _test: {
     setNow: (nextNow) => { now = nextNow; },
     resetNow: () => { now = () => Date.now(); },

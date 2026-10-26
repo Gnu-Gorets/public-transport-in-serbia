@@ -21,7 +21,6 @@ const resetAll = () => {
 const start = async () => {
   try {
     await fastify.listen({ port: 3000, host: "0.0.0.0" });
-    providerService.populateMap(true).catch((err) => logger.error({ err }, "Station prewarm failed"));
   } catch (err) {
     logger.error({ err }, "Server startup failed");
     process.exit(1);

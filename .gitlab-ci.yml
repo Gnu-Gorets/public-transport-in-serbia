@@ -3,7 +3,7 @@ stages:
 
 test:
   stage: test
-  image: node:24-alpine
+  image: node:26-alpine
   cache:
     key:
       files:
