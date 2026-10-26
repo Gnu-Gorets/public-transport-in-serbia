@@ -1,6 +1,5 @@
 const crypto = require("crypto");
 const { state } = require("../state");
-const bgStops = require("../data/yandex-belgrade-bus-stops.json");
 const {
   getAllStations,
   getAvailableCities,
@@ -12,6 +11,7 @@ const {
   getBelgradeStop,
   getBelgradeRoute,
   getBelgradeVehicles,
+  belgradeStops,
 } = require("../services/yandexBelgradeService");
 const { badRequest, sendError } = require("../errors");
 const {
@@ -71,7 +71,7 @@ function registerApiRoutes(fastify) {
 
   fastify.get("/api/bg/stops", async (_req, reply) => {
     reply.header("Cache-Control", "public, max-age=3600");
-    reply.send(bgStops);
+    reply.send(belgradeStops);
   });
 
   fastify.get(

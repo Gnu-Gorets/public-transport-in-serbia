@@ -7,8 +7,29 @@ const {
   getBelgradeStop,
   getBelgradeRoute,
   getBelgradeVehicles,
+  belgradeStops,
   _test,
 } = require("../server/services/yandexBelgradeService.js");
+
+describe("Belgrade stop catalog", () => {
+  it("validates and exports the Yandex transit catalog", () => {
+    const source = require("../server/data/yandex-belgrade-bus-stops.json");
+    expect(belgradeStops).toBe(source);
+    expect(belgradeStops.stops).toHaveLength(2125);
+    expect(belgradeStops.routes).toHaveLength(92);
+    expect(belgradeStops.routes).toContainEqual(
+      expect.objectContaining({ route: "511", lineId: "4206130163", type: "bus" }),
+    );
+    expect(belgradeStops.remainingRoutes).toEqual([]);
+    expect(belgradeStops.complete).toBe(false);
+  });
+
+  it("rejects duplicate IDs and invalid coordinates", () => {
+    const stop = { id: "1", name: "Stop", coords: [44.8, 20.4] };
+    expect(() => _test.validateStops({ updatedAt: "2026-10-26", stops: [stop, stop] })).toThrow();
+    expect(() => _test.validateStops({ updatedAt: "2026-10-26", stops: [{ ...stop, coords: [0, 0] }] })).toThrow();
+  });
+});
 
 const stopState = {
   config: {

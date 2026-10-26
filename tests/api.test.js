@@ -14,7 +14,6 @@ const require = createRequire(import.meta.url);
 const logger = require("../server/logger.js");
 const yandexBelgradeService = require("../server/services/yandexBelgradeService.js");
 const belgradeStops = require("../server/data/yandex-belgrade-bus-stops.json");
-const { validateStops } = require("../server/services/belgradeStopsService.js");
 const { fastify, _test } = server;
 
 const yandexStopPage = `<script type="application/json" class="state-view">${JSON.stringify(
@@ -97,23 +96,6 @@ describe("API routes", () => {
     expect(response.headers["content-type"]).toContain("text/html");
     expect(response.body).toContain("Serbia++");
     expect(response.body).toContain("static/script.js?v=bg-live-vehicles-1");
-  });
-
-  it("validates Belgrade catalog IDs, names, coordinates, and uniqueness", () => {
-    const valid = {
-      updatedAt: "2026-10-27",
-      stops: [{ id: "1", name: "Stop", coords: [44.8, 20.4] }],
-    };
-    expect(validateStops(valid)).toBe(valid);
-    expect(() =>
-      validateStops({ ...valid, stops: [...valid.stops, valid.stops[0]] }),
-    ).toThrow();
-    expect(() =>
-      validateStops({
-        ...valid,
-        stops: [{ ...valid.stops[0], coords: [0, 0] }],
-      }),
-    ).toThrow();
   });
 
   it("serves the checked-in Belgrade stop catalog locally", async () => {
