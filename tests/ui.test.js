@@ -228,7 +228,7 @@ describe("UI behavior", () => {
     expect($("#tabela").css("display")).not.toBe("none");
     expect($("#tableBody").text()).toContain("40");
     expect($("#tableBody").text()).toContain("estimate");
-    expect($("#tableBody").text()).not.toContain("41");
+    expect($("#tableBody tr")).toHaveLength(1);
     expect($("#tableBody").text()).not.toContain("scheduled");
     expect($("#busRouteInfo").text()).toContain("Live bus positions are shown when available.");
     expect(map.setView).toHaveBeenCalledWith([44.786, 20.4577], 15, { animate: false });
@@ -295,9 +295,9 @@ describe("UI behavior", () => {
     expect(map.fitBounds).toHaveBeenCalledWith("bounds", { animate: false });
 
     request.mockImplementation(({ url }) => Promise.resolve(url.startsWith("/api/bg/poc/vehicles") ? { vehicles: [] } : stop));
-    const clearCount = layerGroup.clearLayers.mock.calls.length;
+    const removeCount = layerGroup.removeLayer.mock.calls.length;
     await ui.updateBgArrivals(stop);
-    expect(layerGroup.clearLayers).toHaveBeenCalledTimes(clearCount + 1);
+    expect(layerGroup.removeLayer).toHaveBeenCalledTimes(removeCount + 1);
     expect(marker.mock.calls.filter(([coords]) => coords[0] === vehicle.coords[0] && coords[1] === vehicle.coords[1])).toHaveLength(1);
   });
 
@@ -325,7 +325,7 @@ describe("UI behavior", () => {
     expect(dom.window.L.polyline).toHaveBeenCalledWith(data.segments, { color: "blue" });
     expect(map.fitBounds).toHaveBeenCalledWith("route-bounds");
     ui.updateBgArrivals(stop);
-    expect(dom.window.L.polyline).toHaveBeenCalledTimes(2);
+    expect(dom.window.L.polyline).toHaveBeenCalledTimes(1);
     expect(dom.window.L.featureGroup.mock.calls.every(([markers]) => markers.length === 1)).toBe(true);
   });
 

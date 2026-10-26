@@ -319,14 +319,10 @@ const updateBgArrivals = (response) => {
   $("#updateInProgress").hide();
   $("#error").hide();
   $("#tableBody").empty();
-  layerGroup.clearLayers();
-  bgVehicleLayer = undefined;
 
   const recenter = !bgStopCentered;
   bgStopCoords = response.coords;
   bgStopMarker = createMarker(response.coords, undefined, "yellow", response.name);
-  L.featureGroup([bgStopMarker]).addTo(layerGroup);
-  if (bgRouteData) drawBgRoute(bgRouteData, false);
 
   if (!arrivals.length) {
     $("#tableContainer").hide();
@@ -365,11 +361,19 @@ const updateBgArrivals = (response) => {
     return row;
   });
   $("#tableBody").append(rows);
-  if (currQuery) return refreshBgVehicles(recenter);
+  if (currQuery) {
+    if (Array.isArray(response.vehicles)) drawBgVehicles(response.vehicles, recenter);
+    else return refreshBgVehicles(recenter);
+  }
 };
 
 const drawBgVehicles = (vehicles = [], recenter = false) => {
-  if (bgVehicleLayer) layerGroup.removeLayer(bgVehicleLayer);
+  if (recenter) {
+    layerGroup.clearLayers();
+    bgVehicleLayer = undefined;
+    L.featureGroup([bgStopMarker]).addTo(layerGroup);
+    if (bgRouteData) drawBgRoute(bgRouteData, false);
+  } else if (bgVehicleLayer) layerGroup.removeLayer(bgVehicleLayer);
   bgVehicleLayer = undefined;
   const markers = vehicles
     .filter((vehicle) => Array.isArray(vehicle.coords) && vehicle.coords.length === 2 && vehicle.coords.every(Number.isFinite))
@@ -428,12 +432,11 @@ const fetchBgStop = () => {
     $("#error").hide();
     const stopId = currQuery?.uid;
     if (!stopId) return;
-    const response = await doAsyncRequest(
-      `/api/bg/poc/stop?stopId=${encodeURIComponent(stopId)}`,
-      "GET",
-      undefined,
-      () => getCity() !== "bg" || currQuery?.uid !== stopId,
-    );
+    const isStale = () => getCity() !== "bg" || currQuery?.uid !== stopId;
+    const [response, vehicleResponse] = await Promise.all([
+      doAsyncRequest(`/api/bg/poc/stop?stopId=${encodeURIComponent(stopId)}`, "GET", undefined, isStale),
+      doAsyncRequest(`/api/bg/poc/vehicles?stopId=${encodeURIComponent(stopId)}`, "GET", undefined, isStale),
+    ]);
     if (!response || getCity() !== "bg") {
       $("#updateInProgress").hide();
       return;
@@ -442,7 +445,7 @@ const fetchBgStop = () => {
       $("#updateInProgress").hide();
       return;
     }
-    await updateBgArrivals(response);
+    await updateBgArrivals({ ...response, vehicles: vehicleResponse?.vehicles || [] });
   })().finally(() => { bgStopRequest = null; });
   return bgStopRequest;
 };
