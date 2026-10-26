@@ -183,21 +183,6 @@ const formatSeconds = (seconds) => {
   return `${minutes} min`;
 };
 
-const handleTabOut = () => {
-  currInterval = clearInterval(currInterval);
-};
-
-const handleTabIn = () => {
-  if (getCity() === "bg") {
-    if (currQuery && !currInterval) {
-      fetchBgStop();
-      currInterval = setInterval(fetchBgStop, 60 * 1000);
-    }
-    return;
-  }
-  spawnInterval();
-};
-
 const updateArrivals = (response, recenter) => {
   let date = new Date();
 
@@ -925,8 +910,6 @@ $(document).ready(async () => {
   });
 
   // Map & tab visibility handlers
-  $(window).on("blur", handleTabOut);
-  $(window).on("focus", handleTabIn);
   initMap();
 
   // Load cities
