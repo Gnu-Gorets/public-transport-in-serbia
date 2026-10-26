@@ -372,6 +372,46 @@ describe("UI behavior", () => {
     });
   });
 
+  it("starts BG stop and vehicle requests together and ignores stale response", async () => {
+    const { $, ui } = context;
+    const deferred = () => {
+      let resolve;
+      const promise = new Promise((done) => {
+        resolve = done;
+      });
+      return { promise, resolve };
+    };
+    const stopRequest = deferred();
+    const vehicleRequest = deferred();
+    await ui.onCityChange();
+    ui.setStations("bg", [
+      { uid: "6739029064", id: "6739029064", name: "Stop" },
+    ]);
+    ui.setQuery({ uid: "6739029064" });
+    $.ajax = vi.fn(({ url }) =>
+      url.includes("/stop?") ? stopRequest.promise : vehicleRequest.promise,
+    );
+    const pending = ui.fetchBgStop();
+    expect($.ajax).toHaveBeenCalledTimes(2);
+    expect($.ajax.mock.calls.map(([{ url }]) => url)).toEqual([
+      "/api/bg/stop?stopId=6739029064",
+      "/api/bg/vehicles?stopId=6739029064",
+    ]);
+    ui.setStations("ns", []);
+    $("#city").val("ns");
+    await ui.onCityChange();
+    stopRequest.resolve({
+      id: "6739029064",
+      uid: "6739029064",
+      name: "Stale",
+      coords: [44, 20],
+      arrivals: [],
+    });
+    vehicleRequest.resolve({ vehicles: [] });
+    await pending;
+    expect($("#stationName").text()).not.toContain("Stale");
+  });
+
   it("shows matched live BG buses on stop map and clears them after empty refresh", async () => {
     const { $, dom, layerGroup, map, ui } = context;
     const route = { lineId: "1704912322", threadId: "4898716406" };
