@@ -14,6 +14,7 @@ let bgStopCentered = false;
 let bgStopRequest;
 let bgStopId;
 let bgStopMarker;
+let bgStopCoords;
 let bgVehicleLayer;
 let bgVehicleRequestId = 0;
 let bgRouteData;
@@ -134,6 +135,7 @@ const onCityChange = async () => {
     bgVehicleRequestId++;
     bgVehicleLayer = undefined;
     bgStopMarker = undefined;
+    bgStopCoords = undefined;
     bgStopId = undefined;
   }
   if (isBelgrade) {
@@ -321,10 +323,7 @@ const updateBgArrivals = (response) => {
   bgVehicleLayer = undefined;
 
   const recenter = !bgStopCentered;
-  if (recenter) {
-    map.setView(response.coords, 15, { animation: true });
-    bgStopCentered = true;
-  }
+  bgStopCoords = response.coords;
   bgStopMarker = createMarker(response.coords, undefined, "yellow", response.name);
   L.featureGroup([bgStopMarker]).addTo(layerGroup);
   if (bgRouteData) drawBgRoute(bgRouteData, false);
@@ -332,7 +331,7 @@ const updateBgArrivals = (response) => {
   if (!arrivals.length) {
     $("#tableContainer").hide();
     $("#noBusesMessage").text("No live arrival estimates are available for this stop.").show();
-    drawBgVehicles([]);
+    drawBgVehicles([], recenter);
     return;
   }
 
@@ -375,16 +374,19 @@ const drawBgVehicles = (vehicles = [], recenter = false) => {
   const markers = vehicles
     .filter((vehicle) => Array.isArray(vehicle.coords) && vehicle.coords.length === 2 && vehicle.coords.every(Number.isFinite))
     .map((vehicle) => createMarker(vehicle.coords, vehicle.lineNumber, "blue", `Bus ${vehicle.lineNumber}`));
-  if (!markers.length) return;
-  bgVehicleLayer = L.featureGroup(markers).addTo(layerGroup);
-  if (recenter && bgStopMarker) map.fitBounds(L.featureGroup([bgStopMarker, ...markers]).getBounds());
+  if (markers.length) bgVehicleLayer = L.featureGroup(markers).addTo(layerGroup);
+  if (recenter && bgStopMarker) {
+    if (markers.length) map.fitBounds(L.featureGroup([bgStopMarker, ...markers]).getBounds(), { animate: false });
+    else map.setView(bgStopCoords, 15, { animate: false });
+    bgStopCentered = true;
+  }
 };
 
 const refreshBgVehicles = async (recenter = false) => {
   const requestId = ++bgVehicleRequestId;
   const query = currQuery;
   const clearLatest = () => {
-    if (getCity() === "bg" && currQuery === query && requestId === bgVehicleRequestId) drawBgVehicles([]);
+    if (getCity() === "bg" && currQuery === query && requestId === bgVehicleRequestId) drawBgVehicles([], recenter);
     else return true;
   };
   const response = await doAsyncRequest(`/api/bg/poc/vehicles?stopId=${encodeURIComponent(query.uid || bgStopId)}`, "GET", undefined, clearLatest);

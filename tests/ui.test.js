@@ -231,7 +231,7 @@ describe("UI behavior", () => {
     expect($("#tableBody").text()).not.toContain("41");
     expect($("#tableBody").text()).not.toContain("scheduled");
     expect($("#busRouteInfo").text()).toContain("Live bus positions are shown when available.");
-    expect(map.setView).toHaveBeenCalledWith([44.786, 20.4577], 15, { animation: true });
+    expect(map.setView).toHaveBeenCalledWith([44.786, 20.4577], 15, { animate: false });
     expect(dom.window.L.featureGroup.mock.calls[0][0]).toHaveLength(1);
     ui.updateBgArrivals({
       name: "Stadion Partizan · 278", coords: [44.786, 20.4577],
@@ -270,8 +270,8 @@ describe("UI behavior", () => {
     $("#name-input").val("Second");
     await ui.submitByName();
 
-    expect(map.setView).toHaveBeenCalledWith(stops.first.coords, 15, { animation: true });
-    expect(map.setView).toHaveBeenCalledWith(stops.second.coords, 15, { animation: true });
+    expect(map.setView).toHaveBeenCalledWith(stops.first.coords, 15, { animate: false });
+    expect(map.setView).toHaveBeenCalledWith(stops.second.coords, 15, { animate: false });
   });
 
   it("shows matched live BG buses on stop map and clears them after empty refresh", async () => {
@@ -292,7 +292,7 @@ describe("UI behavior", () => {
 
     expect(request).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/bg/poc/vehicles?stopId=6739029064" }));
     expect(marker).toHaveBeenCalledWith(vehicle.coords, expect.objectContaining({ icon: expect.anything() }));
-    expect(map.fitBounds).toHaveBeenCalledWith("bounds");
+    expect(map.fitBounds).toHaveBeenCalledWith("bounds", { animate: false });
 
     request.mockImplementation(({ url }) => Promise.resolve(url.startsWith("/api/bg/poc/vehicles") ? { vehicles: [] } : stop));
     const clearCount = layerGroup.clearLayers.mock.calls.length;
