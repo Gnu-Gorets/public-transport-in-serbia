@@ -748,7 +748,7 @@ const addRouteToMap = async (lineNumber, fallbackStations = []) => {
       }).addTo(layerGroup);
       return;
     }
-  } catch (_) {
+  } catch {
     /* fall through */
   }
 

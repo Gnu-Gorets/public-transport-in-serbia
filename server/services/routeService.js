@@ -10,7 +10,7 @@ async function getRoute(coords) {
       { timeout: OSRM_TIMEOUT_MS },
     );
     return response.data;
-  } catch (err) {
+  } catch {
     throw upstreamError("OSRM request failed");
   }
 }

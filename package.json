@@ -6,7 +6,9 @@
   "scripts": {
     "run": "node server/server.js",
     "dev": "npx nodemon server/server.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "eslint server static tests eslint.config.mjs",
+    "format:check": "prettier --check \"server/**/*.js\" \"static/**/*.{js,html,css}\" \"tests/**/*.js\" package.json AGENTS.md .gitlab-ci.yml eslint.config.mjs .prettierrc.json"
   },
   "author": "",
   "license": "AGPL-3.0",
@@ -23,9 +25,13 @@
     "pino-pretty": "^13.2.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
     "jquery": "^4.0.0",
     "jsdom": "^30.1.3",
     "nodemon": "^3.1.14",
+    "prettier": "^3.9.10",
     "vitest": "^5.0.5"
   }
 }

@@ -12,7 +12,6 @@ import server from "../server/server.js";
 
 const require = createRequire(import.meta.url);
 const logger = require("../server/logger.js");
-const providerService = require("../server/services/providerService.js");
 const yandexBelgradeService = require("../server/services/yandexBelgradeService.js");
 const belgradeStops = require("../server/data/yandex-belgrade-bus-stops.json");
 const { validateStops } = require("../server/services/belgradeStopsService.js");
