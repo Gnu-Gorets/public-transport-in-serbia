@@ -37,8 +37,8 @@ function loadUiScript(runReady = false, initialAjax) {
       <input id="stationsMaxDistance-input" value="350" />
       <select id="coords-input"></select>
       <p id="updateInProgress"></p>
-      <p id="stationName"></p>
-      <p id="lastUpdated"></p>
+      <p id="stationName" style="display: none"></p>
+      <p id="lastUpdated" style="display: none"></p>
       <p id="busRouteInfo"></p>
       <p id="error"></p>
       <div id="noBusesMessage"></div>
@@ -352,6 +352,17 @@ describe("UI behavior", () => {
     context = readyContext;
     await readyContext.readyPromise;
     const { document } = readyContext.dom.window;
+    readyContext.$.ajax = vi.fn(({ url }) =>
+      url.includes("/stop?")
+        ? Promise.resolve({
+            id: "1",
+            uid: "one",
+            name: "Central",
+            coords: [44, 20],
+            arrivals: [],
+          })
+        : Promise.resolve({ vehicles: [] }),
+    );
     const input = document.getElementById("name-input");
     const dropdown = document.getElementById("dropdown");
     readyContext.ui.setStations("bg", [
@@ -451,13 +462,15 @@ describe("UI behavior", () => {
       }),
     );
     expect(input.value).toBe("Central");
-    expect(document.getElementById("arrivalsDialog").open).toBe(true);
+    await vi.waitFor(() =>
+      expect(document.getElementById("arrivalsDialog").open).toBe(true),
+    );
     document.getElementById("closeArrivals").click();
   });
 
-  it("centers the map on a selected station before API responses in every city", () => {
-    const { $, dom, map, ui } = context;
-    $.ajax = vi.fn(() => new Promise(() => {}));
+  it("opens fully rendered arrivals after initial data loads in every city", async () => {
+    const { $, dom, ui } = context;
+    const dialog = dom.window.document.getElementById("arrivalsDialog");
     const stations = [
       {
         city: "ns",
@@ -483,61 +496,153 @@ describe("UI behavior", () => {
     ];
 
     for (const station of stations) {
+      const resolvers = [];
+      $.ajax = vi.fn(() => new Promise((resolve) => resolvers.push(resolve)));
       $("#city").val(station.city);
       $("#name-input").val(station.name);
       ui.setStations(station.city, [station]);
-      map.setView.mockClear();
+      const pending = ui.submitByName();
 
-      ui.submitByName();
+      expect(dialog.open).toBe(false);
+      expect($("#searchLoading").text()).toBe("Loading arrivals…");
+      expect($("#searchLoading").css("display")).not.toBe("none");
+      expect($("#stationName").css("display")).toBe("none");
 
-      expect(map.setView).toHaveBeenCalledWith(station.coords, 15, {
-        animate: false,
-      });
-      expect(dom.window.L.featureGroup).toHaveBeenCalled();
+      const stopResponse = {
+        uid: station.uid,
+        id: station.id,
+        name: station.name,
+        coords: station.coords,
+        arrivals: [],
+        vehicles: [],
+      };
+      if (station.city === "bg") {
+        expect(resolvers).toHaveLength(2);
+        resolvers[0](stopResponse);
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(dialog.open).toBe(false);
+        resolvers[1]({ vehicles: [] });
+      } else {
+        expect(resolvers).toHaveLength(1);
+        resolvers[0]({ ...stopResponse, vehicles: [] });
+      }
+
+      await pending;
+
+      const expectedName =
+        station.city === "bg"
+          ? `Station: ${station.name}`
+          : `Station: ${station.name} (${station.id})`;
+      expect(dialog.open).toBe(true);
+      expect($("#searchLoading").css("display")).toBe("none");
+      expect($("#stationName").text()).toBe(expectedName);
+      expect($("#stationName").css("display")).not.toBe("none");
+      expect($("#lastUpdated").css("display")).not.toBe("none");
+      expect($("#noBusesMessage").css("display")).not.toBe("none");
       ui.cancelInterval();
+      dialog.removeAttribute("open");
     }
   });
 
-  it("centers the map on a nearby selection before the API response", () => {
-    const { $, map, ui } = context;
-    $.ajax = vi.fn(() => new Promise(() => {}));
+  it("opens nearby arrivals only after first response", async () => {
+    const { $, dom, ui } = context;
+    const dialog = dom.window.document.getElementById("arrivalsDialog");
+    let resolveResponse;
+    $.ajax = vi.fn(() => new Promise((resolve) => (resolveResponse = resolve)));
     $("#city").val("ns");
     $("#coords-input")
       .append($('<option value="ns-stop">Novi Sad stop</option>'))
       .val("ns-stop");
-    ui.setStations("ns", [
-      {
-        uid: "ns-stop",
-        id: "1",
-        name: "Novi Sad stop",
-        coords: [45.25, 19.84],
-      },
-    ]);
+    const pending = ui.submitByCoords();
 
-    ui.submitByCoords();
-
-    expect(map.setView).toHaveBeenCalledWith([45.25, 19.84], 15, {
-      animate: false,
+    expect(dialog.open).toBe(false);
+    expect($("#searchLoading").css("display")).not.toBe("none");
+    resolveResponse({
+      uid: "ns-stop",
+      id: "1",
+      name: "Novi Sad stop",
+      coords: [45.25, 19.84],
+      vehicles: [],
     });
+    await pending;
+
+    expect(dialog.open).toBe(true);
+    expect($("#stationName").text()).toBe("Station: Novi Sad stop (1)");
   });
 
-  it("does not center the map on invalid station coordinates", () => {
-    const { $, map, ui } = context;
-    $.ajax = vi.fn(() => new Promise(() => {}));
+  it("keeps arrivals dialog closed when initial request fails", async () => {
+    const { $, dom, ui } = context;
+    const dialog = dom.window.document.getElementById("arrivalsDialog");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    $.ajax = vi.fn().mockRejectedValue({
+      status: 503,
+      statusText: "Unavailable",
+      responseJSON: { message: "offline" },
+    });
     $("#city").val("ns");
-    $("#name-input").val("Unknown coordinates");
+    $("#name-input").val("Novi Sad stop");
+    ui.setStations("ns", [{ uid: "ns-stop", id: "1", name: "Novi Sad stop" }]);
+
+    await ui.submitByName();
+
+    expect(dialog.open).toBe(false);
+    expect($("#searchLoading").css("display")).toBe("none");
+    expect($("#searchError").text()).toContain("offline");
+  });
+
+  it("does not open arrivals from an older selection", async () => {
+    const { $, dom, ui } = context;
+    const dialog = dom.window.document.getElementById("arrivalsDialog");
+    const resolvers = [];
+    $.ajax = vi.fn(() => new Promise((resolve) => resolvers.push(resolve)));
+    $("#city").val("ns");
     ui.setStations("ns", [
-      {
-        uid: "ns-stop",
-        id: "1",
-        name: "Unknown coordinates",
-        coords: [0, 0],
-      },
+      { uid: "first", id: "1", name: "First stop" },
+      { uid: "second", id: "2", name: "Second stop" },
     ]);
 
-    ui.submitByName();
+    $("#name-input").val("First stop");
+    const firstRequest = ui.submitByName();
+    $("#name-input").val("Second stop");
+    const secondRequest = ui.submitByName();
 
-    expect(map.setView).not.toHaveBeenCalled();
+    resolvers[0]({
+      uid: "first",
+      id: "1",
+      name: "First stop",
+      coords: [45.25, 19.84],
+      vehicles: [],
+    });
+    await firstRequest;
+    expect(dialog.open).toBe(false);
+
+    resolvers[1]({
+      uid: "second",
+      id: "2",
+      name: "Second stop",
+      coords: [45.26, 19.85],
+      vehicles: [],
+    });
+    await secondRequest;
+    expect(dialog.open).toBe(true);
+    expect($("#stationName").text()).toBe("Station: Second stop (2)");
+
+    dialog.removeAttribute("open");
+    let resolvePoll;
+    $.ajax = vi.fn(() => new Promise((resolve) => (resolvePoll = resolve)));
+    const query = { uid: "second" };
+    ui.setQuery(query);
+    const poll = ui.fetchArrivals("ns", query, false);
+    resolvePoll({
+      uid: "second",
+      id: "2",
+      name: "Second stop",
+      coords: [45.26, 19.85],
+      vehicles: [],
+    });
+    await poll;
+    expect(dialog.open).toBe(false);
+    ui.cancelInterval();
   });
 
   it("opens and closes arrivals through the native dialog controls", async () => {

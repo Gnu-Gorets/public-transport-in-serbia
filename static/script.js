@@ -539,19 +539,24 @@ const showBgRoute = async (route) => {
   drawBgRoute(response);
 };
 
-const fetchBgStop = () => {
-  if (getCity() !== "bg") return Promise.resolve();
+const fetchBgStop = (openOnSuccess = false) => {
+  if (getCity() !== "bg") return Promise.resolve(false);
   if (bgStopRequest) return bgStopRequest;
   const requestId = ++bgStopRequestId;
+  const selectionId = genericRequestId;
+  const query = currQuery;
+  const stopId = query?.uid;
+  const isCurrent = () =>
+    requestId === bgStopRequestId &&
+    selectionId === genericRequestId &&
+    getCity() === "bg" &&
+    currQuery === query;
   bgStopRequest = (async () => {
-    if (currQuery) $("#updateInProgress").show();
+    if (document.getElementById("arrivalsDialog")?.open)
+      $("#updateInProgress").show();
     $("#error").hide();
-    const stopId = currQuery?.uid;
-    if (!stopId) return;
-    const isStale = () =>
-      requestId !== bgStopRequestId ||
-      getCity() !== "bg" ||
-      currQuery?.uid !== stopId;
+    if (!stopId) return false;
+    const isStale = () => !isCurrent();
     const [response, vehicleResponse] = await Promise.all([
       doAsyncRequest(
         `/api/bg/stop?stopId=${encodeURIComponent(stopId)}`,
@@ -566,18 +571,24 @@ const fetchBgStop = () => {
         isStale,
       ),
     ]);
-    if (!response || getCity() !== "bg") {
+    if (!isCurrent()) return false;
+    if (!response || !vehicleResponse || currQuery?.uid !== response.uid) {
       $("#updateInProgress").hide();
-      return;
+      if (openOnSuccess) $("#searchLoading").hide();
+      return false;
     }
-    if (currQuery?.uid !== response.uid) {
-      $("#updateInProgress").hide();
-      return;
+    if (openOnSuccess) {
+      if (!openArrivalsDialog()) {
+        $("#searchLoading").hide();
+        return false;
+      }
+      $("#searchLoading").hide();
     }
     await updateBgArrivals({
       ...response,
-      vehicles: vehicleResponse?.vehicles || [],
+      vehicles: vehicleResponse.vehicles || [],
     });
+    return true;
   })().finally(() => {
     if (requestId === bgStopRequestId) bgStopRequest = null;
   });
@@ -592,41 +603,63 @@ const fetchArrivals = async (city, query, recenter) => {
     requestId === arrivalRequestId &&
     city === getCity() &&
     query === currQuery;
-  let url = `/api/stations/${city}/search?${$.param(query)}`;
-  $("#updateInProgress").show();
+  const url = `/api/stations/${city}/search?${$.param(query)}`;
+  const dialogOpen = document.getElementById("arrivalsDialog")?.open;
+  if (recenter) $("#searchLoading").show();
+  else if (dialogOpen) $("#updateInProgress").show();
   $("#error").hide();
 
-  let response = await doAsyncRequest(url, "GET", undefined, (error) => {
+  const response = await doAsyncRequest(url, "GET", undefined, (error) => {
     if (!isCurrent()) return true;
     console.error("Error sending request:", error);
-    $("#updateInProgress").hide();
-    $("#error").text(
-      `Error updating data: ${error?.responseJSON?.message || "Invalid response"}`,
-    );
-    $("#error").show();
+    const message = `Error updating data: ${error?.responseJSON?.message || "Invalid response"}`;
+    if (recenter) {
+      $("#searchLoading").hide();
+      $("#searchError").text(message).show();
+    } else {
+      $("#updateInProgress").hide();
+      $("#error").text(message).show();
+    }
     return true;
   });
 
-  // Проверяем, что response определён
-  if (!isCurrent()) return;
+  if (!isCurrent()) return false;
   if (!response) {
-    $("#updateInProgress").hide();
-    return;
+    if (recenter) $("#searchLoading").hide();
+    else $("#updateInProgress").hide();
+    return false;
+  }
+  if (recenter) {
+    if (!openArrivalsDialog()) {
+      $("#searchLoading").hide();
+      return false;
+    }
+    $("#searchLoading").hide();
   }
   updateArrivals(response, recenter);
+  return true;
 };
 
 const spawnInterval = (query = undefined) => {
   if (!query) query = currQuery;
   if (!query) return;
 
-  let city = getCity();
-  fetchArrivals(city, query, true);
-
-  currInterval = clearInterval(currInterval);
-  currInterval = setInterval(() => {
-    fetchArrivals(city, query, false);
-  }, 60 * 1000);
+  const city = getCity();
+  const selectionId = genericRequestId;
+  return fetchArrivals(city, query, true).then((loaded) => {
+    if (
+      !loaded ||
+      selectionId !== genericRequestId ||
+      query !== currQuery ||
+      city !== getCity()
+    )
+      return false;
+    currInterval = clearInterval(currInterval);
+    currInterval = setInterval(() => {
+      fetchArrivals(city, query, false);
+    }, 60 * 1000);
+    return true;
+  });
 };
 
 const toggleSchedule = (city, uid) => {
@@ -816,15 +849,16 @@ const initMap = () => {
   }
 };
 
+const canOpenArrivalsDialog = () => {
+  const dialog = document.getElementById("arrivalsDialog");
+  if (dialog && typeof dialog.showModal === "function") return true;
+  $("#searchError").text("This browser does not support modal dialogs.").show();
+  return false;
+};
+
 const openArrivalsDialog = () => {
   const dialog = document.getElementById("arrivalsDialog");
-  if (!dialog) return false;
-  if (typeof dialog.showModal !== "function") {
-    $("#searchError")
-      .text("This browser does not support modal dialogs.")
-      .show();
-    return false;
-  }
+  if (!dialog || !canOpenArrivalsDialog()) return false;
   if (dialog.open) return true;
   document.body.classList.add("dialog-open");
   dialog.showModal();
@@ -840,37 +874,35 @@ const closeArrivalsDialog = () => {
   document.body.classList.remove("dialog-open");
 };
 
-const startStationArrivals = (uid, station) => {
-  if (!openArrivalsDialog()) return;
+const startStationArrivals = (uid) => {
+  if (!canOpenArrivalsDialog()) return;
   const city = getCity();
-  const coords = Array.isArray(station?.coords)
-    ? station.coords.map(Number)
-    : [];
-  layerGroup.clearLayers();
-  currentPolyline = null;
-  if (
-    coords.length === 2 &&
-    coords.every(Number.isFinite) &&
-    coords.every(Boolean)
-  ) {
-    map.setView(coords, 15, { animate: false });
-    const name =
-      city === "bg" ? station.name : `${station.name} (${station.id})`;
-    L.featureGroup([createMarker(coords, undefined, "yellow", name)]).addTo(
-      layerGroup,
-    );
-  }
   genericRequestId++;
   scheduleRequestId++;
   currQuery = { uid: String(uid) };
+  currInterval = clearInterval(currInterval);
+  $("#searchError").hide();
+  $("#searchLoading").text("Loading arrivals…").show();
+
   if (city === "bg") {
-    currInterval = clearInterval(currInterval);
     bgStopCentered = false;
-    const refresh = fetchBgStop();
-    currInterval = setInterval(fetchBgStop, 60 * 1000);
-    return refresh;
+    bgStopRequestId++;
+    bgStopRequest = null;
+    const selectionId = genericRequestId;
+    const query = currQuery;
+    return fetchBgStop(true).then((loaded) => {
+      if (
+        !loaded ||
+        selectionId !== genericRequestId ||
+        query !== currQuery ||
+        city !== getCity()
+      )
+        return false;
+      currInterval = setInterval(fetchBgStop, 60 * 1000);
+      return true;
+    });
   }
-  spawnInterval(currQuery);
+  return spawnInterval(currQuery);
 };
 
 const submitByName = () => {
@@ -881,16 +913,13 @@ const submitByName = () => {
     (item) => item.name === selectedValue || String(item.id) === selectedValue,
   );
   if (city === "bg" && !station) return;
-  return startStationArrivals(station?.uid || selectedValue, station);
+  return startStationArrivals(station?.uid || selectedValue);
 };
 
 const submitByCoords = () => {
   const uid = $("#coords-input").val()?.trim();
   if (!uid) return;
-  const station = (allStations[getCity()] || []).find(
-    (item) => String(item.uid) === uid,
-  );
-  return startStationArrivals(uid, station);
+  return startStationArrivals(uid);
 };
 
 const toggleTable = () => {
@@ -1057,7 +1086,7 @@ const searchByCoords = async (
 
 const searchByGPS = async () => {
   $("#searchError").hide();
-  $("#searchLoading").show();
+  $("#searchLoading").text("Finding nearby stations…").show();
   try {
     lastUserLocation = await getUserLocation();
     $("#nearbyMap").show();
