@@ -145,6 +145,7 @@ function loadUiScript(runReady = false, initialAjax) {
       onCityChange,
       onSearchModeChange,
       submitByName,
+      submitByCoords,
       openArrivalsDialog,
       fetchBgStop,
       showBgRoute,
@@ -452,6 +453,91 @@ describe("UI behavior", () => {
     expect(input.value).toBe("Central");
     expect(document.getElementById("arrivalsDialog").open).toBe(true);
     document.getElementById("closeArrivals").click();
+  });
+
+  it("centers the map on a selected station before API responses in every city", () => {
+    const { $, dom, map, ui } = context;
+    $.ajax = vi.fn(() => new Promise(() => {}));
+    const stations = [
+      {
+        city: "ns",
+        uid: "ns-stop",
+        id: "1",
+        name: "Novi Sad stop",
+        coords: [45.25, 19.84],
+      },
+      {
+        city: "nis",
+        uid: "nis-stop",
+        id: "2",
+        name: "Nis stop",
+        coords: [43.32, 21.9],
+      },
+      {
+        city: "bg",
+        uid: "bg-stop",
+        id: "3",
+        name: "Belgrade stop",
+        coords: [44.79, 20.47],
+      },
+    ];
+
+    for (const station of stations) {
+      $("#city").val(station.city);
+      $("#name-input").val(station.name);
+      ui.setStations(station.city, [station]);
+      map.setView.mockClear();
+
+      ui.submitByName();
+
+      expect(map.setView).toHaveBeenCalledWith(station.coords, 15, {
+        animate: false,
+      });
+      expect(dom.window.L.featureGroup).toHaveBeenCalled();
+      ui.cancelInterval();
+    }
+  });
+
+  it("centers the map on a nearby selection before the API response", () => {
+    const { $, map, ui } = context;
+    $.ajax = vi.fn(() => new Promise(() => {}));
+    $("#city").val("ns");
+    $("#coords-input")
+      .append($('<option value="ns-stop">Novi Sad stop</option>'))
+      .val("ns-stop");
+    ui.setStations("ns", [
+      {
+        uid: "ns-stop",
+        id: "1",
+        name: "Novi Sad stop",
+        coords: [45.25, 19.84],
+      },
+    ]);
+
+    ui.submitByCoords();
+
+    expect(map.setView).toHaveBeenCalledWith([45.25, 19.84], 15, {
+      animate: false,
+    });
+  });
+
+  it("does not center the map on invalid station coordinates", () => {
+    const { $, map, ui } = context;
+    $.ajax = vi.fn(() => new Promise(() => {}));
+    $("#city").val("ns");
+    $("#name-input").val("Unknown coordinates");
+    ui.setStations("ns", [
+      {
+        uid: "ns-stop",
+        id: "1",
+        name: "Unknown coordinates",
+        coords: [0, 0],
+      },
+    ]);
+
+    ui.submitByName();
+
+    expect(map.setView).not.toHaveBeenCalled();
   });
 
   it("opens and closes arrivals through the native dialog controls", async () => {

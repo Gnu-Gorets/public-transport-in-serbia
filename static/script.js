@@ -840,9 +840,26 @@ const closeArrivalsDialog = () => {
   document.body.classList.remove("dialog-open");
 };
 
-const startStationArrivals = (uid) => {
+const startStationArrivals = (uid, station) => {
   if (!openArrivalsDialog()) return;
   const city = getCity();
+  const coords = Array.isArray(station?.coords)
+    ? station.coords.map(Number)
+    : [];
+  layerGroup.clearLayers();
+  currentPolyline = null;
+  if (
+    coords.length === 2 &&
+    coords.every(Number.isFinite) &&
+    coords.every(Boolean)
+  ) {
+    map.setView(coords, 15, { animate: false });
+    const name =
+      city === "bg" ? station.name : `${station.name} (${station.id})`;
+    L.featureGroup([createMarker(coords, undefined, "yellow", name)]).addTo(
+      layerGroup,
+    );
+  }
   genericRequestId++;
   scheduleRequestId++;
   currQuery = { uid: String(uid) };
@@ -864,13 +881,16 @@ const submitByName = () => {
     (item) => item.name === selectedValue || String(item.id) === selectedValue,
   );
   if (city === "bg" && !station) return;
-  return startStationArrivals(station?.uid || selectedValue);
+  return startStationArrivals(station?.uid || selectedValue, station);
 };
 
 const submitByCoords = () => {
   const uid = $("#coords-input").val()?.trim();
   if (!uid) return;
-  return startStationArrivals(uid);
+  const station = (allStations[getCity()] || []).find(
+    (item) => String(item.uid) === uid,
+  );
+  return startStationArrivals(uid, station);
 };
 
 const toggleTable = () => {
