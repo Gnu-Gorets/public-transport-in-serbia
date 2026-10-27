@@ -12,6 +12,7 @@ import server from "../server/server.js";
 
 const require = createRequire(import.meta.url);
 const logger = require("../server/logger.js");
+const { state } = require("../server/state.js");
 const yandexBelgradeService = require("../server/services/yandexBelgradeService.js");
 const belgradeStops = require("../server/data/yandex-belgrade-bus-stops.json");
 const { fastify, _test } = server;
@@ -843,6 +844,46 @@ describe("API routes", () => {
 
     expect(response.statusCode).toBe(502);
     expect(response.json()).toEqual({ error: "provider unavailable" });
+  });
+
+  it("keeps the previous station cache when refresh transformation fails", async () => {
+    _test.setNow(() => 2 * 24 * 60 * 60 * 1000);
+    const loadedAt = 1_000;
+    _test.setState({
+      allStations: {
+        ns: { old: { uid: "old", id: "1", name: "Old", lines: [] } },
+      },
+      allLines: { ns: { old: ["old"] } },
+      id_uid_map: { ns: { 1: "old" } },
+      uid_id_map: { ns: { old: "1" } },
+      cacheMeta: { ns: { loadedAt } },
+    });
+    _test.setHttpClient({
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({
+        status: 200,
+        data: { stations: stationsResponse().stations, lines: {} },
+      }),
+    });
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/api/stations/ns/all",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject([
+      { uid: "old", id: "1", name: "Old", lines: [] },
+    ]);
+    expect(state).toMatchObject({
+      allStations: {
+        ns: { old: { uid: "old", id: "1", name: "Old", lines: [] } },
+      },
+      allLines: { ns: { old: ["old"] } },
+      idUidMap: { ns: { 1: "old" } },
+      uidIdMap: { ns: { old: "1" } },
+      cacheMeta: { ns: { loadedAt, lastError: expect.any(String) } },
+    });
   });
 
   it("refreshes stale station cache before serving lines", async () => {

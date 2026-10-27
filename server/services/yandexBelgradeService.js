@@ -231,8 +231,13 @@ function validCoordinates(coords) {
   );
 }
 
-function parseRoutePage(html, lineId, threadId) {
-  const line = parsePageState(html).config?.masstransitLine;
+function parseRoutePage(
+  html,
+  lineId,
+  threadId,
+  pageState = parsePageState(html),
+) {
+  const line = pageState.config?.masstransitLine;
   const thread =
     Array.isArray(line?.features) &&
     line.features.find(
@@ -466,11 +471,14 @@ async function getRoutePage(lineId, threadId, stopId) {
   const entry = { at: Date.now() };
   const pageUrl = `https://yandex.com${routeRef.path}`;
   entry.promise = fetchPage(pageUrl)
-    .then((html) => ({
-      route: parseRoutePage(html, lineId, threadId),
-      config: parsePageState(html).config,
-      pageUrl,
-    }))
+    .then((html) => {
+      const pageState = parsePageState(html);
+      return {
+        route: parseRoutePage(html, lineId, threadId, pageState),
+        config: pageState.config,
+        pageUrl,
+      };
+    })
     .catch((error) => {
       if (routeCache.get(key) === entry) routeCache.delete(key);
       throw error;

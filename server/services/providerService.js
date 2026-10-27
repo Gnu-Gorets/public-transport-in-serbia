@@ -23,15 +23,16 @@ function isStationsCacheExpired(city) {
   return !loadedAt || now() - loadedAt >= STATIONS_CACHE_TTL_MS;
 }
 
-function rebuildIdUidMap(city) {
-  state.idUidMap[city] = {};
-  state.uidIdMap[city] = {};
-  for (const station of Object.values(state.allStations[city] || {})) {
+function buildIdUidMaps(stations) {
+  const idUidMap = {};
+  const uidIdMap = {};
+  for (const station of Object.values(stations)) {
     if (station.id != null && station.uid != null) {
-      state.idUidMap[city][String(station.id)] = String(station.uid);
-      state.uidIdMap[city][String(station.uid)] = String(station.id);
+      idUidMap[String(station.id)] = String(station.uid);
+      uidIdMap[String(station.uid)] = String(station.id);
     }
   }
+  return { idUidMap, uidIdMap };
 }
 
 async function populateMap(force = false) {
@@ -173,9 +174,13 @@ async function fetchAndCacheStations(city) {
       contentType: "application/json",
       timeout: STATIONS_TIMEOUT_MS,
     });
-    state.allStations[city] = transformAllStationsResponse(response);
-    state.allLines[city] = transformAllLinesResponse(response);
-    rebuildIdUidMap(city);
+    const stations = transformAllStationsResponse(response);
+    const lines = transformAllLinesResponse(response);
+    const { idUidMap, uidIdMap } = buildIdUidMaps(stations);
+    state.allStations[city] = stations;
+    state.allLines[city] = lines;
+    state.idUidMap[city] = idUidMap;
+    state.uidIdMap[city] = uidIdMap;
     markCacheLoaded(city, now());
   } catch (err) {
     const age = now() - (state.cacheMeta[city]?.loadedAt || 0);
