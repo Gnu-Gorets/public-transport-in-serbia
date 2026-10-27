@@ -23,11 +23,11 @@ const start = async () => {
   try {
     alertsService.configureVapid();
     await alertsService.load();
-    await providerService.populateMap(true);
     await fastify.listen({
       port: Number(process.env.PORT || 3000),
       host: "0.0.0.0",
     });
+    void providerService.populateMap(true);
   } catch (err) {
     logger.error({ err }, "Server startup failed");
     process.exit(1);

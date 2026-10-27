@@ -14,6 +14,7 @@ const require = createRequire(import.meta.url);
 const logger = require("../server/logger.js");
 const { state } = require("../server/state.js");
 const yandexBelgradeService = require("../server/services/yandexBelgradeService.js");
+const providerService = require("../server/services/providerService.js");
 const alertsService = require("../server/services/alertsService.js");
 const belgradeStops = require("../server/data/yandex-belgrade-bus-stops.json");
 const { fastify, _test } = server;
@@ -86,6 +87,23 @@ describe("API routes", () => {
 
   afterAll(async () => {
     await fastify.close();
+  });
+
+  it("starts listening before warming provider station caches", async () => {
+    const order = [];
+    vi.spyOn(alertsService, "configureVapid").mockImplementation(() => {});
+    vi.spyOn(alertsService, "load").mockResolvedValue();
+    vi.spyOn(fastify, "listen").mockImplementation(async () => {
+      order.push("listen");
+      return fastify;
+    });
+    vi.spyOn(providerService, "populateMap").mockImplementation(async () => {
+      order.push("populate");
+    });
+
+    await server.start();
+
+    expect(order).toEqual(["listen", "populate"]);
   });
 
   it("serves the UI entrypoint", async () => {
@@ -612,6 +630,27 @@ describe("API routes", () => {
 
     expect(response.statusCode).toBe(502);
     expect(response.json()).toEqual({ error: "provider unavailable" });
+  });
+
+  it("keeps station cache warmup alive when one provider fails", async () => {
+    const error = vi.spyOn(logger, "error").mockImplementation(() => {});
+    const post = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("provider unavailable"))
+      .mockResolvedValue({ status: 200, data: stationsResponse() });
+    _test.setHttpClient({ get: vi.fn(), post });
+
+    await expect(providerService.populateMap(true)).resolves.toBeUndefined();
+
+    const providerCities = Object.keys(
+      providerService.getAvailableCities(),
+    ).filter((city) => city !== "bg").length;
+    expect(post).toHaveBeenCalledTimes(providerCities);
+    expect(Object.keys(state.allStations)).not.toHaveLength(0);
+    expect(error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      expect.stringMatching(/^Populating map failed for /),
+    );
   });
 
   it("uses fresh cached stations without calling provider", async () => {

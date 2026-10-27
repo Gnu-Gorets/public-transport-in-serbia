@@ -45,7 +45,7 @@ async function populateMap(force = false) {
         logger.info(`Populating map finished for ${city}`);
       } catch (err) {
         logger.error({ err }, `Populating map failed for ${city}`);
-        throw err;
+        // Cache warmup is best-effort; provider outages must not block startup.
       }
     }),
   );
