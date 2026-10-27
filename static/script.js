@@ -818,11 +818,18 @@ const initMap = () => {
 
 const openArrivalsDialog = () => {
   const dialog = document.getElementById("arrivalsDialog");
-  if (!dialog || dialog.open) return;
+  if (!dialog) return false;
+  if (typeof dialog.showModal !== "function") {
+    $("#searchError")
+      .text("This browser does not support modal dialogs.")
+      .show();
+    return false;
+  }
+  if (dialog.open) return true;
   document.body.classList.add("dialog-open");
-  if (typeof dialog.showModal === "function") dialog.showModal();
-  else dialog.setAttribute("open", "");
+  dialog.showModal();
   setTimeout(() => map?.invalidateSize?.(), 50);
+  return true;
 };
 
 const closeArrivalsDialog = () => {
@@ -834,11 +841,11 @@ const closeArrivalsDialog = () => {
 };
 
 const startStationArrivals = (uid) => {
+  if (!openArrivalsDialog()) return;
   const city = getCity();
   genericRequestId++;
   scheduleRequestId++;
   currQuery = { uid: String(uid) };
-  openArrivalsDialog();
   if (city === "bg") {
     currInterval = clearInterval(currInterval);
     bgStopCentered = false;

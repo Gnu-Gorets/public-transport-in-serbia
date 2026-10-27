@@ -30,7 +30,7 @@ function loadUiScript(runReady = false, initialAjax) {
       <div id="stationControls">
         <select id="searchMode"><option value="id">ID</option><option value="name">Name</option><option value="coords">Coords</option></select>
         <div class="id-search"><input id="id-input" /><button id="submitId" disabled></button></div>
-        <div class="name-search"><input id="name-input" role="combobox" aria-controls="dropdown" aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" /><div id="dropdown" role="listbox" aria-label="Stations"></div><p id="dropdown-status" class="helper-text" role="status" aria-live="polite" hidden>No stations found.</p></div>
+        <div class="name-search"><input id="name-input" role="combobox" aria-controls="dropdown" aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" /><div id="dropdown" role="listbox" aria-label="Stations"></div><p id="dropdown-status" class="helper-text" role="status" aria-live="polite"></p></div>
         <div class="coords-search"><button id="findNearby"></button><div id="nearbyMap"></div></div>
       </div>
       <p id="chooseCityMessage"></p><p id="searchLoading"></p><p id="searchError"></p>
@@ -172,6 +172,9 @@ function loadUiScript(runReady = false, initialAjax) {
     };
   `;
 
+  dom.window.HTMLDialogElement.prototype.showModal = function showModal() {
+    this.setAttribute("open", "");
+  };
   vm.runInContext(source, dom.getInternalVMContext());
   dom.window.__ui.setMapStubs(map, layerGroup);
   if (runReady) {
@@ -361,6 +364,13 @@ describe("UI behavior", () => {
     expect(input.getAttribute("role")).toBe("combobox");
     expect(input.getAttribute("aria-controls")).toBe("dropdown");
     expect(input.getAttribute("aria-expanded")).toBe("true");
+    expect(dropdown.getAttribute("role")).toBe("listbox");
+    expect(dropdown.getAttribute("aria-label")).toBe("Stations");
+    expect(
+      [...dropdown.querySelectorAll('[role="option"]')].map((option) =>
+        option.getAttribute("aria-selected"),
+      ),
+    ).toEqual(["false", "false"]);
 
     const arrowDown = new readyContext.dom.window.KeyboardEvent("keydown", {
       key: "ArrowDown",
@@ -373,6 +383,27 @@ describe("UI behavior", () => {
     const activeOption = dropdown.querySelector('[role="option"]');
     expect(input.getAttribute("aria-activedescendant")).toBe(activeOption.id);
     expect(activeOption.getAttribute("aria-selected")).toBe("true");
+
+    const arrowUp = new readyContext.dom.window.KeyboardEvent("keydown", {
+      key: "ArrowUp",
+      bubbles: true,
+      cancelable: true,
+    });
+    input.dispatchEvent(arrowUp);
+    expect(arrowUp.defaultPrevented).toBe(true);
+    expect(input.getAttribute("aria-activedescendant")).toBe(
+      dropdown.querySelectorAll('[role="option"]')[0].id,
+    );
+    expect(
+      dropdown
+        .querySelectorAll('[role="option"]')[0]
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+    expect(
+      dropdown
+        .querySelectorAll('[role="option"]')[1]
+        .getAttribute("aria-selected"),
+    ).toBe("false");
 
     input.dispatchEvent(
       new readyContext.dom.window.KeyboardEvent("keydown", {
@@ -388,6 +419,8 @@ describe("UI behavior", () => {
       new readyContext.dom.window.Event("input", { bubbles: true }),
     );
     const noResults = document.getElementById("dropdown-status");
+    expect(noResults?.getAttribute("role")).toBe("status");
+    expect(noResults?.getAttribute("aria-live")).toBe("polite");
     expect(noResults?.textContent.trim()).toBe("No stations found.");
     expect(noResults.hidden).toBe(false);
     expect(noResults.classList.contains("helper-text")).toBe(true);
@@ -449,6 +482,37 @@ describe("UI behavior", () => {
     expect(
       readyContext.dom.window.document.body.classList.contains("dialog-open"),
     ).toBe(false);
+  });
+
+  it("reports when native modal dialogs are unsupported", async () => {
+    const readyContext = loadUiScript(true);
+    context = readyContext;
+    await readyContext.readyPromise;
+    const { document } = readyContext.dom.window;
+    const dialog = document.getElementById("arrivalsDialog");
+    dialog.showModal = undefined;
+
+    expect(readyContext.ui.openArrivalsDialog()).toBe(false);
+    expect(dialog.open).toBe(false);
+    expect(document.body.classList.contains("dialog-open")).toBe(false);
+    expect(document.getElementById("searchError").textContent).toBe(
+      "This browser does not support modal dialogs.",
+    );
+  });
+
+  it("releases the page lock when the native dialog closes", async () => {
+    const readyContext = loadUiScript(true);
+    context = readyContext;
+    await readyContext.readyPromise;
+    const { document } = readyContext.dom.window;
+    const dialog = document.getElementById("arrivalsDialog");
+
+    readyContext.ui.openArrivalsDialog();
+    expect(document.body.classList.contains("dialog-open")).toBe(true);
+    dialog.removeAttribute("open");
+    dialog.dispatchEvent(new readyContext.dom.window.Event("close"));
+
+    expect(document.body.classList.contains("dialog-open")).toBe(false);
   });
 
   it("closes arrivals when the selected city changes", async () => {
