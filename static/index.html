@@ -124,10 +124,22 @@
                     class="input"
                     placeholder="Search stations"
                     autocomplete="off"
-                    aria-controls="dropdown"
+                    role="combobox"
                     aria-autocomplete="list"
+                    aria-expanded="false"
+                    aria-controls="dropdown"
+                    aria-haspopup="listbox"
                   />
                   <div id="dropdown" role="listbox" aria-label="Stations"></div>
+                  <p
+                    id="dropdown-status"
+                    class="helper-text"
+                    role="status"
+                    aria-live="polite"
+                    hidden
+                  >
+                    No stations found.
+                  </p>
                 </div>
               </div>
             </div>

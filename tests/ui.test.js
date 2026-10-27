@@ -30,7 +30,7 @@ function loadUiScript(runReady = false, initialAjax) {
       <div id="stationControls">
         <select id="searchMode"><option value="id">ID</option><option value="name">Name</option><option value="coords">Coords</option></select>
         <div class="id-search"><input id="id-input" /><button id="submitId" disabled></button></div>
-        <div class="name-search"><input id="name-input" aria-controls="dropdown" /><div id="dropdown" role="listbox"></div></div>
+        <div class="name-search"><input id="name-input" role="combobox" aria-controls="dropdown" aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" /><div id="dropdown" role="listbox" aria-label="Stations"></div><p id="dropdown-status" class="helper-text" role="status" aria-live="polite" hidden>No stations found.</p></div>
         <div class="coords-search"><button id="findNearby"></button><div id="nearbyMap"></div></div>
       </div>
       <p id="chooseCityMessage"></p><p id="searchLoading"></p><p id="searchError"></p>
@@ -339,6 +339,84 @@ describe("UI behavior", () => {
     ).toBe("true");
   });
 
+  it("supports keyboard navigation and announces empty name-search results", async () => {
+    const readyContext = loadUiScript(true);
+    context = readyContext;
+    await readyContext.readyPromise;
+    const { document } = readyContext.dom.window;
+    const input = document.getElementById("name-input");
+    const dropdown = document.getElementById("dropdown");
+    readyContext.ui.setStations("bg", [
+      { id: "1", uid: "one", name: "Central" },
+      { id: "2", uid: "two", name: "Riverside" },
+    ]);
+    document.getElementById("city").value = "bg";
+    document.getElementById("stationControls").style.display = "block";
+    document.querySelector(".name-search").style.display = "block";
+
+    input.focus();
+    await vi.waitFor(() =>
+      expect(dropdown.querySelectorAll('[role="option"]')).toHaveLength(2),
+    );
+    expect(input.getAttribute("role")).toBe("combobox");
+    expect(input.getAttribute("aria-controls")).toBe("dropdown");
+    expect(input.getAttribute("aria-expanded")).toBe("true");
+
+    const arrowDown = new readyContext.dom.window.KeyboardEvent("keydown", {
+      key: "ArrowDown",
+      bubbles: true,
+      cancelable: true,
+    });
+    input.dispatchEvent(arrowDown);
+    expect(arrowDown.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(input);
+    const activeOption = dropdown.querySelector('[role="option"]');
+    expect(input.getAttribute("aria-activedescendant")).toBe(activeOption.id);
+    expect(activeOption.getAttribute("aria-selected")).toBe("true");
+
+    input.dispatchEvent(
+      new readyContext.dom.window.KeyboardEvent("keydown", {
+        key: "Escape",
+        bubbles: true,
+      }),
+    );
+    expect(document.activeElement).toBe(input);
+    expect(input.getAttribute("aria-expanded")).toBe("false");
+
+    input.value = "no matching station";
+    input.dispatchEvent(
+      new readyContext.dom.window.Event("input", { bubbles: true }),
+    );
+    const noResults = document.getElementById("dropdown-status");
+    expect(noResults?.textContent.trim()).toBe("No stations found.");
+    expect(noResults.hidden).toBe(false);
+    expect(noResults.classList.contains("helper-text")).toBe(true);
+    expect(input.getAttribute("aria-expanded")).toBe("false");
+    expect(dropdown.querySelectorAll('[role="option"]')).toHaveLength(0);
+
+    input.value = "";
+    input.dispatchEvent(
+      new readyContext.dom.window.Event("input", { bubbles: true }),
+    );
+    input.dispatchEvent(
+      new readyContext.dom.window.KeyboardEvent("keydown", {
+        key: "ArrowDown",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    input.dispatchEvent(
+      new readyContext.dom.window.KeyboardEvent("keydown", {
+        key: "Enter",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(input.value).toBe("Central");
+    expect(document.getElementById("arrivalsDialog").open).toBe(true);
+    document.getElementById("closeArrivals").click();
+  });
+
   it("shows missing station ID feedback in the search card", async () => {
     const { dom, ui } = loadUiScript();
     ui.setStations("bg", []);
@@ -350,6 +428,27 @@ describe("UI behavior", () => {
       "Station ID was not found.",
     );
     expect(dom.window.document.getElementById("error").textContent).toBe("");
+  });
+
+  it("opens and closes arrivals through the native dialog controls", async () => {
+    const readyContext = loadUiScript(true);
+    context = readyContext;
+    await readyContext.readyPromise;
+
+    const dialog =
+      readyContext.dom.window.document.getElementById("arrivalsDialog");
+    readyContext.ui.openArrivalsDialog();
+    expect(dialog.open).toBe(true);
+    expect(dialog.tagName).toBe("DIALOG");
+    expect(
+      readyContext.dom.window.document.body.classList.contains("dialog-open"),
+    ).toBe(true);
+
+    readyContext.dom.window.document.getElementById("closeArrivals").click();
+    expect(dialog.open).toBe(false);
+    expect(
+      readyContext.dom.window.document.body.classList.contains("dialog-open"),
+    ).toBe(false);
   });
 
   it("closes arrivals when the selected city changes", async () => {

@@ -138,10 +138,7 @@ const onCityChange = async () => {
   const city = getCity();
   const cityChanged = city !== currentCity;
   const dialog = document.getElementById("arrivalsDialog");
-  if (cityChanged && dialog?.open) {
-    if (typeof dialog.close === "function") dialog.close();
-    else dialog.removeAttribute("open");
-  }
+  if (cityChanged && dialog?.open) closeArrivalsDialog();
   const isBelgrade = city === "bg";
   const wasBelgrade = currentCity === "bg";
   if (!city) {
@@ -822,9 +819,18 @@ const initMap = () => {
 const openArrivalsDialog = () => {
   const dialog = document.getElementById("arrivalsDialog");
   if (!dialog || dialog.open) return;
+  document.body.classList.add("dialog-open");
   if (typeof dialog.showModal === "function") dialog.showModal();
   else dialog.setAttribute("open", "");
   setTimeout(() => map?.invalidateSize?.(), 50);
+};
+
+const closeArrivalsDialog = () => {
+  const dialog = document.getElementById("arrivalsDialog");
+  if (!dialog) return;
+  if (typeof dialog.close === "function") dialog.close();
+  else dialog.removeAttribute("open");
+  document.body.classList.remove("dialog-open");
 };
 
 const startStationArrivals = (uid) => {
@@ -1099,6 +1105,34 @@ $(document).ready(async () => {
   const input = document.getElementById("name-input");
   const dropdown = document.getElementById("dropdown");
   let stations = [];
+  let activeIndex = -1;
+  input.setAttribute("aria-expanded", "false");
+  let noResults = document.getElementById("dropdown-status");
+  if (!noResults) {
+    noResults = document.createElement("p");
+    noResults.id = "dropdown-status";
+    noResults.className = "helper-text";
+    noResults.setAttribute("role", "status");
+    noResults.setAttribute("aria-live", "polite");
+    noResults.hidden = true;
+    dropdown.insertAdjacentElement("afterend", noResults);
+  }
+
+  const closeDropdown = () => {
+    dropdown.style.display = "none";
+    input.setAttribute("aria-expanded", "false");
+    input.removeAttribute("aria-activedescendant");
+    noResults.hidden = true;
+    activeIndex = -1;
+  };
+  const setActiveOption = (index) => {
+    const options = [...dropdown.querySelectorAll('[role="option"]')];
+    activeIndex = Math.max(0, Math.min(options.length - 1, index));
+    options.forEach((option, optionIndex) => {
+      option.setAttribute("aria-selected", String(optionIndex === activeIndex));
+    });
+    input.setAttribute("aria-activedescendant", options[activeIndex].id);
+  };
   const fetchStations = async () => {
     const city = getCity();
     if (!allStations[city]) await fetchCityStations(city);
@@ -1111,45 +1145,32 @@ $(document).ready(async () => {
 
   function showDropdown(stationList) {
     dropdown.replaceChildren();
+    activeIndex = -1;
+    input.removeAttribute("aria-activedescendant");
     if (stationList.length === 0) {
-      dropdown.style.display = "none";
+      closeDropdown();
+      noResults.textContent = "No stations found.";
+      noResults.hidden = false;
       return;
     }
+    noResults.textContent = "";
+    noResults.hidden = true;
 
-    stationList.forEach((station) => {
+    stationList.forEach((station, index) => {
       const item = document.createElement("div");
+      item.id = `station-option-${index}`;
       item.classList.add("station-item");
       item.setAttribute("role", "option");
       item.setAttribute("aria-selected", "false");
-      item.tabIndex = 0;
+      item.tabIndex = -1;
       item.textContent =
         getCity() === "bg" ? station.name : `${station.name} (${station.id})`;
       const selectStation = () => {
         input.value = station.name;
-        dropdown.style.display = "none";
-        input.setAttribute("aria-expanded", "false");
+        closeDropdown();
         submitByName();
       };
       item.addEventListener("click", selectStation);
-      item.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          selectStation();
-        } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-          event.preventDefault();
-          const options = [...dropdown.querySelectorAll('[role="option"]')];
-          const direction = event.key === "ArrowDown" ? 1 : -1;
-          const nextIndex = Math.max(
-            0,
-            Math.min(options.length - 1, options.indexOf(item) + direction),
-          );
-          options[nextIndex]?.focus();
-        } else if (event.key === "Escape") {
-          dropdown.style.display = "none";
-          input.setAttribute("aria-expanded", "false");
-          input.focus();
-        }
-      });
       dropdown.appendChild(item);
     });
 
@@ -1176,22 +1197,34 @@ $(document).ready(async () => {
   });
 
   input.addEventListener("keydown", (event) => {
-    if (event.key === "ArrowDown") {
-      const firstOption = dropdown.querySelector('[role="option"]');
-      if (firstOption) {
-        event.preventDefault();
-        firstOption.focus();
-      }
-    } else if (event.key === "Escape") {
-      dropdown.style.display = "none";
-      input.setAttribute("aria-expanded", "false");
+    const options = dropdown.querySelectorAll('[role="option"]');
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (options.length === 0) return;
+      event.preventDefault();
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      setActiveOption(
+        activeIndex < 0
+          ? direction === 1
+            ? 0
+            : options.length - 1
+          : activeIndex + direction,
+      );
+    } else if (
+      event.key === "Enter" &&
+      activeIndex >= 0 &&
+      options[activeIndex]
+    ) {
+      event.preventDefault();
+      options[activeIndex].click();
+    } else if (event.key === "Escape" && dropdown.style.display !== "none") {
+      event.preventDefault();
+      closeDropdown();
     }
   });
 
   $(document).on("click", (event) => {
     if (!$(event.target).closest("#name-input, #dropdown").length) {
-      dropdown.style.display = "none";
-      input.setAttribute("aria-expanded", "false");
+      closeDropdown();
     }
   });
 
@@ -1219,16 +1252,16 @@ $(document).ready(async () => {
 
   const dialog = document.getElementById("arrivalsDialog");
   document.getElementById("closeArrivals")?.addEventListener("click", () => {
-    if (typeof dialog?.close === "function") dialog.close();
-    else dialog?.removeAttribute("open");
+    closeArrivalsDialog();
   });
   dialog?.addEventListener("close", () => {
+    document.body.classList.remove("dialog-open");
     cancelInterval();
     bgVehicleRequestId++;
     bgRouteSelection = undefined;
   });
   dialog?.addEventListener("click", (event) => {
-    if (event.target === dialog) dialog.close();
+    if (event.target === dialog) closeArrivalsDialog();
   });
   document.getElementById("findNearby")?.addEventListener("click", searchByGPS);
   document.getElementById("id-input")?.addEventListener("input", (event) => {
