@@ -1,9 +1,4 @@
-FROM alpine:3.24.3
-
-# Install Node.js 26 and runtime packages
-RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/main >> /etc/apk/repositories \
-  && echo https://dl-cdn.alpinelinux.org/alpine/edge/community >> /etc/apk/repositories \
-  && apk add --no-cache nodejs-current npm
+FROM node:26-alpine
 
 # Create a non-root user for the application
 RUN addgroup -S app && adduser -S -G app app
@@ -16,11 +11,15 @@ USER app
 
 # Install project dependencies
 COPY --chown=app:app package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci
 
-# Copy runtime application files
+# Copy application files and build the SvelteKit app
 COPY --chown=app:app server ./server
+COPY --chown=app:app src ./src
 COPY --chown=app:app static ./static
+COPY --chown=app:app scripts ./scripts
+COPY --chown=app:app vite.config.mjs tsconfig.json ./
+RUN npm run build && npm prune --omit=dev
 
 # Run the project
 CMD ["node", "server/server.js"]

@@ -3,6 +3,7 @@ const { resetHttpClient, setHttpClient } = require("./httpClient");
 const logger = require("./logger");
 const { resetState, setState } = require("./state");
 const providerService = require("./services/providerService");
+const alertsService = require("./services/alertsService");
 const {
   transformAllLinesResponse,
   transformAllStationsResponse,
@@ -20,8 +21,13 @@ const resetAll = () => {
 
 const start = async () => {
   try {
+    alertsService.configureVapid();
+    await alertsService.load();
     await providerService.populateMap(true);
-    await fastify.listen({ port: 3000, host: "0.0.0.0" });
+    await fastify.listen({
+      port: Number(process.env.PORT || 3000),
+      host: "0.0.0.0",
+    });
   } catch (err) {
     logger.error({ err }, "Server startup failed");
     process.exit(1);

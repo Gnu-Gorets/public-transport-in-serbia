@@ -14,6 +14,7 @@ const {
   belgradeStops,
 } = require("../services/yandexBelgradeService");
 const { badRequest, sendError } = require("../errors");
+const alertsService = require("../services/alertsService");
 const {
   bgRouteParams,
   bgStopQuery,
@@ -114,6 +115,61 @@ function registerApiRoutes(fastify) {
       reply.header("Cache-Control", "public, max-age=3600");
       reply.send(state.allLines[city] || {});
     }, "Failed to fetch lines"),
+  );
+
+  fastify.get("/api/v2/alerts/vapid-key", async (_request, reply) => {
+    if (!alertsService.configured())
+      return reply.code(503).send({ error: "Push alerts are not configured" });
+    alertsService.configureVapid();
+    return reply.send({ publicKey: process.env.VAPID_PUBLIC_KEY });
+  });
+
+  fastify.put(
+    "/api/v2/alerts",
+    {
+      bodyLimit: 4096,
+      config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      if (!alertsService.configured())
+        return reply
+          .code(503)
+          .send({ error: "Push alerts are not configured" });
+      try {
+        if (Buffer.byteLength(JSON.stringify(request.body)) > 4096)
+          return reply.code(413).send({ error: "Alert request is too large" });
+        alertsService.configureVapid();
+        const { subscription, alerts } = request.body || {};
+        return reply.send(
+          await alertsService.replaceAlerts(subscription, alerts),
+        );
+      } catch (error) {
+        const statusCode = Number.isInteger(error.statusCode)
+          ? error.statusCode
+          : 400;
+        return reply.code(statusCode).send({ error: error.message });
+      }
+    },
+  );
+
+  fastify.delete(
+    "/api/v2/alerts",
+    { bodyLimit: 4096 },
+    async (request, reply) => {
+      if (!alertsService.configured())
+        return reply
+          .code(503)
+          .send({ error: "Push alerts are not configured" });
+      try {
+        await alertsService.removeSubscription(request.body?.endpoint);
+        return reply.code(204).send();
+      } catch (error) {
+        const statusCode = Number.isInteger(error.statusCode)
+          ? error.statusCode
+          : 400;
+        return reply.code(statusCode).send({ error: error.message });
+      }
+    },
   );
 
   fastify.get("/health", async (request, reply) => {

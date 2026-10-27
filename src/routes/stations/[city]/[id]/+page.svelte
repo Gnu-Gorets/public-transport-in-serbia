@@ -1,0 +1,536 @@
+<script lang="ts">
+  import { onMount } from "svelte";
+  import { page } from "$app/state";
+  import { getBelgradeStopArrivals, getStationArrivals } from "$lib/api";
+  import type {
+    BelgradeStopArrivals,
+    StationArrivals,
+    VehicleArrival,
+  } from "$lib/api";
+  import { getFavorites, setFavorite } from "$lib/stations/storage.js";
+  import {
+    listAlerts,
+    removeAlert,
+    saveAlert,
+    type StoredAlert,
+  } from "$lib/state/alerts";
+  import { createArrivalAlert } from "$lib/alerts/arrival-alert.mjs";
+  import {
+    requestPushPermission,
+    syncPushAlerts,
+  } from "$lib/state/push-alerts";
+
+  let arrivals: StationArrivals | null = $state(null);
+  let belgrade: BelgradeStopArrivals | null = $state(null);
+  let error = $state("");
+  let loading = $state(true);
+  let expandedLine = $state("");
+  let favorite = $state(false);
+  let alertDialog = $state<HTMLDialogElement>();
+  let selectedVehicle: VehicleArrival | null = $state(null);
+  let activeAlerts: StoredAlert[] = $state([]);
+  let triggerKind = $state<"minutes" | "stations">("minutes");
+  let triggerValue = $state(5);
+  let delivery = $state<"local" | "push">("local");
+  let alertError = $state("");
+  let city = $derived(page.params.city);
+  let uid = $derived(page.params.id);
+  let lines = $derived.by(() => {
+    const grouped = new Map<string, VehicleArrival[]>();
+    for (const vehicle of arrivals?.vehicles || []) {
+      const line = String(vehicle.lineNumber);
+      grouped.set(line, [...(grouped.get(line) || []), vehicle]);
+    }
+    return [...grouped.entries()]
+      .map(([lineNumber, vehicles]) => ({
+        lineNumber,
+        name: vehicles[0]?.lineName || lineNumber,
+        vehicles: vehicles.sort(
+          (a, b) => Number(a.secondsLeft) - Number(b.secondsLeft),
+        ),
+      }))
+      .sort(
+        (a, b) =>
+          Number(a.vehicles[0]?.secondsLeft) -
+          Number(b.vehicles[0]?.secondsLeft),
+      );
+  });
+
+  onMount(() => {
+    void refreshAlerts();
+    let active = true;
+    let inFlight = false;
+    let controller: AbortController | undefined;
+    const load = async () => {
+      if (!active || inFlight) return;
+      inFlight = true;
+      controller = new AbortController();
+      try {
+        if (city === "bg") {
+          const result = await getBelgradeStopArrivals(
+            uid ?? "",
+            controller.signal,
+          );
+          if (!active) return;
+          belgrade = result;
+          arrivals = null;
+          error = "";
+          favorite = (await getFavorites()).some(
+            (item) => item.city === city && item.id === String(result.id),
+          );
+        } else {
+          arrivals = await getStationArrivals(
+            city ?? "",
+            { uid: uid ?? "" },
+            controller.signal,
+          );
+          if (!active) return;
+          belgrade = null;
+          error = "";
+          expandedLine ||= String(arrivals.vehicles?.[0]?.lineNumber || "");
+          favorite = (await getFavorites()).some(
+            (item) => item.city === city && item.id === String(arrivals?.id),
+          );
+        }
+      } catch (cause) {
+        if (
+          active &&
+          !(cause instanceof DOMException && cause.name === "AbortError")
+        ) {
+          error =
+            cause instanceof Error ? cause.message : "Unable to load arrivals.";
+        }
+      } finally {
+        inFlight = false;
+        if (active) loading = false;
+      }
+    };
+    void load();
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void load();
+    }, 10000);
+    return () => {
+      active = false;
+      controller?.abort();
+      clearInterval(timer);
+    };
+  });
+
+  async function refreshAlerts() {
+    try {
+      activeAlerts = (await listAlerts()).filter(
+        (alert) =>
+          alert.city === city &&
+          alert.stationId === uid &&
+          alert.status === "active",
+      );
+    } catch {
+      activeAlerts = [];
+    }
+  }
+
+  async function showAlerts() {
+    selectedVehicle = null;
+    await refreshAlerts();
+    alertDialog?.showModal();
+  }
+
+  function createAlertFor(vehicle: VehicleArrival) {
+    selectedVehicle = vehicle;
+    triggerKind = "minutes";
+    triggerValue = 5;
+    delivery = "local";
+    alertDialog?.showModal();
+  }
+
+  async function saveArrivalAlert() {
+    alertError = "";
+    if (!arrivals || !selectedVehicle || !selectedVehicle.garageNo) return;
+    try {
+      if (delivery === "push") await requestPushPermission();
+      const alert = createArrivalAlert({
+        id: crypto.randomUUID(),
+        city: city || "",
+        stationId: String(arrivals.uid),
+        stationName: arrivals.name || "Station",
+        lineNumber: String(selectedVehicle.lineNumber),
+        lineName:
+          selectedVehicle.lineName || String(selectedVehicle.lineNumber),
+        garageNo: String(selectedVehicle.garageNo),
+        trigger: { kind: triggerKind, value: triggerValue },
+        delivery,
+      });
+      const existing = await listAlerts();
+      const allActive = existing.filter((item) => item.status === "active");
+      if (allActive.length >= 10) {
+        alertError = "You can have up to 10 active alerts.";
+        return;
+      }
+      await saveAlert(alert);
+      if (delivery === "push") {
+        try {
+          await syncPushAlerts([
+            ...existing.filter(
+              (item) => item.delivery === "push" && item.status === "active",
+            ),
+            alert,
+          ]);
+        } catch (cause) {
+          await removeAlert(alert.id);
+          throw cause;
+        }
+      }
+      await refreshAlerts();
+      selectedVehicle = null;
+      alertDialog?.close();
+    } catch (cause) {
+      alertError =
+        cause instanceof Error ? cause.message : "Unable to save alert.";
+    }
+  }
+
+  async function deleteArrivalAlert(alert: StoredAlert) {
+    alertError = "";
+    try {
+      const remaining = (await listAlerts()).filter(
+        (item) => item.id !== alert.id,
+      );
+      if (alert.delivery === "push") {
+        await syncPushAlerts(
+          remaining.filter(
+            (item) => item.delivery === "push" && item.status === "active",
+          ),
+        );
+      }
+      await removeAlert(alert.id);
+      await refreshAlerts();
+    } catch (cause) {
+      alertError =
+        cause instanceof Error ? cause.message : "Unable to remove alert.";
+    }
+  }
+
+  async function toggleFavorite() {
+    const stationId = String(arrivals?.id || belgrade?.id || "");
+    if (!stationId) return;
+    try {
+      await setFavorite(
+        {
+          city: city || "",
+          id: stationId,
+          uid: uid || "",
+          name: arrivals?.name || belgrade?.name || stationId,
+          lat: (arrivals?.coords || belgrade?.coords || [0, 0])[0],
+          lon: (arrivals?.coords || belgrade?.coords || [0, 0])[1],
+        },
+        !favorite,
+      );
+      favorite = !favorite;
+    } catch {
+      error = "Favorites are unavailable in this browser.";
+    }
+  }
+
+  function eta(seconds: string | number) {
+    return `${Math.max(0, Math.floor(Number(seconds) / 60))} min`;
+  }
+
+  function arrivalTime(value: string | null) {
+    if (!value) return "Scheduled";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? value
+      : new Intl.DateTimeFormat(undefined, {
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(date);
+  }
+
+  $effect(() => {
+    const title = arrivals?.name || "Arrivals";
+    document.title = `${title} | Serbia++`;
+  });
+</script>
+
+<svelte:head><title>Arrivals | Serbia++</title></svelte:head>
+<div class="shell">
+  <nav class="navigation-rail" aria-label="Main navigation">
+    <a class="nav-link" href="/" aria-label="Nearby stations">⌕</a>
+    <a class="nav-link" href="/favorites" aria-label="Favorite stations">♡</a>
+    <a class="nav-link" href="/map" aria-label="Station map">⌖</a>
+  </nav>
+  <header class="appbar">
+    <button
+      class="icon-button"
+      aria-label="Back to stations"
+      onclick={() => history.back()}>←</button
+    >
+    <div class="appbar-title">
+      <strong>{arrivals?.name || belgrade?.name || "Arrivals"}</strong><small
+        >{city}</small
+      >
+    </div>
+    <button
+      class="icon-button"
+      aria-label={favorite ? "Remove favorite" : "Add favorite"}
+      aria-pressed={favorite}
+      onclick={toggleFavorite}>{favorite ? "♥" : "♡"}</button
+    >
+    {#if city !== "bg"}<button
+        class="icon-button"
+        aria-label={`Arrival alerts, ${activeAlerts.length} active`}
+        onclick={showAlerts}>♧</button
+      >{/if}
+  </header>
+  <main id="main" class="content arrivals-content">
+    {#if loading}<div class="empty" role="status">Loading arrivals…</div>{/if}
+    {#if error}<div class="surface-card error" role="alert">
+        {error}<button class="primary-button" onclick={() => location.reload()}
+          >Retry</button
+        >
+      </div>{/if}
+    {#if arrivals || belgrade}
+      <div class="surface-card overview">
+        <div class="station-meta">📍 {arrivals?.id || belgrade?.id}</div>
+      </div>
+      {#if belgrade}
+        {#if belgrade.arrivals.length === 0}<div class="empty">
+            No arrivals are scheduled.
+          </div>{/if}
+        {#each belgrade.arrivals as item (item.lineNumber + item.scheduledAt)}
+          <div class="arrival-row">
+            <strong class="line-badge">{item.lineNumber}</strong><span
+              >{arrivalTime(item.estimatedAt || item.scheduledAt)}</span
+            ><span>{item.destination || ""}</span>
+          </div>
+        {/each}
+      {:else}
+        {#if lines.length === 0}<div class="empty">
+            No buses are arriving right now.
+          </div>{/if}
+        {#each lines as line (line.lineNumber)}
+          <section class="line-card">
+            <button
+              class="line-heading"
+              aria-expanded={expandedLine === line.lineNumber}
+              onclick={() =>
+                (expandedLine =
+                  expandedLine === line.lineNumber ? "" : line.lineNumber)}
+            >
+              <span class="line-badge">{line.lineNumber}</span><strong
+                >{line.name.split("-").at(-1)?.trim()}</strong
+              >
+              <span class="eta">{eta(line.vehicles[0].secondsLeft)}</span><span
+                aria-hidden="true"
+                >{expandedLine === line.lineNumber ? "⌃" : "⌄"}</span
+              >
+            </button>
+            {#if expandedLine === line.lineNumber}
+              {#each line.vehicles as vehicle (String(vehicle.garageNo) + String(vehicle.secondsLeft))}
+                <div class="arrival-row">
+                  <span class="eta">{eta(vehicle.secondsLeft)}</span><span
+                    class="vehicle"
+                    aria-label={`Vehicle ${vehicle.garageNo || "unknown"}`}
+                    >{vehicle.garageNo || "—"}</span
+                  ><span>{vehicle.stationsBetween} stops away</span
+                  >{#if vehicle.stationName}<small
+                      >Currently near {vehicle.stationName}</small
+                    >{/if}<button
+                    class="icon-button"
+                    aria-label={`Create arrival alert for line ${line.lineNumber}`}
+                    disabled={!vehicle.garageNo}
+                    onclick={() => createAlertFor(vehicle)}>♧</button
+                  >
+                </div>
+              {/each}
+            {/if}
+          </section>
+        {/each}
+      {/if}
+    {/if}
+  </main>
+  <section class="detail-pane"></section>
+</div>
+{#if city !== "bg"}
+  <dialog
+    bind:this={alertDialog}
+    class="alert-dialog"
+    aria-labelledby="alertTitle"
+    onclose={() => (selectedVehicle = null)}
+  >
+    <form
+      onsubmit={(event) => {
+        event.preventDefault();
+        void saveArrivalAlert();
+      }}
+    >
+      <h2 id="alertTitle">
+        {selectedVehicle ? "Create arrival alert" : "Arrival alerts"}
+      </h2>
+      {#if selectedVehicle}
+        <p>
+          Line {selectedVehicle.lineName || selectedVehicle.lineNumber} at {arrivals?.name}
+        </p>
+        <label for="triggerKind">Notify me when</label>
+        <select id="triggerKind" bind:value={triggerKind}
+          ><option value="minutes">Within minutes</option><option
+            value="stations">Within stops</option
+          ></select
+        >
+        <label for="triggerValue">Threshold (1–99)</label>
+        <input
+          id="triggerValue"
+          type="number"
+          min="1"
+          max="99"
+          step="1"
+          bind:value={triggerValue}
+          required
+        />
+        <label for="delivery">Delivery</label>
+        <select id="delivery" bind:value={delivery}
+          ><option value="local">While app is open</option><option value="push"
+            >Background push</option
+          ></select
+        >
+        {#if delivery === "push"}<p class="alert-help">
+            Push requires notification permission and server VAPID
+            configuration.
+          </p>{/if}
+      {:else if activeAlerts.length === 0}
+        <p>No active arrival alerts at this station.</p>
+      {:else}
+        <ul>
+          {#each activeAlerts as alert (alert.id)}<li>
+              <span
+                >Line {alert.lineName} · {alert.trigger.value}
+                {alert.trigger.kind}</span
+              ><button
+                type="button"
+                class="icon-button"
+                aria-label={`Remove alert for line ${alert.lineName}`}
+                onclick={() => deleteArrivalAlert(alert)}>×</button
+              >
+            </li>{/each}
+        </ul>
+      {/if}
+      {#if alertError}<p class="alert-error" role="alert">{alertError}</p>{/if}
+      <div class="dialog-actions">
+        <button
+          type="button"
+          class="icon-button"
+          onclick={() => alertDialog?.close()}>Close</button
+        >
+        {#if selectedVehicle}<button class="primary-button">Save alert</button
+          >{/if}
+      </div>
+    </form>
+  </dialog>
+{/if}
+<a
+  class="fab"
+  href={`/map?city=${encodeURIComponent(city ?? "")}&station=${encodeURIComponent(uid ?? "")}`}
+  aria-label="Show station on map">⌖</a
+>
+
+<style>
+  .arrivals-content {
+    padding-bottom: 96px;
+  }
+  .line-card {
+    margin: 12px 0;
+    overflow: hidden;
+    border-radius: 16px;
+    background: var(--m3c-surface-container-low);
+  }
+  .line-heading {
+    display: grid;
+    width: 100%;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
+  .line-badge {
+    min-width: 42px;
+    padding: 6px;
+    border-radius: 8px;
+    color: var(--m3c-on-primary-container);
+    background: var(--m3c-primary-container);
+    text-align: center;
+  }
+  .eta {
+    font-size: 1.35rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .arrival-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--m3c-outline-variant);
+  }
+  .arrival-row small {
+    width: 100%;
+    color: var(--m3c-on-surface-variant);
+  }
+  .vehicle {
+    padding: 2px 8px;
+    border: 1px solid var(--m3c-outline);
+    border-radius: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .alert-dialog {
+    width: min(440px, calc(100vw - 32px));
+    border: 0;
+    border-radius: 28px;
+    color: var(--m3c-on-surface);
+    background: var(--m3c-surface-container-high);
+  }
+  .alert-dialog::backdrop {
+    background: rgb(0 0 0 / 45%);
+  }
+  .alert-dialog label {
+    display: block;
+    margin: 16px 0 6px;
+  }
+  .alert-dialog select,
+  .alert-dialog input[type="number"] {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 12px;
+    border: 1px solid var(--m3c-outline);
+    border-radius: 8px;
+    color: inherit;
+    background: var(--m3c-surface);
+  }
+  .alert-dialog ul {
+    display: grid;
+    gap: 8px;
+    padding: 0;
+    list-style: none;
+  }
+  .alert-dialog li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .alert-help,
+  .alert-error {
+    color: var(--m3c-on-surface-variant);
+  }
+  .alert-error {
+    color: var(--m3c-error);
+  }
+  .dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 24px;
+  }
+</style>

@@ -14,6 +14,7 @@ const require = createRequire(import.meta.url);
 const logger = require("../server/logger.js");
 const { state } = require("../server/state.js");
 const yandexBelgradeService = require("../server/services/yandexBelgradeService.js");
+const alertsService = require("../server/services/alertsService.js");
 const belgradeStops = require("../server/data/yandex-belgrade-bus-stops.json");
 const { fastify, _test } = server;
 
@@ -1068,6 +1069,62 @@ describe("API routes", () => {
     expect(post).toHaveBeenCalledTimes(10);
     expect(maximum).toBeLessThanOrEqual(6);
     expect(response.json().schedule).toEqual({});
+  });
+
+  it("validates push alert subscriptions and trigger values", async () => {
+    vi.spyOn(alertsService, "configured").mockReturnValue(true);
+    vi.spyOn(alertsService, "configureVapid").mockImplementation(() => {});
+
+    const invalidSubscription = await fastify.inject({
+      method: "PUT",
+      url: "/api/v2/alerts",
+      payload: {
+        subscription: {
+          endpoint: "http://push.example/endpoint",
+          keys: { p256dh: "key", auth: "key" },
+        },
+        alerts: [],
+      },
+    });
+    expect(invalidSubscription.statusCode).toBe(400);
+
+    const invalidTrigger = await fastify.inject({
+      method: "PUT",
+      url: "/api/v2/alerts",
+      payload: {
+        subscription: {
+          endpoint: "https://push.example/endpoint",
+          keys: { p256dh: "key", auth: "key" },
+        },
+        alerts: [
+          {
+            id: "alert-1",
+            city: "ns",
+            stationId: "station-1",
+            stationName: "Main Station",
+            lineNumber: "7",
+            lineName: "7",
+            garageNo: "bus-1",
+            trigger: { kind: "minutes", value: 0, extra: "discard" },
+          },
+        ],
+      },
+    });
+    expect(invalidTrigger.statusCode).toBe(400);
+    const validated = alertsService._test.validateAlert({
+      id: "alert-1",
+      city: "ns",
+      stationId: "station-1",
+      stationName: "Main Station",
+      lineNumber: "7",
+      lineName: "7",
+      garageNo: "bus-1",
+      trigger: { kind: "minutes", value: 5, extra: "discard" },
+      createdAt: 0,
+      expiresAt: Number.MAX_SAFE_INTEGER,
+    });
+    expect(validated.trigger).toEqual({ kind: "minutes", value: 5 });
+    expect(validated.expiresAt - validated.createdAt).toBe(2 * 60 * 60 * 1000);
   });
 
   it("proxies route requests to OSRM", async () => {

@@ -1,5 +1,7 @@
 const fastifyFactory = require("fastify");
+const fs = require("fs");
 const path = require("path");
+const { pathToFileURL } = require("url");
 
 const { registerApiRoutes } = require("./routes/apiRoutes");
 
@@ -40,7 +42,31 @@ function createApp(options = {}) {
   });
 
   registerApiRoutes(fastify);
-  fastify.get("/", (request, reply) => reply.sendFile("index.html"));
+  fastify.get("/service-worker.js", async (_request, reply) => {
+    reply.header("Service-Worker-Allowed", "/");
+    reply.type("application/javascript");
+    return reply.sendFile("service-worker.js");
+  });
+
+  const handlerPath = path.join(__dirname, "../build/handler.js");
+  const serveApp = async (request, reply) => {
+    const { handler } = await import(pathToFileURL(handlerPath));
+    reply.hijack();
+    handler(request.raw, reply.raw);
+  };
+  if (fs.existsSync(handlerPath) && process.env.NODE_ENV !== "test") {
+    fastify.get("/", serveApp);
+    fastify.setNotFoundHandler((request, reply) => {
+      if (
+        request.raw.url.startsWith("/api/") &&
+        request.raw.url.split("?", 1)[0] !== "/api/v2"
+      )
+        return reply.code(404).send({ error: "Not found" });
+      return serveApp(request, reply);
+    });
+  } else {
+    fastify.get("/", (request, reply) => reply.sendFile("index.html"));
+  }
 
   return fastify;
 }
