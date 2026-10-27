@@ -71,7 +71,6 @@
                   name="searchMode"
                   onchange="onSearchModeChange()"
                 >
-                  <option value="id">Station ID</option>
                   <option value="name">Station name</option>
                   <option value="coords">Location</option>
                 </select>
@@ -92,27 +91,6 @@
               role="alert"
               style="display: none"
             ></p>
-
-            <div class="id-search" style="display: none">
-              <div class="field">
-                <label class="label" for="id-input">Station ID</label>
-                <input
-                  id="id-input"
-                  class="input"
-                  type="text"
-                  placeholder="Enter station ID"
-                  autocomplete="off"
-                />
-                <button
-                  id="submitId"
-                  class="button button-primary full-width"
-                  type="submit"
-                  disabled
-                >
-                  When is my bus?
-                </button>
-              </div>
-            </div>
 
             <div class="name-search" style="display: none">
               <div class="field">
@@ -195,16 +173,6 @@
           </div>
         </form>
       </section>
-
-      <footer class="app-footer">
-        <a
-          href="https://github.com/GnuGorets/public-transport-in-serbia"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Source code
-        </a>
-      </footer>
     </main>
 
     <dialog

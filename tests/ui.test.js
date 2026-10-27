@@ -28,8 +28,7 @@ function loadUiScript(runReady = false, initialAjax) {
     <body>
       <select id="city"><option value="bg">Belgrade</option><option value="ns">Novi Sad</option><option value="nis">Nis</option></select>
       <div id="stationControls">
-        <select id="searchMode"><option value="id">ID</option><option value="name">Name</option><option value="coords">Coords</option></select>
-        <div class="id-search"><input id="id-input" /><button id="submitId" disabled></button></div>
+        <select id="searchMode"><option value="name">Name</option><option value="coords">Coords</option></select>
         <div class="name-search"><input id="name-input" role="combobox" aria-controls="dropdown" aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" /><div id="dropdown" role="listbox" aria-label="Stations"></div><p id="dropdown-status" class="helper-text" role="status" aria-live="polite"></p></div>
         <div class="coords-search"><button id="findNearby"></button><div id="nearbyMap"></div></div>
       </div>
@@ -146,7 +145,6 @@ function loadUiScript(runReady = false, initialAjax) {
       onCityChange,
       onSearchModeChange,
       submitByName,
-      submitById,
       openArrivalsDialog,
       fetchBgStop,
       showBgRoute,
@@ -309,6 +307,12 @@ describe("UI behavior", () => {
     expect(
       document.querySelector("#arrivalsDialog").getAttribute("aria-labelledby"),
     ).toBe("dialogTitle");
+    expect(
+      [...document.querySelectorAll("#searchMode option")].map(
+        (option) => option.value,
+      ),
+    ).toEqual(["name", "coords"]);
+    expect(document.querySelector(".id-search")).toBeNull();
     expect(document.querySelector("#dropdown").getAttribute("role")).toBe(
       "listbox",
     );
@@ -450,19 +454,6 @@ describe("UI behavior", () => {
     document.getElementById("closeArrivals").click();
   });
 
-  it("shows missing station ID feedback in the search card", async () => {
-    const { dom, ui } = loadUiScript();
-    ui.setStations("bg", []);
-    dom.window.document.getElementById("id-input").value = "missing";
-
-    await ui.submitById();
-
-    expect(dom.window.document.getElementById("searchError").textContent).toBe(
-      "Station ID was not found.",
-    );
-    expect(dom.window.document.getElementById("error").textContent).toBe("");
-  });
-
   it("opens and closes arrivals through the native dialog controls", async () => {
     const readyContext = loadUiScript(true);
     context = readyContext;
@@ -527,7 +518,7 @@ describe("UI behavior", () => {
     expect(dialog.open).toBe(false);
   });
 
-  it("resolves station IDs against the local catalog before opening arrivals", async () => {
+  it("resolves station IDs entered in name search against the local catalog", async () => {
     const { $, ui, dom } = context;
     $.ajax = vi.fn().mockResolvedValue({
       name: "Main Station",
@@ -537,12 +528,12 @@ describe("UI behavior", () => {
       vehicles: [],
     });
     $("#city").val("ns");
-    $("#id-input").val("42");
+    $("#name-input").val("42");
     ui.setStations("ns", [
       { id: "42", uid: "station-1", name: "Main Station" },
     ]);
 
-    await ui.submitById();
+    await ui.submitByName();
 
     expect(dom.window.document.getElementById("arrivalsDialog").open).toBe(
       true,

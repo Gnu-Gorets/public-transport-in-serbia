@@ -183,7 +183,7 @@ const onCityChange = async () => {
     bgRouteData = undefined;
     bgRouteSelection = undefined;
     layerGroup.clearLayers();
-    $("#name-input, #id-input").val("");
+    $("#name-input").val("");
     $("#thead th").eq(1).text("Arrival time");
     $("#thead th").eq(2).text("Destination");
     moveMapToCityCentre(city);
@@ -209,7 +209,7 @@ const onSearchModeChange = () => {
       const value = $(option).val();
       $(`.${value}-search`).toggle(value === searchMode);
     });
-  $("#submit, #submitId").toggle(searchMode !== "name");
+  $("#submit").toggle(searchMode !== "name");
   if (searchMode === "coords" && nearbyMap)
     setTimeout(() => nearbyMap.invalidateSize(), 50);
 };
@@ -856,23 +856,6 @@ const startStationArrivals = (uid) => {
   spawnInterval(currQuery);
 };
 
-const submitById = async () => {
-  const id = $("#id-input").val()?.trim();
-  if (!id) return;
-  const city = getCity();
-  if (!allStations[city]) await fetchCityStations(city);
-  if (getCity() !== city) return;
-  const station = (allStations[city] || []).find(
-    (item) => String(item.id).toLowerCase() === id.toLowerCase(),
-  );
-  if (!station) {
-    $("#searchError").text("Station ID was not found.").show();
-    return;
-  }
-  $("#searchError").hide();
-  return startStationArrivals(station.uid);
-};
-
 const submitByName = () => {
   const selectedValue = $("#name-input").val()?.trim();
   if (!selectedValue) return;
@@ -1072,7 +1055,6 @@ const searchByGPS = async () => {
 };
 
 const submitHandlers = {
-  id: submitById,
   name: submitByName,
   coords: submitByCoords,
 };
@@ -1271,11 +1253,6 @@ $(document).ready(async () => {
     if (event.target === dialog) closeArrivalsDialog();
   });
   document.getElementById("findNearby")?.addEventListener("click", searchByGPS);
-  document.getElementById("id-input")?.addEventListener("input", (event) => {
-    document.getElementById("submitId").disabled = !event.target.value.trim();
-    $("#searchError").hide();
-  });
-
   // Load cities
   const response = await doAsyncRequest("/api/cities");
   const placeholder = document.createElement("option");
