@@ -4,10 +4,10 @@
   import { page } from "$app/state";
   import StationMap, {
     type Station as MapStation,
-  } from "$lib/components/map/StationMap.svelte";
-  import { loadPreferences } from "$lib/state/preferences";
-  import { syncCity } from "$lib/stations/storage.js";
-  import type { Station } from "$lib/stations";
+  } from "#lib/components/map/StationMap.svelte";
+  import { loadPreferences } from "#lib/state/preferences.ts";
+  import { syncCity } from "#lib/stations/storage.js";
+  import type { Station } from "#lib/stations.ts";
 
   let city = $state("");
   let stations: Station[] = $state([]);
@@ -18,10 +18,10 @@
   function selectStation(station: MapStation) {
     selected =
       stations.find((item) => String(item.uid) === String(station.uid)) || null;
-    const url = new URL(page.url);
+    const url = new URL(page.url.href);
     if (selected) url.searchParams.set("station", String(selected.uid));
     else url.searchParams.delete("station");
-    void goto(url, { replaceState: true, noScroll: true, keepFocus: true });
+    void goto(url, { replace: true, reset: false });
   }
 
   onMount(async () => {

@@ -10,7 +10,7 @@ RUN chown app:app /app
 USER app
 
 # Install project dependencies
-COPY --chown=app:app package.json package-lock.json ./
+COPY --chown=app:app package.json package-lock.json .npmrc ./
 RUN npm ci
 
 # Copy application files and build the SvelteKit app

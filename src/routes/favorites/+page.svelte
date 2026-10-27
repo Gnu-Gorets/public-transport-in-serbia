@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
-  import { loadPreferences } from "$lib/state/preferences";
-  import { getFavorites, syncCity } from "$lib/stations/storage.js";
-  import type { Station } from "$lib/stations";
+  import { loadPreferences } from "#lib/state/preferences.ts";
+  import { getFavorites, syncCity } from "#lib/stations/storage.js";
+  import type { Station } from "#lib/stations.ts";
 
   let city = $state("");
   let cityName = $state("");

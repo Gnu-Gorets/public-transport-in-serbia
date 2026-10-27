@@ -1,20 +1,20 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { goto } from "$app/navigation";
-  import { browser } from "$app/environment";
-  import type { Station } from "$lib/stations";
-  import { nearbyStations, searchStations } from "$lib/stations";
+  import { browser } from "$app/env";
+  import type { Station } from "#lib/stations.ts";
+  import { nearbyStations, searchStations } from "#lib/stations.ts";
   import {
     getFavorites,
     setFavorite,
     syncCity,
-  } from "$lib/stations/storage.js";
+  } from "#lib/stations/storage.js";
   import {
     DEFAULT_PREFERENCES,
     loadPreferences,
     savePreferences,
-  } from "$lib/state/preferences";
-  import type { Accent } from "$lib/state/preferences";
+  } from "#lib/state/preferences.ts";
+  import type { Accent } from "#lib/state/preferences.ts";
   import {
     Hct,
     SchemeTonalSpot,

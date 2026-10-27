@@ -19,6 +19,9 @@
   "engines": {
     "node": "^26.0.0"
   },
+  "imports": {
+    "#lib/*": "./src/lib/*"
+  },
   "dependencies": {
     "@fastify/cors": "^11.3.1",
     "@fastify/rate-limit": "^11.2.1",
@@ -26,9 +29,9 @@
     "@fontsource-variable/roboto": "^5.3.0",
     "@ktibow/iconset-material-symbols": "^0.0.1764827375",
     "@ktibow/material-color-utilities-nightly": "^0.4.1768930731000",
-    "@sveltejs/adapter-node": "^5.5.7",
-    "@sveltejs/kit": "~2.70.3",
-    "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "@sveltejs/adapter-node": "^6.0.0",
+    "@sveltejs/kit": "^3.1.0",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "axios": "^1.20.0",
     "crypto-js": "^4.2.0",
     "fastify": "^5.12.7",
@@ -38,7 +41,7 @@
     "m3-svelte": "7.2.1",
     "pino-pretty": "^13.2.0",
     "svelte": "^5.57.3",
-    "vite": "^7.3.7",
+    "vite": "^8.3.5",
     "vite-plugin-functions-mixins": "^0.4.1",
     "web-push": "^3.6.7"
   },

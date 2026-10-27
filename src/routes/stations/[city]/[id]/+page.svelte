@@ -1,24 +1,24 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { page } from "$app/state";
-  import { getBelgradeStopArrivals, getStationArrivals } from "$lib/api";
+  import { getBelgradeStopArrivals, getStationArrivals } from "#lib/api.ts";
   import type {
     BelgradeStopArrivals,
     StationArrivals,
     VehicleArrival,
-  } from "$lib/api";
-  import { getFavorites, setFavorite } from "$lib/stations/storage.js";
+  } from "#lib/api.ts";
+  import { getFavorites, setFavorite } from "#lib/stations/storage.js";
   import {
     listAlerts,
     removeAlert,
     saveAlert,
     type StoredAlert,
-  } from "$lib/state/alerts";
-  import { createArrivalAlert } from "$lib/alerts/arrival-alert.mjs";
+  } from "#lib/state/alerts.ts";
+  import { createArrivalAlert } from "#lib/alerts/arrival-alert.mjs";
   import {
     requestPushPermission,
     syncPushAlerts,
-  } from "$lib/state/push-alerts";
+  } from "#lib/state/push-alerts.ts";
 
   let arrivals: StationArrivals | null = $state(null);
   let belgrade: BelgradeStopArrivals | null = $state(null);

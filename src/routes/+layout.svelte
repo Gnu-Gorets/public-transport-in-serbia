@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { startLocalAlertMonitor } from "$lib/state/local-alerts";
+  import { startLocalAlertMonitor } from "#lib/state/local-alerts.ts";
   import "../theme.css";
   import "../app.css";
   import "@fontsource-variable/roboto";
