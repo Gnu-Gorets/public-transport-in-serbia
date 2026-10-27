@@ -28,15 +28,15 @@ function loadUiScript(runReady = false, initialAjax) {
     <body>
       <select id="city"><option value="bg">Belgrade</option><option value="ns">Novi Sad</option><option value="nis">Nis</option></select>
       <div id="stationControls">
-        <select id="searchMode"><option value="name">Name</option><option value="coords">Coords</option></select>
-        <div class="name-search"><input id="name-input" /><div id="dropdown"></div></div>
-        <div class="coords-search"></div>
+        <select id="searchMode"><option value="id">ID</option><option value="name">Name</option><option value="coords">Coords</option></select>
+        <div class="id-search"><input id="id-input" /><button id="submitId" disabled></button></div>
+        <div class="name-search"><input id="name-input" aria-controls="dropdown" /><div id="dropdown" role="listbox"></div></div>
+        <div class="coords-search"><button id="findNearby"></button><div id="nearbyMap"></div></div>
       </div>
+      <p id="chooseCityMessage"></p><p id="searchLoading"></p><p id="searchError"></p>
       <input id="submit" />
       <input id="stationsMaxDistance-input" value="350" />
       <select id="coords-input"></select>
-      <div class="name-search"></div>
-      <div class="coords-search"></div>
       <p id="updateInProgress"></p>
       <p id="stationName"></p>
       <p id="lastUpdated"></p>
@@ -48,7 +48,8 @@ function loadUiScript(runReady = false, initialAjax) {
       <div id="scheduleSection"></div>
       <p id="scheduleInfo"></p>
       <div id="scheduleContainer"></div>
-      <div id="map"></div>
+      <button id="themeToggle" type="button" aria-pressed="false"><span>☼</span></button>
+      <dialog id="arrivalsDialog" aria-labelledby="dialogTitle"><button id="closeArrivals" type="button"></button><h2 id="dialogTitle">Station arrivals</h2><div id="map" role="region" aria-label="Map of stop and arrivals"></div></dialog>
     </body>`,
     {
       url: "http://localhost/",
@@ -118,7 +119,11 @@ function loadUiScript(runReady = false, initialAjax) {
         return "route-bounds";
       },
     })),
-    map: vi.fn(() => ({ setView: vi.fn() })),
+    map: vi.fn(() => ({
+      setView: vi.fn(),
+      fitBounds: vi.fn(),
+      invalidateSize: vi.fn(),
+    })),
     layerGroup: vi.fn(() => ({
       addTo() {
         return this;
@@ -141,6 +146,8 @@ function loadUiScript(runReady = false, initialAjax) {
       onCityChange,
       onSearchModeChange,
       submitByName,
+      submitById,
+      openArrivalsDialog,
       fetchBgStop,
       showBgRoute,
       updateArrivals,
@@ -258,9 +265,17 @@ describe("UI behavior", () => {
     context = readyContext;
     await readyContext.readyPromise;
     expect(readyContext.ui.getStations("ns")).toBeUndefined();
-    readyContext.dom.window.document
-      .getElementById("name-input")
-      .dispatchEvent(new readyContext.dom.window.Event("focus"));
+    readyContext.dom.window.document.getElementById("city").value = "ns";
+    const input = readyContext.dom.window.document.getElementById("name-input");
+    input.dispatchEvent(new readyContext.dom.window.Event("focus"));
+    await vi.waitFor(() =>
+      expect(
+        request.mock.calls.filter(
+          ([{ url }]) => url === "/api/stations/ns/all",
+        ),
+      ).toHaveLength(1),
+    );
+    input.dispatchEvent(new readyContext.dom.window.Event("focus"));
     await vi.waitFor(() =>
       expect(
         request.mock.calls.filter(
@@ -282,12 +297,98 @@ describe("UI behavior", () => {
     ]);
   });
 
-  it("uses native Leaflet map without Yandex iframe or link", () => {
+  it("uses native Leaflet map in accessible arrivals dialog", () => {
     const html = readFileSync(resolve("static/index.html"), "utf8");
-    expect(html).toContain('<div id="map"></div>');
+    const document = new JSDOM(html).window.document;
+    expect(document.querySelector("#map")?.closest("dialog")?.id).toBe(
+      "arrivalsDialog",
+    );
+    expect(
+      document.querySelector("#arrivalsDialog").getAttribute("aria-labelledby"),
+    ).toBe("dialogTitle");
+    expect(document.querySelector("#dropdown").getAttribute("role")).toBe(
+      "listbox",
+    );
+    expect(
+      document.querySelector("#closeArrivals").getAttribute("aria-label"),
+    ).toBe("Close arrivals");
+    expect(
+      document.querySelector("#themeToggle").getAttribute("aria-label"),
+    ).toBe("Toggle theme");
+    expect(document.querySelector('meta[name="theme-color"]')).not.toBeNull();
     expect(html).not.toContain("bgYandexMap");
     expect(html).not.toContain("bgTransportLink");
     expect(html).not.toContain("yandex.com/map-widget");
+  });
+
+  it("toggles theme through the accessible theme control", async () => {
+    const readyContext = loadUiScript(true);
+    context = readyContext;
+    await readyContext.readyPromise;
+
+    readyContext.dom.window.document.getElementById("themeToggle").click();
+
+    expect(readyContext.dom.window.document.documentElement.dataset.theme).toBe(
+      "dark",
+    );
+    expect(readyContext.dom.window.localStorage.getItem("theme")).toBe("dark");
+    expect(
+      readyContext.dom.window.document
+        .getElementById("themeToggle")
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+  });
+
+  it("shows missing station ID feedback in the search card", async () => {
+    const { dom, ui } = loadUiScript();
+    ui.setStations("bg", []);
+    dom.window.document.getElementById("id-input").value = "missing";
+
+    await ui.submitById();
+
+    expect(dom.window.document.getElementById("searchError").textContent).toBe(
+      "Station ID was not found.",
+    );
+    expect(dom.window.document.getElementById("error").textContent).toBe("");
+  });
+
+  it("closes arrivals when the selected city changes", async () => {
+    const { dom, ui } = loadUiScript();
+    ui.setStations("ns", []);
+    const dialog = dom.window.document.getElementById("arrivalsDialog");
+    dialog.setAttribute("open", "");
+    dom.window.document.getElementById("city").value = "ns";
+
+    await ui.onCityChange();
+
+    expect(dialog.open).toBe(false);
+  });
+
+  it("resolves station IDs against the local catalog before opening arrivals", async () => {
+    const { $, ui, dom } = context;
+    $.ajax = vi.fn().mockResolvedValue({
+      name: "Main Station",
+      id: "42",
+      uid: "station-1",
+      coords: [44.8, 20.4],
+      vehicles: [],
+    });
+    $("#city").val("ns");
+    $("#id-input").val("42");
+    ui.setStations("ns", [
+      { id: "42", uid: "station-1", name: "Main Station" },
+    ]);
+
+    await ui.submitById();
+
+    expect(dom.window.document.getElementById("arrivalsDialog").open).toBe(
+      true,
+    );
+    expect($.ajax).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "/api/stations/ns/search?uid=station-1",
+      }),
+    );
   });
 
   it("requires explicit BG stop selection and restores controls for NS", async () => {
@@ -476,6 +577,41 @@ describe("UI behavior", () => {
     expect($("#stationName").text()).not.toContain("Stale");
   });
 
+  it("ignores a BG stop response after arrivals dialog closes", async () => {
+    const readyContext = loadUiScript(true);
+    context = readyContext;
+    await readyContext.readyPromise;
+    const { $, dom, ui } = readyContext;
+    $("#city").val("bg");
+    await ui.onCityChange();
+    ui.setQuery({ uid: "first" });
+    const dialog = dom.window.document.getElementById("arrivalsDialog");
+    dialog.setAttribute("open", "");
+    let resolveStop;
+    let resolveVehicles;
+    $.ajax = vi.fn(
+      ({ url }) =>
+        new Promise((resolve) => {
+          if (url.includes("/stop?")) resolveStop = resolve;
+          else resolveVehicles = resolve;
+        }),
+    );
+
+    const pending = ui.fetchBgStop();
+    dialog.removeAttribute("open");
+    dialog.dispatchEvent(new dom.window.Event("close"));
+    resolveStop({
+      uid: "first",
+      name: "Stale stop",
+      coords: [44, 20],
+      arrivals: [],
+    });
+    resolveVehicles({ vehicles: [] });
+    await pending;
+
+    expect($("#stationName").text()).not.toContain("Stale stop");
+  });
+
   it("ignores a BG stop response after another stop is selected", async () => {
     const { $, ui } = context;
     let resolveStop;
@@ -648,6 +784,7 @@ describe("UI behavior", () => {
         },
       ],
     });
+    ui.openArrivalsDialog();
     $.ajax = vi.fn().mockRejectedValue(new Error("upstream failed"));
     await ui.showBgRoute(route);
     expect($("#tableBody").text()).toContain("40");
@@ -723,12 +860,12 @@ describe("UI behavior", () => {
         coords: [44.8, 20.4],
       },
     ]);
-    context.dom.window.navigator.geolocation = {
-      getCurrentPosition(success) {
-        success({ coords: { latitude: 44.8, longitude: 20.4 } });
-      },
-    };
+    const getCurrentPosition = vi.fn((success) => {
+      success({ coords: { latitude: 44.8, longitude: 20.4 } });
+    });
+    context.dom.window.navigator.geolocation = { getCurrentPosition };
     ui.onSearchModeChange();
+    expect(getCurrentPosition).not.toHaveBeenCalled();
     expect($("#submit").css("display")).not.toBe("none");
     expect($(".coords-search").css("display")).not.toBe("none");
   });

@@ -1,5 +1,7 @@
 let currInterval;
 let map, layerGroup;
+let nearbyMap, nearbyLayerGroup;
+let lastUserLocation;
 let currQuery;
 let allStations = {};
 let allLines = {};
@@ -12,6 +14,7 @@ let scheduleRequestId = 0;
 let currentCity;
 let bgStopCentered = false;
 let bgStopRequest;
+let bgStopRequestId = 0;
 let bgStopId;
 let bgStopMarker;
 let bgStopCoords;
@@ -82,8 +85,9 @@ const doAsyncRequest = async (url, type = "GET", data = {}, errorHandler) => {
     );
 
     if (errorHandler?.(error) !== true) {
-      $("#error").text(`Error updating data: ${errorMessage}`);
-      $("#error").show();
+      const dialog = document.getElementById("arrivalsDialog");
+      const target = dialog && !dialog.open ? "#searchError" : "#error";
+      $(target).text(`Error updating data: ${errorMessage}`).show();
     }
   }
 };
@@ -126,23 +130,41 @@ const getSearchMode = () => {
 };
 
 const getCity = () => {
-  return encodeURIComponent($("#city").val());
+  const city = $("#city").val();
+  return city ? encodeURIComponent(city) : "";
 };
 
 const onCityChange = async () => {
   const city = getCity();
+  const cityChanged = city !== currentCity;
+  const dialog = document.getElementById("arrivalsDialog");
+  if (cityChanged && dialog?.open) {
+    if (typeof dialog.close === "function") dialog.close();
+    else dialog.removeAttribute("open");
+  }
   const isBelgrade = city === "bg";
   const wasBelgrade = currentCity === "bg";
+  if (!city) {
+    currInterval = clearInterval(currInterval);
+    genericRequestId++;
+    scheduleRequestId++;
+    currQuery = undefined;
+    layerGroup?.clearLayers();
+    currentCity = undefined;
+    $("#stationControls").hide();
+    $("#chooseCityMessage").show();
+    return;
+  }
   currentCity = city;
-  changeBg(city);
-  $("#stationControls").toggle(true);
+  $("#stationControls").toggle(Boolean(city));
+  $("#chooseCityMessage").toggle(!city);
   $("#searchMode option[value=coords]")
     .prop("hidden", isBelgrade)
     .prop("disabled", isBelgrade);
-  $("#map").show();
   $(
     "#updateInProgress, #stationName, #lastUpdated, #busRouteInfo, #error, #noBusesMessage, #tableContainer, #scheduleSection",
   ).hide();
+  $("#searchError, #searchLoading").hide();
 
   currInterval = clearInterval(currInterval);
   layerGroup.clearLayers();
@@ -164,7 +186,7 @@ const onCityChange = async () => {
     bgRouteData = undefined;
     bgRouteSelection = undefined;
     layerGroup.clearLayers();
-    $("#name-input").val("");
+    $("#name-input, #id-input").val("");
     $("#thead th").eq(1).text("Arrival time");
     $("#thead th").eq(2).text("Destination");
     moveMapToCityCentre(city);
@@ -183,20 +205,16 @@ const onCityChange = async () => {
 };
 
 const onSearchModeChange = () => {
-  let searchMode = $("#searchMode").val();
-  if (searchMode == "name") {
-    $(`#submit`).hide();
-  } else {
-    $(`#submit`).show();
-  }
-  if (searchMode == "coords") searchByGPS();
+  const searchMode = $("#searchMode").val();
   $("#searchMode option")
     .toArray()
     .forEach((option) => {
-      let value = $(option).val();
-      if (value === searchMode) $(`.${value}-search`).show();
-      else $(`.${value}-search`).hide();
+      const value = $(option).val();
+      $(`.${value}-search`).toggle(value === searchMode);
     });
+  $("#submit, #submitId").toggle(searchMode !== "name");
+  if (searchMode === "coords" && nearbyMap)
+    setTimeout(() => nearbyMap.invalidateSize(), 50);
 };
 
 const formatSeconds = (seconds) => {
@@ -527,12 +545,16 @@ const showBgRoute = async (route) => {
 const fetchBgStop = () => {
   if (getCity() !== "bg") return Promise.resolve();
   if (bgStopRequest) return bgStopRequest;
+  const requestId = ++bgStopRequestId;
   bgStopRequest = (async () => {
     if (currQuery) $("#updateInProgress").show();
     $("#error").hide();
     const stopId = currQuery?.uid;
     if (!stopId) return;
-    const isStale = () => getCity() !== "bg" || currQuery?.uid !== stopId;
+    const isStale = () =>
+      requestId !== bgStopRequestId ||
+      getCity() !== "bg" ||
+      currQuery?.uid !== stopId;
     const [response, vehicleResponse] = await Promise.all([
       doAsyncRequest(
         `/api/bg/stop?stopId=${encodeURIComponent(stopId)}`,
@@ -560,7 +582,7 @@ const fetchBgStop = () => {
       vehicles: vehicleResponse?.vehicles || [],
     });
   })().finally(() => {
-    bgStopRequest = null;
+    if (requestId === bgStopRequestId) bgStopRequest = null;
   });
   return bgStopRequest;
 };
@@ -663,17 +685,17 @@ const fetchSchedule = async (city, uid, force = false) => {
   wrapper.style.cssText = "overflow-x:auto;margin-top:8px";
   const table = document.createElement("table");
   table.style.cssText =
-    "color:white;font-size:0.9rem;border-collapse:collapse;width:100%";
+    "color:var(--text);font-size:0.9rem;border-collapse:collapse;width:100%";
   const head = document.createElement("thead");
   const heading = document.createElement("tr");
   const lineHeader = document.createElement("th");
   lineHeader.textContent = "#";
   lineHeader.style.cssText =
-    "position:sticky;left:0;background:#1a1f2e;color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;text-align:left;padding-bottom:4px;border-bottom:1px solid #333";
+    "position:sticky;left:0;background:var(--surface);color:var(--accent);font-size:0.72rem;font-weight:700;letter-spacing:.06em;text-align:left;padding-bottom:4px;border-bottom:1px solid var(--border)";
   const timesHeader = document.createElement("th");
   timesHeader.textContent = "DEPARTURES";
   timesHeader.style.cssText =
-    "color:#1abc9c;font-size:0.72rem;font-weight:700;letter-spacing:.06em;text-align:left;padding-bottom:4px;border-bottom:1px solid #333";
+    "color:var(--accent);font-size:0.72rem;font-weight:700;letter-spacing:.06em;text-align:left;padding-bottom:4px;border-bottom:1px solid var(--border)";
   heading.append(lineHeader, timesHeader);
   head.appendChild(heading);
   table.appendChild(head);
@@ -683,15 +705,15 @@ const fetchSchedule = async (city, uid, force = false) => {
     const lineCell = document.createElement("td");
     lineCell.textContent = line;
     lineCell.style.cssText =
-      "position:sticky;left:0;background:#1a1f2e;white-space:nowrap;color:#FFD700;font-size:0.85rem;font-weight:700;padding:3px 10px 3px 0;vertical-align:middle;border-bottom:1px solid rgba(255,255,255,0.05)";
+      "position:sticky;left:0;background:var(--surface);white-space:nowrap;color:var(--accent);font-size:0.85rem;font-weight:700;padding:3px 10px 3px 0;vertical-align:middle;border-bottom:1px solid var(--border)";
     row.appendChild(lineCell);
     const timesCell = document.createElement("td");
     timesCell.style.cssText =
-      "white-space:nowrap;padding:3px 0 5px;border-bottom:1px solid rgba(255,255,255,0.05)";
+      "white-space:nowrap;padding:3px 0 5px;border-bottom:1px solid var(--border)";
     for (const time of response.schedule[line]) {
       const nextDay = time.includes("(+24h)");
       const chip = document.createElement("span");
-      chip.style.cssText = `display:inline-block;background:rgba(255,255,255,0.12);padding:2px 6px;border-radius:4px;margin:1px;white-space:nowrap;font-size:0.82rem;${nextDay ? "opacity:0.55" : ""}`;
+      chip.style.cssText = `display:inline-block;background:var(--surface-muted);padding:2px 6px;border-radius:4px;margin:1px;white-space:nowrap;font-size:0.82rem;${nextDay ? "opacity:0.55" : ""}`;
       chip.textContent = `${time.replace("(+24h)", "").trim()}${nextDay ? "*" : ""}`;
       timesCell.appendChild(chip);
     }
@@ -771,6 +793,17 @@ const addRouteToMap = async (lineNumber, fallbackStations = []) => {
   map.fitBounds(currentPolyline.getBounds(), { padding: [40, 40] });
 };
 
+const initNearbyMap = () => {
+  if (nearbyMap || !document.getElementById("nearbyMap")) return;
+  nearbyMap = L.map("nearbyMap", {
+    center: [44.81254796404323, 20.46145496621977],
+    zoom: 13,
+  });
+  nearbyLayerGroup = L.layerGroup().addTo(nearbyMap);
+  L.control.layers(mapLayers).addTo(nearbyMap);
+  mapLayers.Transport.addTo(nearbyMap);
+};
+
 const initMap = () => {
   if (!mapInitialized) {
     map = L.map("map", {
@@ -786,17 +819,20 @@ const initMap = () => {
   }
 };
 
-const submitByName = () => {
-  if (!$("#name-input").val()) return;
-  const selectedValue = $("#name-input").val().trim();
+const openArrivalsDialog = () => {
+  const dialog = document.getElementById("arrivalsDialog");
+  if (!dialog || dialog.open) return;
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+  setTimeout(() => map?.invalidateSize?.(), 50);
+};
+
+const startStationArrivals = (uid) => {
   const city = getCity();
-  const station = (allStations[city] || []).find(
-    (s) => s.name === selectedValue || s.id === selectedValue,
-  );
-  if (city === "bg" && !station) return;
   genericRequestId++;
   scheduleRequestId++;
-  currQuery = { uid: station?.uid || selectedValue };
+  currQuery = { uid: String(uid) };
+  openArrivalsDialog();
   if (city === "bg") {
     currInterval = clearInterval(currInterval);
     bgStopCentered = false;
@@ -807,12 +843,38 @@ const submitByName = () => {
   spawnInterval(currQuery);
 };
 
+const submitById = async () => {
+  const id = $("#id-input").val()?.trim();
+  if (!id) return;
+  const city = getCity();
+  if (!allStations[city]) await fetchCityStations(city);
+  if (getCity() !== city) return;
+  const station = (allStations[city] || []).find(
+    (item) => String(item.id).toLowerCase() === id.toLowerCase(),
+  );
+  if (!station) {
+    $("#searchError").text("Station ID was not found.").show();
+    return;
+  }
+  $("#searchError").hide();
+  return startStationArrivals(station.uid);
+};
+
+const submitByName = () => {
+  const selectedValue = $("#name-input").val()?.trim();
+  if (!selectedValue) return;
+  const city = getCity();
+  const station = (allStations[city] || []).find(
+    (item) => item.name === selectedValue || String(item.id) === selectedValue,
+  );
+  if (city === "bg" && !station) return;
+  return startStationArrivals(station?.uid || selectedValue);
+};
+
 const submitByCoords = () => {
-  let uid = encodeURIComponent($("#coords-input").val().trim());
-  genericRequestId++;
-  scheduleRequestId++;
-  currQuery = { uid: uid };
-  spawnInterval(currQuery);
+  const uid = $("#coords-input").val()?.trim();
+  if (!uid) return;
+  return startStationArrivals(uid);
 };
 
 const toggleTable = () => {
@@ -834,12 +896,20 @@ function onNameChange() {
 }
 
 function onRangeChange() {
-  let rangeInput = document.getElementById("stationsMaxDistance-input");
-  let rangeValue = rangeInput.value;
+  const rangeValue = document.getElementById("stationsMaxDistance-input").value;
   document.getElementById("stationsMaxDistance-label").textContent =
-    `Distance (${rangeValue}m):`;
-  localStorage.setItem("stationsMaxDistance", rangeValue);
-  searchByGPS();
+    `Maximum distance (${rangeValue}m)`;
+  try {
+    localStorage.setItem("stationsMaxDistance", rangeValue);
+  } catch {
+    // Keep nearby search usable when browser storage is unavailable.
+  }
+  if (lastUserLocation)
+    searchByCoords(
+      lastUserLocation,
+      "#stationsMaxDistance-input",
+      "#coords-input",
+    );
 }
 
 const getUserLocation = async () => {
@@ -854,8 +924,7 @@ const getUserLocation = async () => {
           resolve(userLocation);
         },
         (error) => {
-          $("#error").text("Error retrieving location.");
-          $("#error").show();
+          $("#searchError").text("Error retrieving location.").show();
           reject(error.message);
         },
       );
@@ -910,12 +979,20 @@ const findClosestStations = async (
 const cancelInterval = () => {
   currInterval = clearInterval(currInterval);
   currQuery = undefined;
-  layerGroup.clearLayers();
+  genericRequestId++;
+  arrivalRequestId++;
+  scheduleRequestId++;
+  bgStopRequestId++;
+  bgStopRequest = null;
+  layerGroup?.clearLayers();
+  nearbyLayerGroup?.clearLayers();
   toggleTable();
   $("#stationName").hide();
   $("#lastUpdated").hide();
   $("#busRouteInfo").hide();
-  $("#scheduleSection").hide();
+  $(
+    "#scheduleSection, #error, #noBusesMessage, #tableContainer, #busRouteInfo, #updateInProgress",
+  ).hide();
 };
 
 const searchByCoords = async (
@@ -923,15 +1000,17 @@ const searchByCoords = async (
   maxDistanceElemID,
   optionsElemID,
 ) => {
-  $("#updateInProgress").show();
+  $("#searchLoading").show();
   const stationsMaxDistance = $(maxDistanceElemID).val();
   const closestStations = await findClosestStations(
     searchCoords,
-    allStations[getCity()],
+    allStations[getCity()] || [],
     stationsMaxDistance,
   );
-  layerGroup.clearLayers();
   cancelInterval();
+  const targetMap = nearbyMap || map;
+  const targetLayer = nearbyLayerGroup || layerGroup;
+  targetLayer.clearLayers();
 
   let markers = [];
   markers.push(
@@ -943,9 +1022,10 @@ const searchByCoords = async (
       station.station.id,
       "yellow",
     );
-    marker.on("click", () =>
-      $(optionsElemID).val(station.station.uid).trigger("change"),
-    );
+    marker.on("click", () => {
+      $(optionsElemID).val(station.station.uid);
+      submitByCoords();
+    });
     markers.push(marker);
     const option = document.createElement("option");
     option.value = station.station.uid;
@@ -954,37 +1034,65 @@ const searchByCoords = async (
   });
   $(optionsElemID).empty().append(options).trigger("change");
 
-  let group = new L.featureGroup(markers).addTo(layerGroup);
-  map.fitBounds(group.getBounds());
-  $("#updateInProgress").hide();
+  const group = new L.featureGroup(markers).addTo(targetLayer);
+  targetMap.fitBounds(group.getBounds());
+  $("#searchLoading").hide();
 };
 
 const searchByGPS = async () => {
-  $("#error").hide();
-  const userLocation = await getUserLocation();
-  await searchByCoords(
-    userLocation,
-    "#stationsMaxDistance-input",
-    "#coords-input",
-  );
-  if ($("#coords-input").val()) {
-    currQuery = { uid: $("#coords-input").val().trim() };
-    toggleTable();
+  $("#searchError").hide();
+  $("#searchLoading").show();
+  try {
+    lastUserLocation = await getUserLocation();
+    $("#nearbyMap").show();
+    initNearbyMap();
+    await searchByCoords(
+      lastUserLocation,
+      "#stationsMaxDistance-input",
+      "#coords-input",
+    );
+    nearbyMap?.invalidateSize?.();
+  } catch (error) {
+    $("#searchError").text(`Unable to find nearby stations: ${error}`).show();
+    $("#searchLoading").hide();
   }
 };
 
 const submitHandlers = {
+  id: submitById,
   name: submitByName,
   coords: submitByCoords,
 };
 
+const setTheme = (theme) => {
+  document.documentElement.dataset.theme = theme;
+  try {
+    localStorage.setItem("theme", theme);
+  } catch {
+    // The theme still applies for this page when storage is blocked.
+  }
+  const button = document.getElementById("themeToggle");
+  if (button) {
+    const icon = button.querySelector("span");
+    if (icon) icon.textContent = theme === "dark" ? "☾" : "☼";
+    button.setAttribute("aria-pressed", String(theme === "dark"));
+  }
+  const themeColor = document.querySelector('meta[name="theme-color"]');
+  if (themeColor) themeColor.content = theme === "dark" ? "#171a18" : "#ffffff";
+};
+
 $(document).ready(async () => {
   // Restore saved distance from localStorage
-  const savedDistance = localStorage.getItem("stationsMaxDistance");
+  let savedDistance;
+  try {
+    savedDistance = localStorage.getItem("stationsMaxDistance");
+  } catch {
+    // Nearby search keeps its default range when storage is blocked.
+  }
   if (savedDistance) {
     document.getElementById("stationsMaxDistance-input").value = savedDistance;
     document.getElementById("stationsMaxDistance-label").textContent =
-      `Distance (${savedDistance}m):`;
+      `Maximum distance (${savedDistance}m)`;
   }
 
   // Custom name-search dropdown
@@ -1011,17 +1119,42 @@ $(document).ready(async () => {
     stationList.forEach((station) => {
       const item = document.createElement("div");
       item.classList.add("station-item");
+      item.setAttribute("role", "option");
+      item.setAttribute("aria-selected", "false");
+      item.tabIndex = 0;
       item.textContent =
         getCity() === "bg" ? station.name : `${station.name} (${station.id})`;
-      item.addEventListener("click", () => {
+      const selectStation = () => {
         input.value = station.name;
         dropdown.style.display = "none";
+        input.setAttribute("aria-expanded", "false");
         submitByName();
+      };
+      item.addEventListener("click", selectStation);
+      item.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          selectStation();
+        } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          const options = [...dropdown.querySelectorAll('[role="option"]')];
+          const direction = event.key === "ArrowDown" ? 1 : -1;
+          const nextIndex = Math.max(
+            0,
+            Math.min(options.length - 1, options.indexOf(item) + direction),
+          );
+          options[nextIndex]?.focus();
+        } else if (event.key === "Escape") {
+          dropdown.style.display = "none";
+          input.setAttribute("aria-expanded", "false");
+          input.focus();
+        }
       });
       dropdown.appendChild(item);
     });
 
     dropdown.style.display = "block";
+    input.setAttribute("aria-expanded", "true");
     dropdown.style.position = "absolute";
     dropdown.style.left = "0";
     dropdown.style.top = `${input.offsetHeight + 2}px`;
@@ -1037,35 +1170,93 @@ $(document).ready(async () => {
     const filteredStations = stations.filter(
       (station) =>
         station.name.toLowerCase().includes(value) ||
-        station.id.includes(value),
+        String(station.id).toLowerCase().includes(value),
     );
     showDropdown(filteredStations);
+  });
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      const firstOption = dropdown.querySelector('[role="option"]');
+      if (firstOption) {
+        event.preventDefault();
+        firstOption.focus();
+      }
+    } else if (event.key === "Escape") {
+      dropdown.style.display = "none";
+      input.setAttribute("aria-expanded", "false");
+    }
   });
 
   $(document).on("click", (event) => {
     if (!$(event.target).closest("#name-input, #dropdown").length) {
       dropdown.style.display = "none";
+      input.setAttribute("aria-expanded", "false");
     }
   });
 
   // Map & tab visibility handlers
   initMap();
 
+  const themeButton = document.getElementById("themeToggle");
+  if (themeButton) {
+    const currentTheme =
+      document.documentElement.dataset.theme ||
+      (window.matchMedia?.("(prefers-color-scheme: dark)")?.matches
+        ? "dark"
+        : "light");
+    const themeIcon = themeButton.querySelector("span");
+    if (themeIcon) themeIcon.textContent = currentTheme === "dark" ? "☾" : "☼";
+    themeButton.setAttribute("aria-pressed", String(currentTheme === "dark"));
+    themeButton.addEventListener("click", () =>
+      setTheme(
+        (document.documentElement.dataset.theme || currentTheme) === "dark"
+          ? "light"
+          : "dark",
+      ),
+    );
+  }
+
+  const dialog = document.getElementById("arrivalsDialog");
+  document.getElementById("closeArrivals")?.addEventListener("click", () => {
+    if (typeof dialog?.close === "function") dialog.close();
+    else dialog?.removeAttribute("open");
+  });
+  dialog?.addEventListener("close", () => {
+    cancelInterval();
+    bgVehicleRequestId++;
+    bgRouteSelection = undefined;
+  });
+  dialog?.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+  document.getElementById("findNearby")?.addEventListener("click", searchByGPS);
+  document.getElementById("id-input")?.addEventListener("input", (event) => {
+    document.getElementById("submitId").disabled = !event.target.value.trim();
+    $("#searchError").hide();
+  });
+
   // Load cities
   const response = await doAsyncRequest("/api/cities");
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Choose a city…";
+  placeholder.selected = true;
   const cities = Object.entries(response).map(([key, value]) => {
     const option = document.createElement("option");
     option.value = key;
     option.textContent = value;
     return option;
   });
-  $("#city").empty().append(cities);
+  $("#city")
+    .empty()
+    .append([placeholder, ...cities]);
   onCityChange();
   onSearchModeChange();
 
   $("#myForm").submit((event) => {
     event.preventDefault();
-    submitHandlers[getSearchMode()]();
+    submitHandlers[getSearchMode()]?.();
   });
 
   $("#noBusesMessage").hide();
