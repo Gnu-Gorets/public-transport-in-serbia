@@ -170,7 +170,7 @@ async function monitor() {
   try {
     const { evaluateArrivalAlert } =
       evaluateAlert ||
-      (evaluateAlert = await import("../../../shared/arrival-alert.mjs"));
+      (evaluateAlert = await import("../../../arrival-alert.mjs"));
     const grouped = new Map();
     const now = Date.now();
     for (const [subscriptionId, record] of records) {

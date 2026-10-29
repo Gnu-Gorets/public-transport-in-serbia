@@ -22,10 +22,16 @@ export type ArrivalObservation =
   | { type: "error" };
 export const MAX_ACTIVE_ALERTS_PER_SUBSCRIPTION: 10;
 export function createArrivalAlert(
-  input: Omit<ArrivalAlert, "createdAt" | "expiresAt" | "missingSince" | "status">,
+  input: Omit<
+    ArrivalAlert,
+    "createdAt" | "expiresAt" | "missingSince" | "status"
+  >,
   now?: number,
 ): ArrivalAlert;
-export function canCreateArrivalAlert(alerts: ArrivalAlert[], subscriptionId: string): boolean;
+export function canCreateArrivalAlert(
+  alerts: ArrivalAlert[],
+  subscriptionId: string,
+): boolean;
 export function evaluateArrivalAlert(
   alert: ArrivalAlert,
   observation: ArrivalObservation,

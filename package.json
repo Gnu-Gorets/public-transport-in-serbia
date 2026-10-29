@@ -9,8 +9,8 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "build": "node scripts/gen-theme.mjs && vite build && node scripts/mark-build-esm.mjs",
     "test": "vitest run",
-    "lint": "eslint be/server fe/static tests fe/src scripts eslint.config.mjs vite.config.mjs",
-    "format:check": "prettier --check \"be/server/**/*.js\" \"fe/static/**/*.{js,html,css}\" \"fe/src/**/*.{js,mjs,ts,svelte,css,html}\" \"tests/**/*.{js,mjs,ts}\" \"scripts/**/*.mjs\" package.json package-lock.json README.md AGENTS.md .github/workflows/ci.yml eslint.config.mjs .prettierrc.json vite.config.mjs tsconfig.json",
+    "lint": "eslint be/server fe/static tests fe/src scripts eslint.config.mjs vite.config.mjs arrival-alert.mjs",
+    "format:check": "prettier --check \"be/server/**/*.js\" \"fe/static/**/*.{js,html,css}\" \"fe/src/**/*.{js,mjs,ts,svelte,css,html}\" \"tests/**/*.{js,mjs,ts}\" \"scripts/**/*.mjs\" package.json package-lock.json README.md AGENTS.md .github/workflows/ci.yml eslint.config.mjs .prettierrc.json vite.config.mjs tsconfig.json arrival-alert.mjs arrival-alert.d.mts",
     "verify": "npm run check && npm run lint && npm run format:check && npm test && npm run build"
   },
   "author": "",
@@ -20,7 +20,7 @@
   },
   "imports": {
     "#lib/*": "./fe/src/lib/*",
-    "#shared/*": "./shared/*"
+    "#arrival-alert": "./arrival-alert.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.1",
