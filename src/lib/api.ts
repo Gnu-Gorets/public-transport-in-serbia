@@ -72,6 +72,12 @@ export interface BelgradeArrival {
   route: { lineId: string; threadId: string; path: string } | null;
 }
 
+export interface BelgradeVehicle {
+  id: string;
+  lineNumber: string;
+  coords: [number, number];
+}
+
 export interface BelgradeStopArrivals {
   city: "bg";
   name: string;
@@ -155,6 +161,17 @@ export function getStationArrivals(
   const query = new URLSearchParams(station);
   return request<StationArrivals>(
     `/api/stations/${encodeURIComponent(city)}/search?${query}`,
+    signal,
+  );
+}
+
+export function getBelgradeVehicles(
+  stopId: string,
+  signal?: AbortSignal,
+): Promise<{ vehicles: BelgradeVehicle[] }> {
+  const query = new URLSearchParams({ stopId });
+  return request<{ vehicles: BelgradeVehicle[] }>(
+    `/api/bg/vehicles?${query}`,
     signal,
   );
 }

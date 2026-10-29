@@ -5,11 +5,13 @@
   import {
     getBelgradeStopArrivals,
     getBelgradeStops,
+    getBelgradeVehicles,
     getCatalogStopName,
     getStationArrivals,
   } from "#lib/api.ts";
   import type {
     BelgradeStopArrivals,
+    BelgradeVehicle,
     StationArrivals,
     VehicleArrival,
   } from "#lib/api.ts";
@@ -32,6 +34,7 @@
   let mapStations: Station[] = $state([]);
   let mapStation: Station | null = $state(null);
   let belgrade: BelgradeStopArrivals | null = $state(null);
+  let belgradeVehicles: BelgradeVehicle[] = $state([]);
   let catalogName = $state("");
   let error = $state("");
   let loading = $state(true);
@@ -79,12 +82,15 @@
       controller = new AbortController();
       try {
         if (city === "bg") {
-          const result = await getBelgradeStopArrivals(
-            uid ?? "",
-            controller.signal,
-          );
+          const [result, vehicleResult] = await Promise.all([
+            getBelgradeStopArrivals(uid ?? "", controller.signal),
+            getBelgradeVehicles(uid ?? "", controller.signal).catch(() => ({
+              vehicles: [],
+            })),
+          ]);
           if (!active) return;
           belgrade = result;
+          belgradeVehicles = vehicleResult.vehicles;
           arrivals = null;
           error = "";
           if (!mapStation) {
@@ -102,6 +108,7 @@
             (item) => item.city === city && item.id === String(result.id),
           );
         } else {
+          belgradeVehicles = [];
           arrivals = await getStationArrivals(
             city ?? "",
             { uid: uid ?? "" },
@@ -417,7 +424,7 @@
       <StationMap
         stations={mapStations}
         selectedStation={mapStation}
-        vehicles={arrivals?.vehicles || []}
+        vehicles={arrivals?.vehicles || belgradeVehicles}
       />
     {/if}
   </section>
