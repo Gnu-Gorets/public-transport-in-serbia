@@ -524,6 +524,11 @@
       height: calc(100dvh - 56px);
     }
   }
+  @media (min-width: 1200px) {
+    .detail-pane {
+      grid-column: 2 / -1;
+    }
+  }
   .line-card {
     margin: 12px 0;
     overflow: hidden;
