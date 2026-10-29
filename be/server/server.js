@@ -23,12 +23,11 @@ const start = async () => {
   try {
     alertsService.configureVapid();
     await alertsService.load();
+    logger.info("Populating map finished for bg");
+    await providerService.populateMap(true);
     await fastify.listen({
       port: Number(process.env.PORT || 3000),
       host: "0.0.0.0",
-    });
-    providerService.populateMap(true).catch((err) => {
-      logger.error({ err }, "Station map population failed after startup");
     });
   } catch (err) {
     logger.error({ err }, "Server startup failed");
