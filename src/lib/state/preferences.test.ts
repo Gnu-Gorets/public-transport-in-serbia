@@ -1,9 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { shouldOpenPreferences } from "./preferences.ts";
+import { loadPreferences, savePreferences } from "./preferences.ts";
 
-describe("preferences menu query", () => {
-  it("opens only when preferences query parameter is present", () => {
-    expect(shouldOpenPreferences("?preferences=1")).toBe(true);
-    expect(shouldOpenPreferences("?city=ns")).toBe(false);
+function memoryStorage() {
+  const values = new Map<string, string>();
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+  };
+}
+
+describe("preferences", () => {
+  it("saves and reloads changes made in the preferences dialog", () => {
+    const storage = memoryStorage();
+    savePreferences(storage, {
+      cityId: "ns",
+      rangeMeters: 650,
+      theme: "dark",
+      accent: "device-blue",
+    });
+
+    expect(loadPreferences(storage)).toEqual({
+      cityId: "ns",
+      rangeMeters: 650,
+      theme: "dark",
+      accent: "device-blue",
+    });
   });
 });

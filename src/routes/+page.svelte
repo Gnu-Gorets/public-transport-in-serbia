@@ -16,7 +16,6 @@
   import {
     DEFAULT_PREFERENCES,
     loadPreferences,
-    shouldOpenPreferences,
     savePreferences,
   } from "#lib/state/preferences.ts";
   import type { Accent } from "#lib/state/preferences.ts";
@@ -89,7 +88,6 @@
       applyAccent(accent);
       await loadFavorites();
       await loadStations();
-      if (shouldOpenPreferences(window.location.search)) await openSettings();
     } catch (cause) {
       error = message(cause);
     }

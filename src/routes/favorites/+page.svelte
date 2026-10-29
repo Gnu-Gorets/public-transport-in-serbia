@@ -1,24 +1,48 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { goto } from "$app/navigation";
   import AppIcon from "#lib/components/AppIcon.svelte";
-  import { loadPreferences } from "#lib/state/preferences.ts";
+  import {
+    DEFAULT_PREFERENCES,
+    loadPreferences,
+    savePreferences,
+  } from "#lib/state/preferences.ts";
+  import type { Accent } from "#lib/state/preferences.ts";
+  import {
+    Hct,
+    SchemeTonalSpot,
+  } from "@ktibow/material-color-utilities-nightly";
+  import { colors, genCSS } from "m3-svelte/etc/colors";
   import { getFavorites, syncCity } from "#lib/stations/storage.js";
   import { searchStations, type Station } from "#lib/stations.ts";
 
   let city = $state("");
   let cityName = $state("");
+  let cities: Record<string, string> = $state({});
   let stations: Station[] = $state([]);
   let favorites: Station[] = $state([]);
   let error = $state("");
   let loading = $state(true);
   let query = $state("");
   let filtered = $derived(searchStations(favorites, query));
+  let rangeMeters = $state(DEFAULT_PREFERENCES.rangeMeters);
+  let theme = $state("system");
+  let accent: Accent = $state("bgpp-teal");
+  let hue = $state(176.5);
+  let settingsOpen = $state(false);
+  let settingsDialog = $state<HTMLDialogElement>();
+  let settingsSnapshot: {
+    city: string;
+    rangeMeters: number;
+    theme: string;
+    accent: Accent;
+    hue: number;
+  } | null = null;
 
   onMount(async () => {
     try {
       const saved = loadPreferences(localStorage);
-      const cities = (await fetch("/api/cities").then((response) =>
+      cities = (await fetch("/api/cities").then((response) =>
         response.json(),
       )) as Record<string, string>;
       city =
@@ -26,6 +50,23 @@
           ? saved.cityId
           : Object.keys(cities)[0] || "";
       cityName = cities[city] || "";
+      rangeMeters = saved.rangeMeters || DEFAULT_PREFERENCES.rangeMeters;
+      theme = saved.theme;
+      accent = saved.accent;
+      if (typeof accent === "object") hue = accent.hue;
+      if (theme !== "system") document.documentElement.dataset.theme = theme;
+      applyAccent(accent);
+      await loadFavorites();
+    } catch (cause) {
+      error =
+        cause instanceof Error ? cause.message : "Unable to load favorites.";
+    } finally {
+      loading = false;
+    }
+  });
+
+  async function loadFavorites() {
+    try {
       const [rows, savedFavorites] = await Promise.all([
         syncCity(city),
         getFavorites(),
@@ -42,13 +83,83 @@
           .map((station) => station.id),
       );
       favorites = stations.filter((station) => ids.has(station.id));
+      error = "";
     } catch (cause) {
       error =
         cause instanceof Error ? cause.message : "Unable to load favorites.";
-    } finally {
-      loading = false;
     }
-  });
+  }
+
+  function applyAccent(value: Accent) {
+    accent = value;
+    const seedHue =
+      typeof value === "object"
+        ? value.hue
+        : value === "device-blue"
+          ? 200
+          : 176.5;
+    const source = Hct.from(seedHue, 36, 50);
+    const stylesheet = genCSS(
+      new SchemeTonalSpot(source, false, 0),
+      new SchemeTonalSpot(source, true, 0),
+      colors,
+    );
+    let style = document.getElementById(
+      "dynamic-accent",
+    ) as HTMLStyleElement | null;
+    if (!style) {
+      style = document.createElement("style");
+      style.id = "dynamic-accent";
+      document.head.append(style);
+    }
+    style.textContent = stylesheet;
+    document.documentElement.style.colorScheme =
+      theme === "system" ? "light dark" : theme;
+  }
+
+  function toggleTheme(value: string) {
+    theme = value;
+    if (value === "system") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = value;
+    document.documentElement.style.colorScheme =
+      value === "system" ? "light dark" : value;
+  }
+
+  async function openSettings() {
+    settingsSnapshot = { city, rangeMeters, theme, accent, hue };
+    settingsOpen = true;
+    await tick();
+    settingsDialog?.showModal();
+  }
+
+  function cancelSettings() {
+    if (settingsSnapshot) {
+      city = settingsSnapshot.city;
+      rangeMeters = settingsSnapshot.rangeMeters;
+      theme = settingsSnapshot.theme;
+      accent = settingsSnapshot.accent;
+      hue = settingsSnapshot.hue;
+      toggleTheme(theme);
+      applyAccent(accent);
+    }
+    settingsSnapshot = null;
+    settingsOpen = false;
+  }
+
+  async function saveSettings() {
+    settingsSnapshot = null;
+    settingsDialog?.close();
+    savePreferences(localStorage, {
+      ...loadPreferences(localStorage),
+      cityId: city,
+      rangeMeters,
+      theme: theme as "system" | "light" | "dark",
+      accent,
+    });
+    cityName = cities[city] || "";
+    settingsOpen = false;
+    await loadFavorites();
+  }
 </script>
 
 <svelte:head><title>Favorite stations | Serbia++</title></svelte:head>
@@ -85,7 +196,7 @@
       class="icon-button"
       aria-label="Preferences"
       title="Preferences"
-      onclick={() => goto("/?preferences=1")}><AppIcon name="more" /></button
+      onclick={openSettings}><AppIcon name="more" /></button
     >
   </header>
   <main id="main" class="content">
@@ -130,10 +241,132 @@
   </main>
   <section class="detail-pane"></section>
 </div>
+{#if settingsOpen}
+  <dialog
+    bind:this={settingsDialog}
+    class="settings-dialog"
+    aria-labelledby="settingsTitle"
+    onclose={cancelSettings}
+  >
+    <form
+      onsubmit={(event) => {
+        event.preventDefault();
+        saveSettings();
+      }}
+    >
+      <h2 id="settingsTitle">Preferences</h2>
+      <label for="settingsCity">City</label>
+      <select id="settingsCity" bind:value={city}>
+        {#each Object.entries(cities) as [id, name] (id)}<option value={id}
+            >{name}</option
+          >{/each}
+      </select>
+      <label for="range">Range: {rangeMeters} m</label>
+      <input
+        id="range"
+        type="range"
+        min="100"
+        max="1000"
+        step="50"
+        bind:value={rangeMeters}
+      />
+      <label for="theme">Theme</label>
+      <select
+        id="theme"
+        value={theme}
+        onchange={(event) => toggleTheme(event.currentTarget.value)}
+      >
+        <option value="system">System</option><option value="light"
+          >Light</option
+        ><option value="dark">Dark</option>
+      </select>
+      <label for="accent">Accent</label>
+      <select
+        id="accent"
+        value={typeof accent === "object" ? "custom" : accent}
+        onchange={(event) =>
+          applyAccent(
+            event.currentTarget.value === "custom"
+              ? { hue }
+              : (event.currentTarget.value as Accent),
+          )}
+      >
+        <option value="bgpp-teal">BG++ teal</option><option value="device-blue"
+          >Device blue</option
+        ><option value="custom">Custom hue</option>
+      </select>
+      {#if typeof accent === "object"}
+        <label for="accentHue">Hue: {Math.round(hue)}°</label>
+        <input
+          id="accentHue"
+          type="range"
+          min="0"
+          max="360"
+          step="1"
+          bind:value={hue}
+          oninput={() => applyAccent({ hue })}
+        />
+      {/if}
+      <nav class="settings-links" aria-label="Information">
+        <a href="/api/v2">API reference</a>
+        <a
+          href="https://github.com/GnuGorets/public-transport-in-serbia"
+          target="_blank"
+          rel="noreferrer">Source code</a
+        >
+      </nav>
+      <div class="dialog-actions">
+        <button
+          type="button"
+          class="icon-button"
+          onclick={() => settingsDialog?.close()}>Cancel</button
+        ><button class="primary-button">Apply</button>
+      </div>
+    </form>
+  </dialog>
+{/if}
 
 <style>
   .compact-back {
     display: none;
+  }
+  .settings-dialog {
+    width: min(420px, calc(100vw - 32px));
+    border: 0;
+    border-radius: 28px;
+    color: var(--m3c-on-surface);
+    background: var(--m3c-surface-container-high);
+  }
+  .settings-dialog::backdrop {
+    background: rgb(0 0 0 / 45%);
+  }
+  .settings-dialog label {
+    display: block;
+    margin: 16px 0 6px;
+  }
+  .settings-dialog select {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 12px;
+    border: 1px solid var(--m3c-outline);
+    border-radius: 8px;
+    color: inherit;
+    background: var(--m3c-surface);
+  }
+  .settings-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 20px;
+  }
+  .settings-links a {
+    color: var(--m3c-primary);
+  }
+  .dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 24px;
   }
   @media (max-width: 599px) {
     .compact-back {
