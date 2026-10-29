@@ -48,27 +48,4 @@ export default [
     files: ["src/**/*.{js,ts,svelte}"],
     languageOptions: { globals: { ...globals.browser, ...globals.node } },
   },
-  {
-    files: ["static/**/*.js"],
-    languageOptions: {
-      globals: {
-        ...globals.browser,
-        $: "readonly",
-        L: "readonly",
-        changeBg: "readonly",
-        mapLayers: "readonly",
-      },
-    },
-    rules: {
-      "no-unused-vars": [
-        "error",
-        {
-          argsIgnorePattern: "^_",
-          caughtErrorsIgnorePattern: "^_",
-          varsIgnorePattern: "^(mapLayers|onNameChange|onRangeChange)$",
-        },
-      ],
-      "@typescript-eslint/no-unused-vars": "off",
-    },
-  },
 ];

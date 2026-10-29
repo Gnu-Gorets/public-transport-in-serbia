@@ -127,16 +127,13 @@ describe("API routes", () => {
     expect(exit).not.toHaveBeenCalled();
   });
 
-  it("serves the UI entrypoint", async () => {
+  it("does not serve an unbuilt UI in test mode", async () => {
     const response = await fastify.inject({
       method: "GET",
       url: "/",
     });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.headers["content-type"]).toContain("text/html");
-    expect(response.body).toContain("Serbia++");
-    expect(response.body).toContain("static/script.js?v=bg-yellow-vehicles-2");
+    expect(response.statusCode).toBe(404);
   });
 
   it("serves the checked-in Belgrade stop catalog locally", async () => {

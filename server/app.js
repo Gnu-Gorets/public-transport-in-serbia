@@ -64,8 +64,6 @@ function createApp(options = {}) {
         return reply.code(404).send({ error: "Not found" });
       return serveApp(request, reply);
     });
-  } else {
-    fastify.get("/", (request, reply) => reply.sendFile("index.html"));
   }
 
   return fastify;
