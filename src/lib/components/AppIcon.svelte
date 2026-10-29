@@ -3,6 +3,7 @@
     | "search"
     | "favorite"
     | "map"
+    | "pin"
     | "refresh"
     | "more"
     | "clear"
@@ -25,6 +26,9 @@
   {:else if name === "map"}
     <path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z" />
     <path d="M9 3v15m6-12v15" />
+  {:else if name === "pin"}
+    <path d="M12 22s-7-7.3-7-13a7 7 0 1 1 14 0c0 5.7-7 13-7 13Z" />
+    <circle cx="12" cy="9" r="2.5" />
   {:else if name === "refresh"}
     <path d="M20 7v5h-5" />
     <path d="M20 12a8 8 0 1 1-2.3-5.7L20 9" />

@@ -336,7 +336,7 @@
           ? "Using device location"
           : "Use my location"}
         aria-pressed={locationEnabled}
-        onclick={useLocation}><AppIcon name="location" /></button
+        onclick={useLocation}><AppIcon name="pin" /></button
       >
     </div>
     {#if locationEnabled}
