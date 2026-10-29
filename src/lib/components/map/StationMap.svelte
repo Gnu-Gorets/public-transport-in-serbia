@@ -45,15 +45,11 @@
     if (!leaflet || !markerGroup) return;
     markerGroup.clearLayers();
     for (const station of currentStations) {
-      if (
-        !Array.isArray(station.coords) ||
-        station.coords.length !== 2 ||
-        !station.coords.every(Number.isFinite)
-      )
-        continue;
+      const coords = station.coords.map(Number);
+      if (coords.length !== 2 || !coords.every(Number.isFinite)) continue;
 
       const marker = leaflet
-        .marker(station.coords, {
+        .marker(coords as [number, number], {
           icon: createIcon(station.uid === currentSelection?.uid),
           title: station.name,
           alt: station.name,
@@ -74,7 +70,13 @@
     if (map) {
       rebuildMarkers(currentStations, currentSelection);
       if (currentSelection)
-        map.setView(currentSelection.coords, 12, { animate: false });
+        map.setView(
+          currentSelection.coords.map(Number) as [number, number],
+          12,
+          {
+            animate: false,
+          },
+        );
     }
   });
 
@@ -103,7 +105,9 @@
     map.addLayer(markerGroup);
     rebuildMarkers(stations, selectedStation);
     if (selectedStation)
-      map.setView(selectedStation.coords, 12, { animate: false });
+      map.setView(selectedStation.coords.map(Number) as [number, number], 12, {
+        animate: false,
+      });
   });
 
   onDestroy(() => {

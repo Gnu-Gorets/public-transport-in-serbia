@@ -13,7 +13,13 @@
     StationArrivals,
     VehicleArrival,
   } from "#lib/api.ts";
-  import { getFavorites, setFavorite } from "#lib/stations/storage.js";
+  import {
+    getFavorites,
+    setFavorite,
+    syncCity,
+  } from "#lib/stations/storage.js";
+  import StationMap from "#lib/components/map/StationMap.svelte";
+  import type { Station } from "#lib/stations.ts";
   import {
     listAlerts,
     removeAlert,
@@ -27,6 +33,8 @@
   } from "#lib/state/push-alerts.ts";
 
   let arrivals: StationArrivals | null = $state(null);
+  let mapStations: Station[] = $state([]);
+  let mapStation: Station | null = $state(null);
   let belgrade: BelgradeStopArrivals | null = $state(null);
   let catalogName = $state("");
   let error = $state("");
@@ -125,6 +133,33 @@
         .catch(() => {});
     }
     void load();
+    if (city === "bg") {
+      void getBelgradeStops()
+        .then(({ stops }) => {
+          mapStations = stops.map((stop) => ({
+            ...stop,
+            uid: stop.id,
+            lines: [],
+          }));
+          mapStation =
+            mapStations.find((station) => station.uid === uid) || null;
+        })
+        .catch(() => {});
+    } else {
+      void syncCity(city ?? "")
+        .then((stations) => {
+          mapStations = stations.map((station) => ({
+            name: station.name,
+            uid: station.uid,
+            id: station.id,
+            coords: [station.lat, station.lon],
+            lines: [],
+          }));
+          mapStation =
+            mapStations.find((station) => String(station.uid) === uid) || null;
+        })
+        .catch(() => {});
+    }
     const timer = setInterval(() => {
       if (document.visibilityState === "visible") void load();
     }, 10000);
@@ -386,7 +421,11 @@
       {/if}
     {/if}
   </main>
-  <section class="detail-pane"></section>
+  <section class="detail-pane" aria-label="Station map">
+    {#if mapStations.length && mapStation}
+      <StationMap stations={mapStations} selectedStation={mapStation} />
+    {/if}
+  </section>
 </div>
 {#if city !== "bg"}
   <dialog
@@ -473,8 +512,17 @@
 >
 
 <style>
+  .detail-pane {
+    display: none;
+  }
   .arrivals-content {
     padding-bottom: 96px;
+  }
+  @media (min-width: 840px) {
+    .detail-pane {
+      display: block;
+      height: calc(100dvh - 56px);
+    }
   }
   .line-card {
     margin: 12px 0;
