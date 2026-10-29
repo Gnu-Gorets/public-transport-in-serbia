@@ -132,13 +132,9 @@
             lines: [],
           }));
         } else {
-          const response = await getJson<Record<string, Omit<Station, "uid">>>(
+          stations = await getJson<Station[]>(
             `/api/stations/${encodeURIComponent(city)}/all`,
           );
-          stations = Object.entries(response).map(([uid, station]) => ({
-            ...station,
-            uid,
-          }));
         }
       }
     } catch (cause) {

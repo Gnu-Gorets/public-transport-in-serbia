@@ -81,6 +81,37 @@ describe("station catalog sync", () => {
     expect(await getStations("ns")).toEqual(cached);
   });
 
+  it("preserves station UIDs from array catalogs", async () => {
+    const responses = [
+      { ok: true, json: async () => ({ hash: "v1" }) },
+      {
+        ok: true,
+        json: async () => [
+          {
+            uid: 6707,
+            id: "0536B",
+            name: "Bulevar oslobođenja-Jevrejska",
+            coords: [45.25, 19.84],
+            lines: [],
+          },
+        ],
+      },
+    ];
+
+    const stations = await syncCity("ns", async () => responses.shift());
+
+    expect(stations).toEqual([
+      {
+        city: "ns",
+        id: "0536B",
+        uid: 6707,
+        name: "Bulevar oslobođenja-Jevrejska",
+        lat: 45.25,
+        lon: 19.84,
+      },
+    ]);
+  });
+
   it("replaces cached rows only after a complete catalog download", async () => {
     const setup = [
       { ok: true, json: async () => ({ hash: "v1" }) },

@@ -86,9 +86,12 @@ export function normalizeStations(city, payload) {
       lon: coords[1],
     }));
   }
-  if (!payload || typeof payload !== "object" || Array.isArray(payload))
+  if (!payload || typeof payload !== "object")
     throw new Error("Invalid station catalog");
-  return Object.entries(payload).map(([uid, station]) => ({
+  const entries = Array.isArray(payload)
+    ? payload.map((station) => [station.uid, station])
+    : Object.entries(payload);
+  return entries.map(([uid, station]) => ({
     city,
     id: String(station.id),
     uid: station.uid ?? uid,
