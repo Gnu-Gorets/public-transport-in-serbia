@@ -107,8 +107,8 @@
             icon: leaflet.divIcon({
               className: "station-vehicle-marker-wrapper",
               html: icon,
-              iconSize: [32, 24],
-              iconAnchor: [16, 12],
+              iconSize: [40, 30],
+              iconAnchor: [20, 15],
             }),
             title: description,
             alt: description,
@@ -235,8 +235,8 @@
 
   :global(.station-vehicle-marker text) {
     fill: #1565c0;
-    font-size: 8px;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 800;
     text-anchor: middle;
   }
 
