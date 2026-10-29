@@ -4,7 +4,6 @@
   "description": "",
   "main": "be/server/server.js",
   "scripts": {
-    "run": "node be/server/server.js",
     "dev": "concurrently -k \"PORT=3001 node be/server/server.js\" \"vite dev --host 0.0.0.0 --port 3000\"",
     "start": "node be/server/server.js",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
