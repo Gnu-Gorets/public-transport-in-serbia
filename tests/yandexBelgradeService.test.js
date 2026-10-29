@@ -2,18 +2,21 @@ import { createRequire } from "node:module";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { resetHttpClient, setHttpClient } = require("../server/httpClient.js");
+const {
+  resetHttpClient,
+  setHttpClient,
+} = require("../be/server/httpClient.js");
 const {
   getBelgradeStop,
   getBelgradeRoute,
   getBelgradeVehicles,
   belgradeStops,
   _test,
-} = require("../server/services/yandexBelgradeService.js");
+} = require("../be/server/services/yandexBelgradeService.js");
 
 describe("Belgrade stop catalog", () => {
   it("validates and exports the Yandex transit catalog", () => {
-    const source = require("../server/data/yandex-belgrade-bus-stops.json");
+    const source = require("../be/server/data/yandex-belgrade-bus-stops.json");
     expect(belgradeStops).toBe(source);
     expect(belgradeStops.stops).toHaveLength(2125);
     expect(belgradeStops.stops.find(({ id }) => id === "1555437089").name).toBe(

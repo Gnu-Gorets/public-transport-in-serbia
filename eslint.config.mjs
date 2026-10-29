@@ -7,7 +7,7 @@ export default [
   {
     ignores: [
       "node_modules/**",
-      "server/data/**",
+      "be/server/data/**",
       ".svelte-kit/**",
       "build/**",
     ],
@@ -33,19 +33,19 @@ export default [
     },
   },
   {
-    files: ["server/**/*.js"],
+    files: ["be/server/**/*.js"],
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
   {
-    files: ["server/**/*.js", "tests/**/*.{js,ts}", "scripts/**/*.mjs"],
+    files: ["be/server/**/*.js", "tests/**/*.{js,ts}", "scripts/**/*.mjs"],
     languageOptions: { globals: globals.node },
   },
   {
-    files: ["static/service-worker.js"],
+    files: ["fe/static/service-worker.js"],
     languageOptions: { globals: globals.serviceworker },
   },
   {
-    files: ["src/**/*.{js,ts,svelte}"],
+    files: ["fe/src/**/*.{js,ts,svelte}"],
     languageOptions: { globals: { ...globals.browser, ...globals.node } },
   },
 ];

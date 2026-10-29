@@ -27,6 +27,6 @@ await writeFile(
   '{"type":"module"}\n',
 );
 await writeFile(
-  new URL("../src/theme.css", import.meta.url),
+  new URL("../fe/src/theme.css", import.meta.url),
   `@function --m3-density(--size) {\n  result: var(--size);\n}\n\n@layer tokens {\n${tokens}\n\n  :root {\n    --m3-shape-none: 0;\n    --m3-shape-extra-small: 4px;\n    --m3-shape-small: 8px;\n    --m3-shape-medium: 12px;\n    --m3-shape-large: 16px;\n    --m3-shape-extra-large: 28px;\n    --m3-shape-full: 9999px;\n    --m3-font: "Roboto Variable", Roboto, system-ui, sans-serif;\n  }\n}\n`,
 );

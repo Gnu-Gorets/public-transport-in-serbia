@@ -8,15 +8,15 @@ import {
   it,
   vi,
 } from "vitest";
-import server from "../server/server.js";
+import server from "../be/server/server.js";
 
 const require = createRequire(import.meta.url);
-const logger = require("../server/logger.js");
-const { state } = require("../server/state.js");
-const yandexBelgradeService = require("../server/services/yandexBelgradeService.js");
-const providerService = require("../server/services/providerService.js");
-const alertsService = require("../server/services/alertsService.js");
-const belgradeStops = require("../server/data/yandex-belgrade-bus-stops.json");
+const logger = require("../be/server/logger.js");
+const { state } = require("../be/server/state.js");
+const yandexBelgradeService = require("../be/server/services/yandexBelgradeService.js");
+const providerService = require("../be/server/services/providerService.js");
+const alertsService = require("../be/server/services/alertsService.js");
+const belgradeStops = require("../be/server/data/yandex-belgrade-bus-stops.json");
 const { fastify, _test } = server;
 
 const yandexStopPage = `<script type="application/json" class="state-view">${JSON.stringify(

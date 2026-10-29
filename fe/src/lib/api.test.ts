@@ -1,5 +1,25 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getBelgradeVehicles } from "./api.ts";
+import { getBelgradeVehicles, getStations } from "./api.ts";
+
+describe("getStations", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("normalizes station ids and missing lines", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          station: { name: "Station", id: 123, coords: [1, 2] },
+        }),
+      }),
+    );
+
+    await expect(getStations("ns")).resolves.toEqual([
+      { name: "Station", id: "123", uid: "station", coords: [1, 2], lines: [] },
+    ]);
+  });
+});
 
 describe("getBelgradeVehicles", () => {
   afterEach(() => vi.unstubAllGlobals());

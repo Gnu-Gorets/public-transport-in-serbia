@@ -5,7 +5,14 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [
-    sveltekit({ adapter: adapter() }),
+    sveltekit({
+      adapter: adapter(),
+      files: {
+        assets: "fe/static",
+        routes: "fe/src/routes",
+        appTemplate: "fe/src/app.html",
+      },
+    }),
     functionsMixins({ deps: ["m3-svelte"] }),
   ],
   server: {

@@ -2,16 +2,16 @@
   "name": "public-transport-in-serbia",
   "version": "1.0.0",
   "description": "",
-  "main": "server/server.js",
+  "main": "be/server/server.js",
   "scripts": {
-    "run": "node server/server.js",
-    "dev": "concurrently -k \"PORT=3001 node server/server.js\" \"vite dev --host 0.0.0.0 --port 3000\"",
-    "start": "node server/server.js",
+    "run": "node be/server/server.js",
+    "dev": "concurrently -k \"PORT=3001 node be/server/server.js\" \"vite dev --host 0.0.0.0 --port 3000\"",
+    "start": "node be/server/server.js",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "build": "node scripts/gen-theme.mjs && vite build && node scripts/mark-build-esm.mjs",
     "test": "vitest run",
-    "lint": "eslint server static tests src scripts eslint.config.mjs vite.config.mjs",
-    "format:check": "prettier --check \"server/**/*.js\" \"static/**/*.{js,html,css}\" \"src/**/*.{js,mjs,ts,svelte,css,html}\" \"tests/**/*.{js,mjs,ts}\" \"scripts/**/*.mjs\" package.json package-lock.json README.md AGENTS.md .github/workflows/ci.yml eslint.config.mjs .prettierrc.json vite.config.mjs tsconfig.json",
+    "lint": "eslint be/server fe/static tests fe/src scripts eslint.config.mjs vite.config.mjs",
+    "format:check": "prettier --check \"be/server/**/*.js\" \"fe/static/**/*.{js,html,css}\" \"fe/src/**/*.{js,mjs,ts,svelte,css,html}\" \"tests/**/*.{js,mjs,ts}\" \"scripts/**/*.mjs\" package.json package-lock.json README.md AGENTS.md .github/workflows/ci.yml eslint.config.mjs .prettierrc.json vite.config.mjs tsconfig.json",
     "verify": "npm run check && npm run lint && npm run format:check && npm test && npm run build"
   },
   "author": "",
@@ -20,7 +20,8 @@
     "node": "^26.0.0"
   },
   "imports": {
-    "#lib/*": "./src/lib/*"
+    "#lib/*": "./fe/src/lib/*",
+    "#shared/*": "./shared/*"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.1",

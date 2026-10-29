@@ -3,6 +3,7 @@
   import { goto } from "$app/navigation";
   import { browser } from "$app/env";
   import AppIcon from "#lib/components/AppIcon.svelte";
+  import { getBelgradeStops, getCities, getStations } from "#lib/api.ts";
   import type { Station } from "#lib/stations.ts";
   import {
     searchStations,
@@ -74,7 +75,7 @@
 
   onMount(async () => {
     try {
-      cities = await getJson<Record<string, string>>("/api/cities");
+      cities = await getCities();
       const saved = loadPreferences(localStorage);
       city =
         saved.cityId && saved.cityId in cities
@@ -92,12 +93,6 @@
       error = message(cause);
     }
   });
-
-  async function getJson<T>(url: string): Promise<T> {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Request failed (${response.status})`);
-    return (await response.json()) as T;
-  }
 
   function message(cause: unknown): string {
     return cause instanceof Error ? cause.message : "Something went wrong.";
@@ -119,22 +114,14 @@
         }));
       } catch {
         if (city === "bg") {
-          const response = await getJson<{
-            stops: Array<{
-              id: string;
-              name: string;
-              coords: [number, number];
-            }>;
-          }>("/api/bg/stops");
+          const response = await getBelgradeStops();
           stations = response.stops.map((stop) => ({
             ...stop,
             uid: stop.id,
             lines: [],
           }));
         } else {
-          stations = await getJson<Station[]>(
-            `/api/stations/${encodeURIComponent(city)}/all`,
-          );
+          stations = await getStations(city);
         }
       }
     } catch (cause) {

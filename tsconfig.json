@@ -11,6 +11,6 @@
     "strict": true,
     "moduleResolution": "bundler"
   },
-  "include": ["src/**/*.js", "src/**/*.ts", "src/**/*.svelte"],
-  "exclude": ["node_modules/**", "server/**", "static/**", "tests/**"]
+  "include": ["fe/src/**/*.js", "fe/src/**/*.ts", "fe/src/**/*.svelte"],
+  "exclude": ["node_modules/**", "be/server/**", "fe/static/**", "tests/**"]
 }

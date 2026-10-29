@@ -16,4 +16,4 @@ USER app
 RUN npm ci && npm run build && npm prune --omit=dev
 
 # Run the project
-CMD ["node", "server/server.js"]
+CMD ["node", "be/server/server.js"]

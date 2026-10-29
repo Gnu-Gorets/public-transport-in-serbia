@@ -6,6 +6,7 @@
   import StationMap, {
     type Station as MapStation,
   } from "#lib/components/map/StationMap.svelte";
+  import { getCities } from "#lib/api.ts";
   import { loadPreferences } from "#lib/state/preferences.ts";
   import { syncCity } from "#lib/stations/storage.js";
   import type { Station } from "#lib/stations.ts";
@@ -27,9 +28,7 @@
 
   onMount(async () => {
     try {
-      const cities = (await fetch("/api/cities").then((response) =>
-        response.json(),
-      )) as Record<string, string>;
+      const cities = await getCities();
       const preferredCity = loadPreferences(localStorage).cityId;
       const requestedCity = page.url.searchParams.get("city");
       city =

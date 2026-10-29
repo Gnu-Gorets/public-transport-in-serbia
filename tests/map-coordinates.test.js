@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { validMapCoords } from "../src/lib/components/map/coordinates.ts";
+import { validMapCoords } from "../fe/src/lib/components/map/coordinates.ts";
 
 it("accepts numeric and numeric-string map coordinates", () => {
   expect(validMapCoords([45.25, 19.83])).toEqual([45.25, 19.83]);

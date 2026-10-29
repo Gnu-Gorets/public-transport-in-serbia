@@ -34,7 +34,7 @@ Both images build SvelteKit production handler and run it through Fastify server
 
 ## Configuration, push, and persistent data
 
-Set provider credentials with supported environment variables (`NS_KEY`, `NS_URL`, `BG_KEY`, `BG_URL`, `BG_V2_KEY`, `BG_V2_IV`, `NIS_KEY`, and `NIS_URL`). Environment values override corresponding values in `server/apikeys.json`. Do not put secrets in source control or image layers; supply them at runtime through your deployment platform.
+Set provider credentials with supported environment variables (`NS_KEY`, `NS_URL`, `BG_KEY`, `BG_URL`, `BG_V2_KEY`, `BG_V2_IV`, `NIS_KEY`, and `NIS_URL`). Environment values override corresponding values in `be/server/apikeys.json`. Do not put secrets in source control or image layers; supply them at runtime through your deployment platform.
 
 Web push is enabled when all three variables are supplied: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT`. Public key is exposed to clients; keep private key secret. Push subscriptions are stored in `data/alerts.json` under working directory by default. Set `ALERTS_DATA_DIR` to use a different directory. Mount persistent storage there, or at `/app/data` when using supplied Docker images, so subscriptions survive container replacement. For example:
 

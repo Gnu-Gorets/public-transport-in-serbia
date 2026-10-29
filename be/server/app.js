@@ -28,7 +28,7 @@ function createApp(options = {}) {
   });
 
   fastify.register(require("@fastify/static"), {
-    root: path.join(__dirname, "../static"),
+    root: path.join(__dirname, "../../fe/static"),
     prefix: "/static/",
   });
   fastify.register(require("@fastify/cors"), {
@@ -48,7 +48,7 @@ function createApp(options = {}) {
     return reply.sendFile("service-worker.js");
   });
 
-  const handlerPath = path.join(__dirname, "../build/handler.js");
+  const handlerPath = path.join(__dirname, "../../build/handler.js");
   const serveApp = async (request, reply) => {
     const { handler } = await import(pathToFileURL(handlerPath));
     reply.hijack();

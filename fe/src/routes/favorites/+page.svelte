@@ -13,6 +13,7 @@
     SchemeTonalSpot,
   } from "@ktibow/material-color-utilities-nightly";
   import { colors, genCSS } from "m3-svelte/etc/colors";
+  import { getCities } from "#lib/api.ts";
   import { getFavorites, syncCity } from "#lib/stations/storage.js";
   import { searchStations, type Station } from "#lib/stations.ts";
 
@@ -42,9 +43,7 @@
   onMount(async () => {
     try {
       const saved = loadPreferences(localStorage);
-      cities = (await fetch("/api/cities").then((response) =>
-        response.json(),
-      )) as Record<string, string>;
+      cities = await getCities();
       city =
         saved.cityId && saved.cityId in cities
           ? saved.cityId

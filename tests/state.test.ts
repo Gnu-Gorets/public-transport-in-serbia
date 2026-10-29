@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { getCatalogStopName } from "../src/lib/api.ts";
-import { hasFavorite, toggleFavorite } from "../src/lib/state/favorites.ts";
+import { getCatalogStopName } from "../fe/src/lib/api.ts";
+import { hasFavorite, toggleFavorite } from "../fe/src/lib/state/favorites.ts";
 import {
   DEFAULT_PREFERENCES,
   loadPreferences,
   savePreferences,
-} from "../src/lib/state/preferences.ts";
+} from "../fe/src/lib/state/preferences.ts";
 
 describe("Belgrade catalog names", () => {
   it("prefers catalog name over upstream name for the same stop ID", () => {

@@ -25,7 +25,7 @@
     saveAlert,
     type StoredAlert,
   } from "#lib/state/alerts.ts";
-  import { createArrivalAlert } from "#lib/alerts/arrival-alert.mjs";
+  import { createArrivalAlert } from "#shared/arrival-alert.mjs";
   import {
     requestPushPermission,
     syncPushAlerts,

@@ -7,9 +7,9 @@ export interface Cities {
 export interface Station {
   name: string;
   uid: string | number;
-  id: string | number;
+  id: string;
   coords: [number, number];
-  lines: unknown[];
+  lines: string[];
 }
 
 interface RawStation {
@@ -17,7 +17,7 @@ interface RawStation {
   uid: string | number;
   id: string | number;
   coords: [number, number];
-  lines?: unknown[];
+  lines?: string[];
 }
 
 export interface BelgradeStop {
@@ -135,6 +135,7 @@ export async function getStations(
   return Object.entries(response).map(([key, station]) => ({
     ...station,
     uid: station.uid ?? key,
+    id: String(station.id),
     lines: station.lines || [],
   }));
 }

@@ -1,5 +1,5 @@
 import { getStationArrivals } from "../api";
-import { evaluateArrivalAlert } from "../alerts/arrival-alert.mjs";
+import { evaluateArrivalAlert } from "#shared/arrival-alert.mjs";
 import { listAlerts, removeAlert, saveAlert } from "./alerts";
 
 let timer: ReturnType<typeof setInterval> | undefined;

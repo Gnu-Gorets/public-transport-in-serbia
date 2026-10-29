@@ -14,12 +14,12 @@ COPY --chown=app:app package.json package-lock.json .npmrc ./
 RUN npm ci
 
 # Copy application files and build the SvelteKit app
-COPY --chown=app:app server ./server
-COPY --chown=app:app src ./src
-COPY --chown=app:app static ./static
+COPY --chown=app:app be ./be
+COPY --chown=app:app fe ./fe
+COPY --chown=app:app shared ./shared
 COPY --chown=app:app scripts ./scripts
 COPY --chown=app:app vite.config.mjs tsconfig.json ./
 RUN npm run build && npm prune --omit=dev
 
 # Run the project
-CMD ["node", "server/server.js"]
+CMD ["node", "be/server/server.js"]
