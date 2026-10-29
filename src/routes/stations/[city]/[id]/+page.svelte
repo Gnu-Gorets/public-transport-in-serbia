@@ -60,10 +60,11 @@
           (a, b) => Number(a.secondsLeft) - Number(b.secondsLeft),
         ),
       }))
-      .sort(
-        (a, b) =>
-          Number(a.vehicles[0]?.secondsLeft) -
-          Number(b.vehicles[0]?.secondsLeft),
+      .sort((a, b) =>
+        a.lineNumber.localeCompare(b.lineNumber, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        }),
       );
   });
 
@@ -120,7 +121,6 @@
             mapStation = station;
             mapStations = [station];
           }
-          expandedLine ||= String(arrivals.vehicles?.[0]?.lineNumber || "");
           favorite = (await getFavorites()).some(
             (item) => item.city === city && item.id === String(arrivals?.id),
           );
