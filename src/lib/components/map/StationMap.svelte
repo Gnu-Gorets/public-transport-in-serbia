@@ -133,8 +133,8 @@
     if (bounds.length > 1) {
       const mapBounds = leaflet!.latLngBounds(bounds);
       const zoom = Math.min(
-        map.getBoundsZoom(mapBounds, false, leaflet!.point(48, 48)) +
-          Math.log2(1.06),
+        map.getBoundsZoom(mapBounds, false, leaflet!.point(0, 0)) +
+          Math.log2(0.92),
         map.getMaxZoom(),
       );
       map.setView(mapBounds.getCenter(), zoom, { animate: false });
