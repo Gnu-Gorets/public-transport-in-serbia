@@ -43,7 +43,7 @@
   {:else if name === "back"}
     <path d="M19 12H5m7 7-7-7 7-7" />
   {:else}
-    <circle cx="12" cy="12" r="3" />
-    <path d="M12 2v3m0 14v3M2 12h3m14 0h3" />
+    <path d="M12 22s-7-7.3-7-13a7 7 0 1 1 14 0c0 5.7-7 13-7 13Z" />
+    <circle cx="12" cy="9" r="2.5" />
   {/if}
 </svg>
