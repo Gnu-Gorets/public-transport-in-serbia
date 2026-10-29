@@ -67,6 +67,7 @@
           title: station.name,
           alt: station.name,
           keyboard: true,
+          zIndexOffset: station.uid === currentSelection?.uid ? 10000 : 0,
         })
         .on("click", () => onSelect(station));
       const tooltip = document.createElement("span");
@@ -96,6 +97,7 @@
             }),
             title: description,
             alt: description,
+            zIndexOffset: 5000,
           })
           .bindTooltip(
             `Line ${vehicle.lineNumber} · ${vehicle.garageNo || "bus"}`,
@@ -226,11 +228,11 @@
   }
 
   :global(.station-marker.selected) {
-    width: 28px;
-    height: 28px;
+    width: 34px;
+    height: 34px;
     border-width: 3px;
-    border-color: var(--m3c-on-primary);
-    background: var(--m3c-primary);
+    border-color: var(--m3c-on-tertiary-container);
+    background: var(--m3c-tertiary-container);
   }
 
   :global(.station-cluster) {
