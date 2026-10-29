@@ -33,6 +33,28 @@ describe("station catalog sync", () => {
     ]);
   });
 
+  it("replaces cached Belgrade stops when the catalog version changes", async () => {
+    const catalogs = [
+      {
+        updatedAt: "v1",
+        stops: [{ id: 42, name: "Old name", coords: [44.8, 20.4] }],
+      },
+      {
+        updatedAt: "v2",
+        stops: [{ id: 42, name: "Correct name", coords: [44.8, 20.4] }],
+      },
+    ];
+    const fetchCatalog = async () => ({
+      ok: true,
+      json: async () => catalogs.shift(),
+    });
+
+    await syncCity("bg", fetchCatalog);
+    const stations = await syncCity("bg", fetchCatalog);
+
+    expect(stations.map(({ name }) => name)).toEqual(["Correct name"]);
+  });
+
   it("preserves the alerts store while upgrading the database", async () => {
     const database = await openDatabase();
     expect(database.objectStoreNames.contains("alerts")).toBe(true);
