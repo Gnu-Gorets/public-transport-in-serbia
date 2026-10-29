@@ -135,7 +135,7 @@
       const zoom = Math.min(
         map.getBoundsZoom(mapBounds, false, leaflet!.point(48, 48)) +
           Math.log2(1.06),
-        13,
+        map.getMaxZoom(),
       );
       map.setView(mapBounds.getCenter(), zoom, { animate: false });
     } else
