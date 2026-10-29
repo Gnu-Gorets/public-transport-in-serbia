@@ -185,6 +185,81 @@ describe("API routes", () => {
     expect(response.json().message).toContain("must match a schema in anyOf");
   });
 
+  it.each(["local", "push"])(
+    "creates %s alerts with server-owned lifecycle fields",
+    async (delivery) => {
+      _test.setState({
+        allStations: {
+          ns: {
+            4970: {
+              uid: "4970",
+              id: "42",
+              name: "Main Station",
+              coords: [44.8, 20.4],
+            },
+          },
+        },
+      });
+
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/api/v2/alerts/create",
+        payload: {
+          city: "ns",
+          stationId: "42",
+          stationName: "Untrusted station label",
+          lineNumber: "7",
+          lineName: "Line 7",
+          garageNo: "bus-1",
+          trigger: { kind: "minutes", value: 5 },
+          delivery,
+        },
+      });
+
+      const alert = response.json();
+      expect(response.statusCode).toBe(200);
+      expect(alert).toMatchObject({
+        city: "ns",
+        stationId: "4970",
+        stationName: "Main Station",
+        lineNumber: "7",
+        lineName: "Line 7",
+        garageNo: "bus-1",
+        trigger: { kind: "minutes", value: 5 },
+        delivery,
+        missingSince: null,
+        status: "active",
+      });
+      expect(alert.id).toMatch(/^[0-9a-f-]{36}$/);
+      expect(alert.expiresAt - alert.createdAt).toBe(2 * 60 * 60 * 1000);
+    },
+  );
+
+  it("rejects invalid alert creation fields and client lifecycle values", async () => {
+    const valid = {
+      city: "ns",
+      stationId: "4970",
+      stationName: "Main Station",
+      lineNumber: "7",
+      lineName: "Line 7",
+      garageNo: "bus-1",
+      trigger: { kind: "minutes", value: 5 },
+      delivery: "local",
+    };
+    for (const payload of [
+      { ...valid, trigger: { kind: "minutes", value: 0 } },
+      { ...valid, stationId: "unknown" },
+      { ...valid, status: "triggered" },
+    ]) {
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/api/v2/alerts/create",
+        payload,
+      });
+      expect(response.statusCode).toBe(400);
+    }
+  });
+
   it("evaluates local alerts through the API", async () => {
     _test.setState({
       allStations: {

@@ -66,6 +66,8 @@
       <dl>
         <dt><code>GET /api/route?coords=lon,lat;lon,lat</code></dt>
         <dd>Requests route for one or more coordinate pairs.</dd>
+        <dt><code>POST /api/v2/alerts/create</code></dt>
+        <dd>Validates alert fields and returns a server-created alert.</dd>
         <dt><code>POST /api/v2/alerts/evaluate</code></dt>
         <dd>Evaluates active local alerts submitted by the browser.</dd>
         <dt><code>GET /api/v2/alerts/vapid-key</code></dt>
@@ -75,7 +77,8 @@
         </dd>
         <dt><code>PUT /api/v2/alerts</code></dt>
         <dd>
-          Replaces alerts for submitted push subscription and alert payload.
+          Replaces alerts for submitted push subscription and returns canonical
+          alert records.
         </dd>
         <dt><code>DELETE /api/v2/alerts</code></dt>
         <dd>Removes submitted push subscription.</dd>

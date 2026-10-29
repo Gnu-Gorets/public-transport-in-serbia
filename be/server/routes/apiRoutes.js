@@ -139,6 +139,24 @@ function registerApiRoutes(fastify) {
     },
   );
 
+  fastify.post(
+    "/api/v2/alerts/create",
+    {
+      bodyLimit: 4096,
+      config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      try {
+        return reply.send(await alertsService.createAlert(request.body));
+      } catch (error) {
+        const statusCode = Number.isInteger(error.statusCode)
+          ? error.statusCode
+          : 400;
+        return reply.code(statusCode).send({ error: error.message });
+      }
+    },
+  );
+
   fastify.get("/api/v2/alerts/vapid-key", async (_request, reply) => {
     if (!alertsService.configured())
       return reply.code(503).send({ error: "Push alerts are not configured" });

@@ -51,7 +51,26 @@ async function subscriptionForPush(): Promise<PushSubscription> {
   );
 }
 
-export async function syncPushAlerts(alerts: StoredAlert[]): Promise<void> {
+export type NewStoredAlert = Omit<
+  StoredAlert,
+  "id" | "createdAt" | "expiresAt" | "missingSince" | "status"
+>;
+
+export async function createStoredAlert(
+  input: NewStoredAlert,
+): Promise<StoredAlert> {
+  return readResponse<StoredAlert>(
+    await fetch("/api/v2/alerts/create", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  );
+}
+
+export async function syncPushAlerts(
+  alerts: StoredAlert[],
+): Promise<StoredAlert[]> {
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription();
   if (!alerts.length) {
@@ -65,10 +84,10 @@ export async function syncPushAlerts(alerts: StoredAlert[]): Promise<void> {
       );
       await subscription.unsubscribe();
     }
-    return;
+    return [];
   }
   const activeSubscription = subscription || (await subscriptionForPush());
-  await readResponse(
+  return readResponse<StoredAlert[]>(
     await fetch("/api/v2/alerts", {
       method: "PUT",
       headers: { "content-type": "application/json" },

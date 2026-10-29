@@ -49,7 +49,7 @@ function validateSubscription(value) {
     });
 }
 
-function validateAlert(value) {
+function validateAlert(value, delivery = "push") {
   if (
     !value ||
     typeof value.id !== "string" ||
@@ -92,7 +92,7 @@ function validateAlert(value) {
     lineName: value.lineName,
     garageNo: value.garageNo,
     trigger: { kind: value.trigger.kind, value: value.trigger.value },
-    delivery: "push",
+    delivery,
     createdAt,
     expiresAt: createdAt + ALERT_TTL_MS,
     missingSince: null,
@@ -253,6 +253,54 @@ async function monitor() {
   }
 }
 
+async function createAlert(input) {
+  const fields = [
+    "city",
+    "stationId",
+    "stationName",
+    "lineNumber",
+    "lineName",
+    "garageNo",
+    "trigger",
+    "delivery",
+  ];
+  if (
+    !input ||
+    Object.keys(input).length !== fields.length ||
+    fields.some((field) => !Object.hasOwn(input, field)) ||
+    !["local", "push"].includes(input.delivery)
+  )
+    throw Object.assign(new Error("Invalid alert"), { statusCode: 400 });
+
+  const validated = validateAlert(
+    { ...input, id: crypto.randomUUID() },
+    input.delivery,
+  );
+  const station = Object.values(state.allStations[validated.city] || {}).find(
+    (item) =>
+      String(item.uid) === validated.stationId ||
+      String(item.id) === validated.stationId,
+  );
+  if (!station)
+    throw Object.assign(new Error("Unknown station"), { statusCode: 400 });
+
+  const { createArrivalAlert } = await import("./arrivalAlert.mjs");
+  return createArrivalAlert(
+    {
+      id: validated.id,
+      city: validated.city,
+      stationId: String(station.uid),
+      stationName: station.name,
+      lineNumber: validated.lineNumber,
+      lineName: validated.lineName,
+      garageNo: validated.garageNo,
+      trigger: validated.trigger,
+      delivery: validated.delivery,
+    },
+    validated.createdAt,
+  );
+}
+
 async function replaceAlerts(subscription, inputAlerts) {
   validateSubscription(subscription);
   if (
@@ -293,9 +341,7 @@ async function replaceAlerts(subscription, inputAlerts) {
   if (alerts.length) records.set(id, { subscription, alerts });
   else records.delete(id);
   startMonitor();
-  return persist().then(() =>
-    alerts.map(({ id: alertId, status }) => ({ id: alertId, status })),
-  );
+  return persist().then(() => alerts);
 }
 
 async function removeSubscription(endpoint) {
@@ -424,6 +470,7 @@ async function evaluateLocalAlerts(inputAlerts) {
 
 module.exports = {
   configured,
+  createAlert,
   evaluateLocalAlerts,
   configureVapid,
   load,

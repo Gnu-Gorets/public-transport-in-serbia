@@ -26,6 +26,7 @@
     type StoredAlert,
   } from "#lib/state/alerts.ts";
   import {
+    createStoredAlert,
     requestPushPermission,
     syncPushAlerts,
   } from "#lib/state/push-alerts.ts";
@@ -206,9 +207,13 @@
     if (!arrivals || !selectedVehicle || !selectedVehicle.garageNo) return;
     try {
       if (delivery === "push") await requestPushPermission();
-      const createdAt = Date.now();
-      const alert: StoredAlert = {
-        id: crypto.randomUUID(),
+      const existing = await listAlerts();
+      const allActive = existing.filter((item) => item.status === "active");
+      if (allActive.length >= 10) {
+        alertError = "You can have up to 10 active alerts.";
+        return;
+      }
+      const alert = await createStoredAlert({
         city: city || "",
         stationId: String(arrivals.uid),
         stationName: arrivals.name || "Station",
@@ -218,26 +223,17 @@
         garageNo: String(selectedVehicle.garageNo),
         trigger: { kind: triggerKind, value: triggerValue },
         delivery,
-        createdAt,
-        expiresAt: createdAt + 2 * 60 * 60 * 1000,
-        missingSince: null,
-        status: "active",
-      };
-      const existing = await listAlerts();
-      const allActive = existing.filter((item) => item.status === "active");
-      if (allActive.length >= 10) {
-        alertError = "You can have up to 10 active alerts.";
-        return;
-      }
+      });
       await saveAlert(alert);
       if (delivery === "push") {
         try {
-          await syncPushAlerts([
+          const canonicalAlerts = await syncPushAlerts([
             ...existing.filter(
               (item) => item.delivery === "push" && item.status === "active",
             ),
             alert,
           ]);
+          for (const item of canonicalAlerts) await saveAlert(item);
         } catch (cause) {
           await removeAlert(alert.id);
           throw cause;
@@ -259,11 +255,12 @@
         (item) => item.id !== alert.id,
       );
       if (alert.delivery === "push") {
-        await syncPushAlerts(
+        const canonicalAlerts = await syncPushAlerts(
           remaining.filter(
             (item) => item.delivery === "push" && item.status === "active",
           ),
         );
+        for (const item of canonicalAlerts) await saveAlert(item);
       }
       await removeAlert(alert.id);
       await refreshAlerts();
