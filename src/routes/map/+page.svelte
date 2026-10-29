@@ -107,7 +107,7 @@
   }
   .map-shell :global(.station-map) {
     position: absolute;
-    inset: 64px 0 0;
+    inset: 56px 0 0;
   }
   .map-state {
     position: absolute;

@@ -45,10 +45,10 @@ select:focus-visible {
   z-index: 5;
   top: 0;
   display: flex;
-  min-height: 64px;
+  min-height: 56px;
   align-items: center;
   gap: 12px;
-  padding: 8px 16px;
+  padding: 4px 12px;
   background: var(--m3c-surface);
 }
 .appbar-title {
@@ -66,7 +66,7 @@ select:focus-visible {
 .icon-button,
 .nav-link {
   display: inline-grid;
-  font-size: 1.375rem;
+  font-size: 1.75rem;
   min-width: 48px;
   min-height: 48px;
   place-items: center;
@@ -75,6 +75,9 @@ select:focus-visible {
   background: transparent;
   text-decoration: none;
   cursor: pointer;
+}
+nav[aria-label="Main navigation"] .nav-link[aria-label="Station map"] {
+  font-size: 2.25rem;
 }
 .icon-button:hover,
 .nav-link:hover {
@@ -106,14 +109,14 @@ select:focus-visible {
   grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  min-height: 64px;
+  min-height: 56px;
   border-bottom: 1px solid var(--m3c-outline-variant);
   text-decoration: none;
 }
 .station-pin {
   display: grid;
   width: 36px;
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   height: 36px;
   place-items: center;
   border-radius: 50%;
@@ -158,7 +161,7 @@ select:focus-visible {
 }
 .map-screen {
   position: fixed;
-  inset: 64px 0 0;
+  inset: 56px 0 0;
   z-index: 1;
 }
 .map-screen .leaflet-container {
@@ -219,18 +222,18 @@ select:focus-visible {
   .content {
     grid-column: 1;
     width: 100%;
-    max-height: calc(100dvh - 64px);
+    max-height: calc(100dvh - 56px);
     overflow: auto;
     margin: 0;
   }
   .detail-pane {
     grid-column: 2;
     grid-row: 2;
-    min-height: calc(100dvh - 64px);
+    min-height: calc(100dvh - 56px);
   }
   .map-screen {
     position: absolute;
-    inset: 64px 0 0 480px;
+    inset: 56px 0 0 480px;
   }
 }
 @media (min-width: 1200px) {
