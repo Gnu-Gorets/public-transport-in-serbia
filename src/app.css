@@ -67,6 +67,7 @@ select:focus-visible {
 .nav-link {
   display: inline-grid;
   font-size: 1.75rem;
+  line-height: 1;
   min-width: 48px;
   min-height: 48px;
   place-items: center;
@@ -117,6 +118,7 @@ nav[aria-label="Main navigation"] .nav-link[aria-label="Station map"] {
   display: grid;
   width: 36px;
   font-size: 1.5rem;
+  line-height: 1;
   height: 36px;
   place-items: center;
   border-radius: 50%;
