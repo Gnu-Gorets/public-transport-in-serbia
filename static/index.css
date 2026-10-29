@@ -395,6 +395,19 @@ input[type="range"] {
   font: inherit;
 }
 
+.leaflet-tooltip.my-labels {
+  padding: 2px 5px;
+  border: 2px solid #0875d1;
+  border-radius: 5px;
+  color: #064b86;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 45%);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-shadow: none;
+}
+
 .arrivals-map {
   width: 100%;
   aspect-ratio: 1;
