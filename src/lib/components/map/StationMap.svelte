@@ -33,8 +33,8 @@
     return leaflet!.divIcon({
       className: "station-marker-wrapper",
       html: `<span class="station-marker${selected ? " selected" : ""}"></span>`,
-      iconSize: [22, 22],
-      iconAnchor: [11, 11],
+      iconSize: [44, 44],
+      iconAnchor: [22, 22],
     });
   }
 
@@ -132,6 +132,11 @@
     min-height: 320px;
   }
 
+  :global(.station-marker-wrapper) {
+    display: grid;
+    place-items: center;
+  }
+
   :global(.station-marker-wrapper),
   :global(.station-cluster) {
     border: 0;
@@ -142,7 +147,6 @@
     display: block;
     width: 20px;
     height: 20px;
-    margin: 1px;
     border: 2px solid var(--m3c-on-secondary-container);
     border-radius: 50%;
     background: var(--m3c-secondary-container);
@@ -152,7 +156,6 @@
   :global(.station-marker.selected) {
     width: 24px;
     height: 24px;
-    margin: -1px;
     border-color: var(--m3c-on-primary);
     background: var(--m3c-primary);
   }
