@@ -347,6 +347,37 @@ describe("UI behavior", () => {
     ).toBe("true");
   });
 
+  it("sorts station search by name and then numeric ID", async () => {
+    const readyContext = loadUiScript(true);
+    context = readyContext;
+    await readyContext.readyPromise;
+    const { document } = readyContext.dom.window;
+    readyContext.ui.setStations("ns", [
+      { id: "10", uid: "10", name: "Železnička" },
+      { id: "2", uid: "2", name: "Zeleznicka" },
+      { id: "3", uid: "3", name: "Bulevar" },
+      { id: "1", uid: "1", name: "bulevar" },
+    ]);
+    document.getElementById("city").value = "ns";
+    document.getElementById("stationControls").style.display = "block";
+    document.querySelector(".name-search").style.display = "block";
+    const input = document.getElementById("name-input");
+
+    input.focus();
+    await vi.waitFor(() =>
+      expect(
+        [...document.querySelectorAll("#dropdown [role=option]")].map(
+          (option) => option.textContent,
+        ),
+      ).toEqual([
+        "bulevar (1)",
+        "Bulevar (3)",
+        "Zeleznicka (2)",
+        "Železnička (10)",
+      ]),
+    );
+  });
+
   it("supports keyboard navigation and announces empty name-search results", async () => {
     const readyContext = loadUiScript(true);
     context = readyContext;

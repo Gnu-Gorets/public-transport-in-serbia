@@ -1174,11 +1174,26 @@ $(document).ready(async () => {
   const fetchStations = async () => {
     const city = getCity();
     if (!allStations[city]) await fetchCityStations(city);
-    stations = (allStations[city] || []).map((station) => ({
-      name: station.name,
-      id: station.id,
-      uid: station.uid,
-    }));
+    stations = (allStations[city] || [])
+      .map((station) => ({
+        name: station.name,
+        id: station.id,
+        uid: station.uid,
+      }))
+      .sort(
+        (a, b) =>
+          a.name
+            .normalize("NFD")
+            .replace(/\p{M}/gu, "")
+            .localeCompare(
+              b.name.normalize("NFD").replace(/\p{M}/gu, ""),
+              undefined,
+              { sensitivity: "base" },
+            ) ||
+          String(a.id).localeCompare(String(b.id), undefined, {
+            numeric: true,
+          }),
+      );
   };
 
   function showDropdown(stationList) {
