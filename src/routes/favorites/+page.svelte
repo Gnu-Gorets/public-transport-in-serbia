@@ -4,7 +4,7 @@
   import AppIcon from "#lib/components/AppIcon.svelte";
   import { loadPreferences } from "#lib/state/preferences.ts";
   import { getFavorites, syncCity } from "#lib/stations/storage.js";
-  import type { Station } from "#lib/stations.ts";
+  import { searchStations, type Station } from "#lib/stations.ts";
 
   let city = $state("");
   let cityName = $state("");
@@ -12,6 +12,8 @@
   let favorites: Station[] = $state([]);
   let error = $state("");
   let loading = $state(true);
+  let query = $state("");
+  let filtered = $derived(searchStations(favorites, query));
 
   onMount(async () => {
     try {
@@ -87,22 +89,37 @@
         You don't have any favorite stations yet.
       </div>
     {:else}
-      <div class="station-list" aria-label="Favorite stations">
-        {#each favorites as station (`${city}:${station.id}`)}
-          <a
-            class="station-row"
-            href={`/stations/${encodeURIComponent(city)}/${encodeURIComponent(String(station.uid))}`}
-          >
-            <span class="station-pin"><AppIcon name="location" /></span>
-            <span
-              ><strong>{station.name}</strong><span class="station-meta"
-                >↔ {station.id}</span
-              ></span
+      {#if favorites.length > 0}
+        <div class="search-row">
+          <input
+            class="search-input"
+            type="search"
+            aria-label="Search favorite stations"
+            placeholder="Search favorite stations"
+            bind:value={query}
+          />
+        </div>
+      {/if}
+      {#if query.trim() && filtered.length === 0}
+        <div class="empty">No favorite stations match your search.</div>
+      {:else}
+        <div class="station-list" aria-label="Favorite stations">
+          {#each query.trim() ? filtered : favorites as station (`${city}:${station.id}`)}
+            <a
+              class="station-row"
+              href={`/stations/${encodeURIComponent(city)}/${encodeURIComponent(String(station.uid))}`}
             >
-            <AppIcon name="favorite" filled />
-          </a>
-        {/each}
-      </div>
+              <span class="station-pin"><AppIcon name="location" /></span>
+              <span
+                ><strong>{station.name}</strong><span class="station-meta"
+                  >↔ {station.id}</span
+                ></span
+              >
+              <AppIcon name="favorite" filled />
+            </a>
+          {/each}
+        </div>
+      {/if}
     {/if}
   </main>
   <section class="detail-pane"></section>

@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { visibleStations, type Station } from "./stations.ts";
+import { searchStations, visibleStations, type Station } from "./stations.ts";
+
+describe("station search", () => {
+  const stations: Station[] = [
+    { id: "0536B", uid: "1", name: "Bulevar oslobođenja", coords: [45, 19] },
+    { id: "1234", uid: "2", name: "Central station", coords: [45, 19] },
+  ];
+
+  it("matches favorite stations by name and ID", () => {
+    expect(searchStations(stations, "oslobo").map(({ id }) => id)).toEqual([
+      "0536B",
+    ]);
+    expect(searchStations(stations, "123").map(({ id }) => id)).toEqual([
+      "1234",
+    ]);
+    expect(searchStations(stations, "missing")).toEqual([]);
+  });
+});
 
 describe("visible stations", () => {
   const stations: Station[] = [
