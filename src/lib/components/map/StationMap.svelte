@@ -130,9 +130,14 @@
       validMapCoords(selection.coords),
       ...currentVehicles.map((vehicle) => validMapCoords(vehicle.coords)),
     ].filter((coords): coords is [number, number] => coords !== null);
-    if (bounds.length > 1)
-      map.fitBounds(bounds, { padding: [24, 24], maxZoom: 13 });
-    else
+    if (bounds.length > 1) {
+      const mapBounds = leaflet!.latLngBounds(bounds);
+      const zoom = Math.min(
+        map.getBoundsZoom(mapBounds, false, leaflet!.point(24, 24)) + 1,
+        13,
+      );
+      map.setView(mapBounds.getCenter(), zoom, { animate: false });
+    } else
       map.setView(validMapCoords(selection.coords) || [44, 20], 12, {
         animate: false,
       });
