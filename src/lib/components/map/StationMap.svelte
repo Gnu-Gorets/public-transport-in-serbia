@@ -114,7 +114,8 @@
             alt: description,
             zIndexOffset: 5000,
           })
-          .bindTooltip(description),
+          .bindTooltip(description)
+          .on("click", () => focusSelection(selectedStation, currentVehicles)),
       );
     }
     markerGroup.refreshClusters();
@@ -130,7 +131,7 @@
       ...currentVehicles.map((vehicle) => validMapCoords(vehicle.coords)),
     ].filter((coords): coords is [number, number] => coords !== null);
     if (bounds.length > 1)
-      map.fitBounds(bounds, { padding: [48, 48], maxZoom: 13 });
+      map.fitBounds(bounds, { padding: [64, 64], maxZoom: 13 });
     else
       map.setView(validMapCoords(selection.coords) || [44, 20], 12, {
         animate: false,
