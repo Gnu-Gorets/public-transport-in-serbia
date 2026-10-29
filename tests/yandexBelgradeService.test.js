@@ -16,6 +16,9 @@ describe("Belgrade stop catalog", () => {
     const source = require("../server/data/yandex-belgrade-bus-stops.json");
     expect(belgradeStops).toBe(source);
     expect(belgradeStops.stops).toHaveLength(2125);
+    expect(belgradeStops.stops.find(({ id }) => id === "1555437089").name).toBe(
+      "Železnički bulevar · 640",
+    );
     expect(belgradeStops.routes).toHaveLength(92);
     expect(
       Object.fromEntries(
