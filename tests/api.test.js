@@ -89,7 +89,7 @@ describe("API routes", () => {
     await fastify.close();
   });
 
-  it("starts listening before warming provider station caches", async () => {
+  it("warms provider station caches before listening", async () => {
     const order = [];
     vi.spyOn(alertsService, "configureVapid").mockImplementation(() => {});
     vi.spyOn(alertsService, "load").mockResolvedValue();
@@ -103,7 +103,22 @@ describe("API routes", () => {
 
     await server.start();
 
-    expect(order).toEqual(["listen", "populate"]);
+    expect(order).toEqual(["populate", "listen"]);
+  });
+
+  it("does not listen when provider station warmup fails", async () => {
+    vi.spyOn(alertsService, "configureVapid").mockImplementation(() => {});
+    vi.spyOn(alertsService, "load").mockResolvedValue();
+    const listen = vi.spyOn(fastify, "listen");
+    vi.spyOn(providerService, "populateMap").mockRejectedValue(
+      new Error("provider unavailable"),
+    );
+    const exit = vi.spyOn(process, "exit").mockImplementation(() => {});
+
+    await server.start();
+
+    expect(listen).not.toHaveBeenCalled();
+    expect(exit).toHaveBeenCalledWith(1);
   });
 
   it("serves the UI entrypoint", async () => {
@@ -640,7 +655,9 @@ describe("API routes", () => {
       .mockResolvedValue({ status: 200, data: stationsResponse() });
     _test.setHttpClient({ get: vi.fn(), post });
 
-    await expect(providerService.populateMap(true)).resolves.toBeUndefined();
+    await expect(providerService.populateMap(true)).rejects.toThrow(
+      "Station map population failed",
+    );
 
     const providerCities = Object.keys(
       providerService.getAvailableCities(),

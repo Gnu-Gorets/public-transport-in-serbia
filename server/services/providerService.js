@@ -36,6 +36,7 @@ function buildIdUidMaps(stations) {
 }
 
 async function populateMap(force = false) {
+  const errors = [];
   await Promise.all(
     Object.keys(apikeys).map(async (city) => {
       if (!force && state.idUidMap[city] && !isStationsCacheExpired(city))
@@ -44,11 +45,14 @@ async function populateMap(force = false) {
         await getAllStations(city);
         logger.info(`Populating map finished for ${city}`);
       } catch (err) {
+        errors.push(err);
         logger.error({ err }, `Populating map failed for ${city}`);
-        // Cache warmup is best-effort; provider outages must not block startup.
       }
     }),
   );
+  if (errors.length) {
+    throw new AggregateError(errors, "Station map population failed");
+  }
 }
 
 async function request(
