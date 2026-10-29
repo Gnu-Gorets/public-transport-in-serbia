@@ -10,23 +10,34 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import type * as Leaflet from "leaflet";
+  import { validMapCoords } from "./coordinates.ts";
+
+  interface Vehicle {
+    lineNumber: string | number;
+    garageNo?: string | number;
+    coords: [number, number] | null;
+  }
 
   interface Props {
     stations?: Station[];
     selectedStation?: Station | null;
+    vehicles?: Vehicle[];
     onSelect?: (station: Station) => void;
   }
 
   let {
     stations = [],
     selectedStation = null,
+    vehicles = [],
     onSelect = () => {},
   }: Props = $props();
 
   let mapElement: HTMLDivElement;
   let map: Leaflet.Map | undefined;
   let markerGroup: Leaflet.MarkerClusterGroup | undefined;
+  let vehicleGroup: Leaflet.LayerGroup | undefined;
   let leaflet: typeof import("leaflet") | undefined;
+  let lastSelectedStation: Station | null = null;
   let destroyed = false;
 
   function createIcon(selected: boolean) {
@@ -41,15 +52,17 @@
   function rebuildMarkers(
     currentStations: Station[],
     currentSelection: Station | null,
+    currentVehicles: Vehicle[],
   ) {
-    if (!leaflet || !markerGroup) return;
+    if (!leaflet || !markerGroup || !vehicleGroup) return;
     markerGroup.clearLayers();
+    vehicleGroup.clearLayers();
     for (const station of currentStations) {
-      const coords = station.coords.map(Number);
-      if (coords.length !== 2 || !coords.every(Number.isFinite)) continue;
+      const coords = validMapCoords(station.coords);
+      if (!coords) continue;
 
       const marker = leaflet
-        .marker(coords as [number, number], {
+        .marker(coords, {
           icon: createIcon(station.uid === currentSelection?.uid),
           title: station.name,
           alt: station.name,
@@ -58,25 +71,66 @@
         .on("click", () => onSelect(station));
       const tooltip = document.createElement("span");
       tooltip.textContent = station.name;
-      marker.bindTooltip(tooltip);
+      marker.bindTooltip(tooltip, {
+        permanent: station.uid === currentSelection?.uid,
+        direction: "top",
+        offset: [0, -12],
+      });
       markerGroup.addLayer(marker);
     }
+    for (const vehicle of currentVehicles) {
+      const coords = validMapCoords(vehicle.coords);
+      if (!coords) continue;
+      const icon = document.createElement("span");
+      icon.className = "station-vehicle-marker";
+      icon.textContent = String(vehicle.lineNumber);
+      const description = `Line ${vehicle.lineNumber}, bus ${vehicle.garageNo || "unknown"}`;
+      vehicleGroup.addLayer(
+        leaflet
+          .marker(coords, {
+            icon: leaflet.divIcon({
+              className: "station-vehicle-marker-wrapper",
+              html: icon,
+              iconSize: [44, 36],
+              iconAnchor: [22, 18],
+            }),
+            title: description,
+            alt: description,
+          })
+          .bindTooltip(
+            `Line ${vehicle.lineNumber} · ${vehicle.garageNo || "bus"}`,
+          ),
+      );
+    }
     markerGroup.refreshClusters();
+  }
+
+  function focusSelection(
+    selection: Station | null,
+    currentVehicles: Vehicle[],
+  ) {
+    if (!map || !selection) return;
+    const bounds = [
+      validMapCoords(selection.coords),
+      ...currentVehicles.map((vehicle) => validMapCoords(vehicle.coords)),
+    ].filter((coords): coords is [number, number] => coords !== null);
+    if (bounds.length > 1)
+      map.fitBounds(bounds, { padding: [48, 48], maxZoom: 13 });
+    else
+      map.setView(validMapCoords(selection.coords) || [44, 20], 12, {
+        animate: false,
+      });
   }
 
   $effect(() => {
     const currentStations = stations;
     const currentSelection = selectedStation;
+    const currentVehicles = vehicles;
     if (map) {
-      rebuildMarkers(currentStations, currentSelection);
-      if (currentSelection)
-        map.setView(
-          currentSelection.coords.map(Number) as [number, number],
-          12,
-          {
-            animate: false,
-          },
-        );
+      rebuildMarkers(currentStations, currentSelection, currentVehicles);
+      if (currentSelection !== lastSelectedStation)
+        focusSelection(currentSelection, currentVehicles);
+      lastSelectedStation = currentSelection;
     }
   });
 
@@ -103,11 +157,10 @@
         }),
     });
     map.addLayer(markerGroup);
-    rebuildMarkers(stations, selectedStation);
-    if (selectedStation)
-      map.setView(selectedStation.coords.map(Number) as [number, number], 12, {
-        animate: false,
-      });
+    vehicleGroup = leaflet.layerGroup().addTo(map);
+    rebuildMarkers(stations, selectedStation, vehicles);
+    focusSelection(selectedStation, vehicles);
+    lastSelectedStation = selectedStation;
   });
 
   onDestroy(() => {
@@ -115,6 +168,7 @@
     map?.remove();
     map = undefined;
     markerGroup = undefined;
+    vehicleGroup = undefined;
   });
 </script>
 
@@ -136,9 +190,23 @@
     min-height: 320px;
   }
 
-  :global(.station-marker-wrapper) {
+  :global(.station-marker-wrapper),
+  :global(.station-vehicle-marker-wrapper) {
     display: grid;
     place-items: center;
+  }
+
+  :global(.station-vehicle-marker) {
+    min-width: 36px;
+    padding: 6px 8px;
+    border: 2px solid var(--m3c-on-primary);
+    border-radius: 12px;
+    color: var(--m3c-on-primary);
+    background: var(--m3c-primary);
+    box-shadow: 0 2px 6px rgb(0 0 0 / 35%);
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
   }
 
   :global(.station-marker-wrapper),
@@ -158,8 +226,9 @@
   }
 
   :global(.station-marker.selected) {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
+    border-width: 3px;
     border-color: var(--m3c-on-primary);
     background: var(--m3c-primary);
   }

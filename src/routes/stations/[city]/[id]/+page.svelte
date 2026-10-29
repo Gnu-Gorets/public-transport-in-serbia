@@ -13,11 +13,7 @@
     StationArrivals,
     VehicleArrival,
   } from "#lib/api.ts";
-  import {
-    getFavorites,
-    setFavorite,
-    syncCity,
-  } from "#lib/stations/storage.js";
+  import { getFavorites, setFavorite } from "#lib/stations/storage.js";
   import StationMap from "#lib/components/map/StationMap.svelte";
   import type { Station } from "#lib/stations.ts";
   import {
@@ -90,6 +86,17 @@
           belgrade = result;
           arrivals = null;
           error = "";
+          if (!mapStation) {
+            const station: Station = {
+              name: result.name,
+              uid: result.uid,
+              id: String(result.id),
+              coords: result.coords,
+              lines: [],
+            };
+            mapStation = station;
+            mapStations = [station];
+          }
           favorite = (await getFavorites()).some(
             (item) => item.city === city && item.id === String(result.id),
           );
@@ -102,6 +109,17 @@
           if (!active) return;
           belgrade = null;
           error = "";
+          if (!mapStation) {
+            const station: Station = {
+              name: arrivals.name || "Station",
+              uid: arrivals.uid,
+              id: String(arrivals.id),
+              coords: arrivals.coords,
+              lines: [],
+            };
+            mapStation = station;
+            mapStations = [station];
+          }
           expandedLine ||= String(arrivals.vehicles?.[0]?.lineNumber || "");
           favorite = (await getFavorites()).some(
             (item) => item.city === city && item.id === String(arrivals?.id),
@@ -133,33 +151,6 @@
         .catch(() => {});
     }
     void load();
-    if (city === "bg") {
-      void getBelgradeStops()
-        .then(({ stops }) => {
-          mapStations = stops.map((stop) => ({
-            ...stop,
-            uid: stop.id,
-            lines: [],
-          }));
-          mapStation =
-            mapStations.find((station) => station.uid === uid) || null;
-        })
-        .catch(() => {});
-    } else {
-      void syncCity(city ?? "")
-        .then((stations) => {
-          mapStations = stations.map((station) => ({
-            name: station.name,
-            uid: station.uid,
-            id: station.id,
-            coords: [station.lat, station.lon],
-            lines: [],
-          }));
-          mapStation =
-            mapStations.find((station) => String(station.uid) === uid) || null;
-        })
-        .catch(() => {});
-    }
     const timer = setInterval(() => {
       if (document.visibilityState === "visible") void load();
     }, 10000);
@@ -423,7 +414,11 @@
   </main>
   <section class="detail-pane" aria-label="Station map">
     {#if mapStations.length && mapStation}
-      <StationMap stations={mapStations} selectedStation={mapStation} />
+      <StationMap
+        stations={mapStations}
+        selectedStation={mapStation}
+        vehicles={arrivals?.vehicles || []}
+      />
     {/if}
   </section>
 </div>
