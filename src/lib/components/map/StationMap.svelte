@@ -90,13 +90,13 @@
       icon.setAttribute("viewBox", "0 0 32 24");
       icon.setAttribute("aria-hidden", "true");
       icon.innerHTML =
-        '<rect x="2" y="1" width="28" height="19" rx="5"/><rect class="bus-sign" x="4" y="3" width="24" height="9" rx="1.5"/><rect class="bus-window" x="4" y="13" width="5" height="3" rx="1"/><rect class="bus-window" x="11" y="13" width="5" height="3" rx="1"/><rect class="bus-window" x="18" y="13" width="5" height="3" rx="1"/><rect class="bus-window" x="25" y="13" width="3" height="3" rx="1"/><circle class="bus-wheel" cx="8" cy="20" r="2.5"/><circle class="bus-wheel" cx="24" cy="20" r="2.5"/>';
+        '<rect x="2" y="1" width="28" height="19" rx="5"/><rect class="bus-sign" x="4" y="2" width="24" height="15" rx="1.5"/><rect class="bus-window" x="4" y="17" width="5" height="2" rx="1"/><rect class="bus-window" x="11" y="17" width="5" height="2" rx="1"/><rect class="bus-window" x="18" y="17" width="5" height="2" rx="1"/><rect class="bus-window" x="25" y="17" width="3" height="2" rx="1"/><circle class="bus-wheel" cx="8" cy="20" r="2.5"/><circle class="bus-wheel" cx="24" cy="20" r="2.5"/>';
       const routeNumber = document.createElementNS(
         "http://www.w3.org/2000/svg",
         "text",
       );
       routeNumber.setAttribute("x", "16");
-      routeNumber.setAttribute("y", "7.5");
+      routeNumber.setAttribute("y", "10");
       routeNumber.setAttribute("dominant-baseline", "middle");
       routeNumber.textContent = String(vehicle.lineNumber);
       icon.append(routeNumber);
@@ -235,7 +235,7 @@
 
   :global(.station-vehicle-marker text) {
     fill: #1565c0;
-    font-size: 12px;
+    font-size: 18px;
     font-weight: 800;
     text-anchor: middle;
   }
