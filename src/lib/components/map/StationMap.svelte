@@ -133,7 +133,8 @@
     if (bounds.length > 1) {
       const mapBounds = leaflet!.latLngBounds(bounds);
       const zoom = Math.min(
-        map.getBoundsZoom(mapBounds, false, leaflet!.point(24, 24)) + 1,
+        map.getBoundsZoom(mapBounds, false, leaflet!.point(48, 48)) +
+          Math.log2(1.06),
         13,
       );
       map.setView(mapBounds.getCenter(), zoom, { animate: false });
@@ -161,7 +162,7 @@
     if (destroyed) return;
 
     leaflet = L.default;
-    map = leaflet.map(mapElement).setView([44, 20], 7);
+    map = leaflet.map(mapElement, { zoomSnap: 0 }).setView([44, 20], 7);
     leaflet
       .tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap contributors",
