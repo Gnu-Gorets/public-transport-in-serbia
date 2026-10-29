@@ -185,6 +185,98 @@ describe("API routes", () => {
     expect(response.json().message).toContain("must match a schema in anyOf");
   });
 
+  it("evaluates local alerts through the API", async () => {
+    _test.setState({
+      allStations: {
+        ns: {
+          4970: {
+            uid: "4970",
+            id: "42",
+            name: "Main Station",
+            coords: [44.8, 20.4],
+          },
+        },
+      },
+    });
+    const httpClient = {
+      get: vi.fn().mockResolvedValue({
+        status: 200,
+        data: [
+          { station_uid: "4970", station_name: "Main Station" },
+          {
+            line_number: "7",
+            line_title: "7",
+            seconds_left: "120",
+            stations_between: "2",
+            vehicles: [{ garageNo: "bus-1" }],
+          },
+        ],
+      }),
+      post: vi.fn(),
+    };
+    _test.setHttpClient(httpClient);
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/api/v2/alerts/evaluate",
+      payload: {
+        alerts: [
+          {
+            id: "alert-1",
+            city: "ns",
+            stationId: "4970",
+            stationName: "Main Station",
+            lineNumber: "7",
+            lineName: "7",
+            garageNo: "bus-1",
+            trigger: { kind: "minutes", value: 5 },
+            delivery: "local",
+            createdAt: 1,
+            expiresAt: Date.now() + 60_000,
+            missingSince: null,
+            status: "active",
+          },
+          {
+            id: "alert-2",
+            city: "ns",
+            stationId: "4970",
+            stationName: "Main Station",
+            lineNumber: "8",
+            lineName: "8",
+            garageNo: "bus-2",
+            trigger: { kind: "minutes", value: 5 },
+            delivery: "local",
+            createdAt: 1,
+            expiresAt: Date.now() + 60_000,
+            missingSince: null,
+            status: "active",
+          },
+        ],
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().results[0]).toMatchObject({
+      alert: { status: "triggered" },
+      notification: "Line 7 reaches Main Station in 2 min.",
+    });
+    expect(response.json().results[1].alert.missingSince).toEqual(
+      expect.any(Number),
+    );
+    expect(httpClient.get).toHaveBeenCalledOnce();
+  });
+
+  it("rejects invalid local alert evaluation requests", async () => {
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/api/v2/alerts/evaluate",
+      payload: { alerts: [{ status: "active", delivery: "push" }] },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "Invalid alert" });
+  });
+
   it("lists Belgrade without enabling its provider endpoints", async () => {
     const httpClient = {
       get: vi.fn(),

@@ -117,6 +117,28 @@ function registerApiRoutes(fastify) {
     }, "Failed to fetch lines"),
   );
 
+  fastify.post(
+    "/api/v2/alerts/evaluate",
+    {
+      bodyLimit: 8192,
+      config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      try {
+        return reply.send({
+          results: await alertsService.evaluateLocalAlerts(
+            request.body?.alerts,
+          ),
+        });
+      } catch (error) {
+        const statusCode = Number.isInteger(error.statusCode)
+          ? error.statusCode
+          : 400;
+        return reply.code(statusCode).send({ error: error.message });
+      }
+    },
+  );
+
   fastify.get("/api/v2/alerts/vapid-key", async (_request, reply) => {
     if (!alertsService.configured())
       return reply.code(503).send({ error: "Push alerts are not configured" });

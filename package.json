@@ -9,8 +9,8 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "build": "node scripts/gen-theme.mjs && vite build && node scripts/mark-build-esm.mjs",
     "test": "vitest run",
-    "lint": "eslint be/server fe/static tests fe/src scripts eslint.config.mjs vite.config.mjs arrival-alert.mjs",
-    "format:check": "prettier --check \"be/server/**/*.js\" \"fe/static/**/*.{js,html,css}\" \"fe/src/**/*.{js,mjs,ts,svelte,css,html}\" \"tests/**/*.{js,mjs,ts}\" \"scripts/**/*.mjs\" package.json package-lock.json README.md AGENTS.md .github/workflows/ci.yml eslint.config.mjs .prettierrc.json vite.config.mjs tsconfig.json arrival-alert.mjs arrival-alert.d.mts",
+    "lint": "eslint be/server fe/static tests fe/src scripts eslint.config.mjs vite.config.mjs be/server/services/arrivalAlert.mjs",
+    "format:check": "prettier --check \"be/server/**/*.js\" \"fe/static/**/*.{js,html,css}\" \"fe/src/**/*.{js,mjs,ts,svelte,css,html}\" \"tests/**/*.{js,mjs,ts}\" \"scripts/**/*.mjs\" package.json package-lock.json README.md AGENTS.md .github/workflows/ci.yml eslint.config.mjs .prettierrc.json vite.config.mjs tsconfig.json be/server/services/arrivalAlert.mjs be/server/services/arrivalAlert.d.mts",
     "verify": "npm run check && npm run lint && npm run format:check && npm test && npm run build"
   },
   "author": "",
@@ -19,8 +19,7 @@
     "node": "^26.0.0"
   },
   "imports": {
-    "#lib/*": "./fe/src/lib/*",
-    "#arrival-alert": "./arrival-alert.mjs"
+    "#lib/*": "./fe/src/lib/*"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.1",

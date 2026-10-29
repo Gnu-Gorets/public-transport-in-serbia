@@ -8,6 +8,7 @@ const { state } = require("../state");
 const MAX_ALERTS_PER_SUBSCRIPTION = 10;
 const MAX_MONITORED_STATIONS = 300;
 const POLL_INTERVAL_MS = 15_000;
+const MAX_LOCAL_ALERTS = 10;
 const ALERT_TTL_MS = 2 * 60 * 60 * 1000;
 const records = new Map();
 let timer;
@@ -169,8 +170,7 @@ async function monitor() {
   monitoring = true;
   try {
     const { evaluateArrivalAlert } =
-      evaluateAlert ||
-      (evaluateAlert = await import("../../../arrival-alert.mjs"));
+      evaluateAlert || (evaluateAlert = await import("./arrivalAlert.mjs"));
     const grouped = new Map();
     const now = Date.now();
     for (const [subscriptionId, record] of records) {
@@ -320,8 +320,111 @@ function configureVapid() {
     );
 }
 
+async function evaluateLocalAlerts(inputAlerts) {
+  if (!Array.isArray(inputAlerts) || inputAlerts.length > MAX_LOCAL_ALERTS)
+    throw Object.assign(new Error("Invalid alert list"), { statusCode: 400 });
+
+  const alerts = inputAlerts.map((alert) => {
+    if (
+      !alert ||
+      typeof alert.id !== "string" ||
+      !alert.id ||
+      alert.id.length > 80 ||
+      typeof alert.city !== "string" ||
+      !Object.hasOwn(getAvailableCities(), alert.city) ||
+      typeof alert.stationId !== "string" ||
+      !alert.stationId ||
+      alert.stationId.length > 32 ||
+      typeof alert.stationName !== "string" ||
+      !alert.stationName ||
+      alert.stationName.length > 120 ||
+      typeof alert.lineNumber !== "string" ||
+      !alert.lineNumber ||
+      alert.lineNumber.length > 32 ||
+      typeof alert.lineName !== "string" ||
+      !alert.lineName ||
+      alert.lineName.length > 120 ||
+      typeof alert.garageNo !== "string" ||
+      !alert.garageNo ||
+      alert.garageNo.length > 32 ||
+      alert.status !== "active" ||
+      alert.delivery !== "local" ||
+      !alert.trigger ||
+      !["minutes", "stations"].includes(alert.trigger.kind) ||
+      !Number.isInteger(alert.trigger.value) ||
+      alert.trigger.value < 1 ||
+      alert.trigger.value > 99 ||
+      !Number.isFinite(alert.expiresAt) ||
+      (alert.missingSince !== null && !Number.isFinite(alert.missingSince))
+    )
+      throw Object.assign(new Error("Invalid alert"), { statusCode: 400 });
+    return alert;
+  });
+
+  const { evaluateArrivalAlert } = await import("./arrivalAlert.mjs");
+  const groups = new Map();
+  for (const alert of alerts) {
+    const key = `${alert.city}:${alert.stationId}`;
+    const group = groups.get(key) || [];
+    group.push(alert);
+    groups.set(key, group);
+  }
+
+  const results = [];
+  const now = Date.now();
+  for (const group of groups.values()) {
+    const first = group[0];
+    let vehicles;
+    try {
+      ({ vehicles } = await getStationInfo(first.city, {
+        uid: first.stationId,
+      }));
+    } catch {
+      results.push(
+        ...group.map((alert) => ({
+          alert: evaluateArrivalAlert(alert, { type: "error" }, now).alert,
+          notification: null,
+        })),
+      );
+      continue;
+    }
+    for (const alert of group) {
+      const vehicle = (vehicles || []).find(
+        (item) =>
+          String(item.lineNumber) === alert.lineNumber &&
+          String(item.garageNo) === alert.garageNo,
+      );
+      const observation = vehicle
+        ? {
+            type: "present",
+            etaSeconds: Number.isFinite(Number(vehicle.secondsLeft))
+              ? Number(vehicle.secondsLeft)
+              : null,
+            etaStations: Number.isFinite(Number(vehicle.stationsBetween))
+              ? Number(vehicle.stationsBetween)
+              : null,
+          }
+        : { type: "missing" };
+      const result = evaluateArrivalAlert(alert, observation, now);
+      let notification = null;
+      if (result.status === "fire") {
+        const eta =
+          alert.trigger.kind === "minutes"
+            ? `${Math.max(0, Math.floor(Number(vehicle.secondsLeft) / 60))} min`
+            : `${vehicle.stationsBetween} stops`;
+        notification = `Line ${alert.lineName} reaches ${alert.stationName} in ${eta}.`;
+      } else if (result.alert.status === "expired") {
+        notification = `Arrival alert for ${alert.stationName} expired.`;
+      }
+      results.push({ alert: result.alert, notification });
+    }
+  }
+  return results;
+}
+
 module.exports = {
   configured,
+  evaluateLocalAlerts,
   configureVapid,
   load,
   replaceAlerts,

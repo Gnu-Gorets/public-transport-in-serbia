@@ -66,6 +66,8 @@
       <dl>
         <dt><code>GET /api/route?coords=lon,lat;lon,lat</code></dt>
         <dd>Requests route for one or more coordinate pairs.</dd>
+        <dt><code>POST /api/v2/alerts/evaluate</code></dt>
+        <dd>Evaluates active local alerts submitted by the browser.</dd>
         <dt><code>GET /api/v2/alerts/vapid-key</code></dt>
         <dd>
           Returns configured public VAPID key; responds with error when push

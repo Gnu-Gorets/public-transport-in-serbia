@@ -1,6 +1,4 @@
-import { getStationArrivals } from "../api";
-import { evaluateArrivalAlert } from "#arrival-alert";
-import { listAlerts, removeAlert, saveAlert } from "./alerts";
+import { listAlerts, removeAlert, saveAlert, type StoredAlert } from "./alerts";
 
 let timer: ReturnType<typeof setInterval> | undefined;
 let inFlight = false;
@@ -34,68 +32,23 @@ async function poll(): Promise<void> {
     const alerts = (await listAlerts()).filter(
       (alert) => alert.status === "active" && alert.delivery === "local",
     );
-    const groups = new Map<string, typeof alerts>();
-    for (const alert of alerts) {
-      const key = `${alert.city}:${alert.stationId}`;
-      groups.set(key, [...(groups.get(key) || []), alert]);
-    }
-    for (const group of groups.values()) {
-      const first = group[0];
-      let response;
-      try {
-        response = await getStationArrivals(first.city, {
-          uid: first.stationId,
-        });
-      } catch {
-        for (const alert of group) {
-          const result = evaluateArrivalAlert(alert, { type: "error" });
-          await saveAlert(result.alert);
-        }
-        continue;
-      }
-      for (const alert of group) {
-        const vehicle = response.vehicles.find(
-          (item) =>
-            String(item.lineNumber) === alert.lineNumber &&
-            String(item.garageNo) === alert.garageNo,
-        );
-        const result = evaluateArrivalAlert(
-          alert,
-          vehicle
-            ? {
-                type: "present",
-                etaSeconds: Number.isFinite(Number(vehicle.secondsLeft))
-                  ? Number(vehicle.secondsLeft)
-                  : null,
-                etaStations: Number.isFinite(Number(vehicle.stationsBetween))
-                  ? Number(vehicle.stationsBetween)
-                  : null,
-              }
-            : { type: "missing" },
-        );
-        if (result.status === "fire") {
-          await saveAlert(result.alert);
-          const eta =
-            alert.trigger.kind === "minutes"
-              ? `${Math.max(0, Math.floor(Number(vehicle?.secondsLeft) / 60))} min`
-              : `${vehicle?.stationsBetween} stops`;
-          notify(
-            `Line ${alert.lineName} reaches ${alert.stationName} in ${eta}.`,
-            alert.stationId,
-            alert.city,
-          );
-          await removeAlert(alert.id);
-        } else if (result.alert.status === "expired") {
-          await saveAlert(result.alert);
-          notify(
-            `Arrival alert for ${alert.stationName} expired.`,
-            alert.stationId,
-            alert.city,
-          );
-          await removeAlert(alert.id);
-        } else {
-          await saveAlert(result.alert);
-        }
+    if (!alerts.length) return;
+    const response = await fetch("/api/v2/alerts/evaluate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ alerts }),
+    });
+    const body = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      results?: Array<{ alert: StoredAlert; notification: string | null }>;
+    };
+    if (!response.ok || !Array.isArray(body.results))
+      throw new Error(body.error || `Request failed (${response.status})`);
+    for (const { alert, notification } of body.results) {
+      await saveAlert(alert);
+      if (notification) {
+        notify(notification, alert.stationId, alert.city);
+        await removeAlert(alert.id);
       }
     }
   } finally {

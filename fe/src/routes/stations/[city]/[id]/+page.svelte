@@ -25,7 +25,6 @@
     saveAlert,
     type StoredAlert,
   } from "#lib/state/alerts.ts";
-  import { createArrivalAlert } from "#arrival-alert";
   import {
     requestPushPermission,
     syncPushAlerts,
@@ -207,7 +206,8 @@
     if (!arrivals || !selectedVehicle || !selectedVehicle.garageNo) return;
     try {
       if (delivery === "push") await requestPushPermission();
-      const alert = createArrivalAlert({
+      const createdAt = Date.now();
+      const alert: StoredAlert = {
         id: crypto.randomUUID(),
         city: city || "",
         stationId: String(arrivals.uid),
@@ -218,7 +218,11 @@
         garageNo: String(selectedVehicle.garageNo),
         trigger: { kind: triggerKind, value: triggerValue },
         delivery,
-      });
+        createdAt,
+        expiresAt: createdAt + 2 * 60 * 60 * 1000,
+        missingSince: null,
+        status: "active",
+      };
       const existing = await listAlerts();
       const allActive = existing.filter((item) => item.status === "active");
       if (allActive.length >= 10) {

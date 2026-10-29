@@ -3,7 +3,7 @@ import {
   canCreateArrivalAlert,
   createArrivalAlert,
   evaluateArrivalAlert,
-} from "../arrival-alert.mjs";
+} from "../be/server/services/arrivalAlert.mjs";
 
 const base = {
   id: "alert-1",
