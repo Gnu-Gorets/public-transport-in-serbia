@@ -2,6 +2,7 @@
   import { onMount, tick } from "svelte";
   import { goto } from "$app/navigation";
   import { browser } from "$app/env";
+  import AppIcon from "#lib/components/AppIcon.svelte";
   import type { Station } from "#lib/stations.ts";
   import { nearbyStations, searchStations } from "#lib/stations.ts";
   import {
@@ -288,14 +289,15 @@
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="shell">
   <nav class="navigation-rail" aria-label="Main navigation">
-    <a class="nav-link" href="/" aria-label="Nearby stations">⌕</a>
-    <a class="nav-link" href="/favorites" aria-label="Favorite stations">♡</a>
-    <a class="nav-link" href="/map" aria-label="Station map">
-      <svg aria-hidden="true" viewBox="0 0 24 24">
-        <path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z" />
-        <path d="M9 3v15m6-12v15" />
-      </svg>
-    </a>
+    <a class="nav-link" href="/" aria-label="Nearby stations"
+      ><AppIcon name="search" /></a
+    >
+    <a class="nav-link" href="/favorites" aria-label="Favorite stations"
+      ><AppIcon name="favorite" /></a
+    >
+    <a class="nav-link" href="/map" aria-label="Station map"
+      ><AppIcon name="map" /></a
+    >
   </nav>
   <header class="appbar">
     <div class="appbar-title">
@@ -304,15 +306,15 @@
     <button
       class="icon-button"
       aria-label="Favorite stations"
-      onclick={() => goto("/favorites")}>♡</button
+      onclick={() => goto("/favorites")}><AppIcon name="favorite" /></button
     >
     <button
       class="icon-button refresh-button"
       aria-label="Refresh stations"
-      onclick={loadStations}>↻</button
+      onclick={loadStations}><AppIcon name="refresh" /></button
     >
     <button class="icon-button" aria-label="Preferences" onclick={openSettings}
-      >⋮</button
+      ><AppIcon name="more" /></button
     >
   </header>
   <main id="main" class="content">
@@ -326,7 +328,7 @@
       {#if inputQuery}<button
           class="icon-button"
           aria-label="Clear search"
-          onclick={() => (inputQuery = "")}>×</button
+          onclick={() => (inputQuery = "")}><AppIcon name="clear" /></button
         >{/if}
       <button
         class="icon-button"
@@ -334,7 +336,7 @@
           ? "Using device location"
           : "Use my location"}
         aria-pressed={locationEnabled}
-        onclick={useLocation}>⌖</button
+        onclick={useLocation}><AppIcon name="location" /></button
       >
     </div>
     {#if locationEnabled}
@@ -356,7 +358,7 @@
       <div class="station-list" aria-label="Stations">
         {#each visibleStations as station (station.id)}
           <div class="station-row">
-            <span class="station-pin" aria-hidden="true">⌖</span>
+            <span class="station-pin"><AppIcon name="location" /></span>
             <button class="station-open" onclick={() => openStation(station)}>
               <strong>{station.name}</strong>
               {#if station.distance !== null}<div class="station-meta">
@@ -369,7 +371,10 @@
               aria-pressed={favorites.includes(station.id)}
               onclick={() => toggleFavorite(station)}
             >
-              {favorites.includes(station.id) ? "♥" : "♡"}
+              <AppIcon
+                name="favorite"
+                filled={favorites.includes(station.id)}
+              />
             </button>
           </div>
         {/each}

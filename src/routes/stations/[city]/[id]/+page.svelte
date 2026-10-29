@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { page } from "$app/state";
+  import AppIcon from "#lib/components/AppIcon.svelte";
   import { getBelgradeStopArrivals, getStationArrivals } from "#lib/api.ts";
   import type {
     BelgradeStopArrivals,
@@ -255,20 +256,21 @@
 <svelte:head><title>Arrivals | Serbia++</title></svelte:head>
 <div class="shell">
   <nav class="navigation-rail" aria-label="Main navigation">
-    <a class="nav-link" href="/" aria-label="Nearby stations">⌕</a>
-    <a class="nav-link" href="/favorites" aria-label="Favorite stations">♡</a>
-    <a class="nav-link" href="/map" aria-label="Station map">
-      <svg aria-hidden="true" viewBox="0 0 24 24">
-        <path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z" />
-        <path d="M9 3v15m6-12v15" />
-      </svg>
-    </a>
+    <a class="nav-link" href="/" aria-label="Nearby stations"
+      ><AppIcon name="search" /></a
+    >
+    <a class="nav-link" href="/favorites" aria-label="Favorite stations"
+      ><AppIcon name="favorite" /></a
+    >
+    <a class="nav-link" href="/map" aria-label="Station map"
+      ><AppIcon name="map" /></a
+    >
   </nav>
   <header class="appbar">
     <button
       class="icon-button"
       aria-label="Back to stations"
-      onclick={() => history.back()}>←</button
+      onclick={() => history.back()}><AppIcon name="back" /></button
     >
     <div class="appbar-title">
       <strong>{arrivals?.name || belgrade?.name || "Arrivals"}</strong><small
@@ -279,12 +281,13 @@
       class="icon-button"
       aria-label={favorite ? "Remove favorite" : "Add favorite"}
       aria-pressed={favorite}
-      onclick={toggleFavorite}>{favorite ? "♥" : "♡"}</button
+      onclick={toggleFavorite}
+      ><AppIcon name="favorite" filled={favorite} /></button
     >
     {#if city !== "bg"}<button
         class="icon-button"
         aria-label={`Arrival alerts, ${activeAlerts.length} active`}
-        onclick={showAlerts}>♧</button
+        onclick={showAlerts}><AppIcon name="alerts" /></button
       >{/if}
   </header>
   <main id="main" class="content arrivals-content">
@@ -344,7 +347,8 @@
                     class="icon-button"
                     aria-label={`Create arrival alert for line ${line.lineNumber}`}
                     disabled={!vehicle.garageNo}
-                    onclick={() => createAlertFor(vehicle)}>♧</button
+                    onclick={() => createAlertFor(vehicle)}
+                    ><AppIcon name="alerts" /></button
                   >
                 </div>
               {/each}
@@ -435,7 +439,7 @@
 <a
   class="fab"
   href={`/map?city=${encodeURIComponent(city ?? "")}&station=${encodeURIComponent(uid ?? "")}`}
-  aria-label="Show station on map">⌖</a
+  aria-label="Show station on map"><AppIcon name="map" /></a
 >
 
 <style>

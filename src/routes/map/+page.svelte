@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
+  import AppIcon from "#lib/components/AppIcon.svelte";
   import StationMap, {
     type Station as MapStation,
   } from "#lib/components/map/StationMap.svelte";
@@ -61,7 +62,7 @@
     <button
       class="icon-button"
       aria-label="Back to search"
-      onclick={() => goto("/")}>←</button
+      onclick={() => goto("/")}><AppIcon name="back" /></button
     >
     <div class="appbar-title"><strong>Stations</strong></div>
   </header>
@@ -78,7 +79,7 @@
     />{/if}
   {#if selected}
     <section class="selection-card surface-card" aria-label="Selected station">
-      <span class="station-pin" aria-hidden="true">⌖</span>
+      <span class="station-pin"><AppIcon name="location" /></span>
       <strong>{selected.name}</strong><span class="station-meta"
         >ID: {selected.id}</span
       >

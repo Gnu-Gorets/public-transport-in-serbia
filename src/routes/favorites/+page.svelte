@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
+  import AppIcon from "#lib/components/AppIcon.svelte";
   import { loadPreferences } from "#lib/state/preferences.ts";
   import { getFavorites, syncCity } from "#lib/stations/storage.js";
   import type { Station } from "#lib/stations.ts";
@@ -51,25 +52,24 @@
 <svelte:head><title>Favorite stations | Serbia++</title></svelte:head>
 <div class="shell">
   <nav class="navigation-rail" aria-label="Main navigation">
-    <a class="nav-link" href="/" aria-label="Nearby stations">⌕</a>
+    <a class="nav-link" href="/" aria-label="Nearby stations"
+      ><AppIcon name="search" /></a
+    >
     <a
       class="nav-link"
       href="/favorites"
       aria-label="Favorite stations"
-      aria-current="page">♡</a
+      aria-current="page"><AppIcon name="favorite" /></a
     >
-    <a class="nav-link" href="/map" aria-label="Station map">
-      <svg aria-hidden="true" viewBox="0 0 24 24">
-        <path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z" />
-        <path d="M9 3v15m6-12v15" />
-      </svg>
-    </a>
+    <a class="nav-link" href="/map" aria-label="Station map"
+      ><AppIcon name="map" /></a
+    >
   </nav>
   <header class="appbar">
     <button
       class="icon-button compact-back"
       aria-label="Back to search"
-      onclick={() => goto("/")}>←</button
+      onclick={() => goto("/")}><AppIcon name="back" /></button
     >
     <div class="appbar-title">
       <strong>Favorite stations</strong><small>{cityName}</small>
@@ -88,13 +88,13 @@
             class="station-row"
             href={`/stations/${encodeURIComponent(city)}/${encodeURIComponent(String(station.uid))}`}
           >
-            <span class="station-pin" aria-hidden="true">⌖</span>
+            <span class="station-pin"><AppIcon name="location" /></span>
             <span
               ><strong>{station.name}</strong><span class="station-meta"
                 >↔ {station.id}</span
               ></span
             >
-            <span aria-hidden="true">♥</span>
+            <AppIcon name="favorite" filled />
           </a>
         {/each}
       </div>

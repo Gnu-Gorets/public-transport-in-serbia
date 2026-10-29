@@ -1,11 +1,14 @@
 <script lang="ts">
   import { Card, Button } from "m3-svelte";
+  import AppIcon from "#lib/components/AppIcon.svelte";
 </script>
 
 <svelte:head><title>API reference | Serbia++</title></svelte:head>
 <main class="api-page">
   <header class="appbar">
-    <a class="icon-button" href="/" aria-label="Back to stations">←</a>
+    <a class="icon-button" href="/" aria-label="Back to stations"
+      ><AppIcon name="back" /></a
+    >
     <div class="appbar-title"><strong>API reference</strong></div>
   </header>
   <div class="api-content">
