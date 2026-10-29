@@ -89,7 +89,7 @@ describe("API routes", () => {
     await fastify.close();
   });
 
-  it("warms provider station caches before listening", async () => {
+  it("listens before warming provider station caches", async () => {
     const order = [];
     vi.spyOn(alertsService, "configureVapid").mockImplementation(() => {});
     vi.spyOn(alertsService, "load").mockResolvedValue();
@@ -103,22 +103,28 @@ describe("API routes", () => {
 
     await server.start();
 
-    expect(order).toEqual(["populate", "listen"]);
+    expect(order).toEqual(["listen", "populate"]);
   });
 
-  it("does not listen when provider station warmup fails", async () => {
+  it("keeps listening when provider station warmup fails", async () => {
     vi.spyOn(alertsService, "configureVapid").mockImplementation(() => {});
     vi.spyOn(alertsService, "load").mockResolvedValue();
-    const listen = vi.spyOn(fastify, "listen");
-    vi.spyOn(providerService, "populateMap").mockRejectedValue(
-      new Error("provider unavailable"),
-    );
+    const listen = vi.spyOn(fastify, "listen").mockResolvedValue(fastify);
+    const error = new Error("provider unavailable");
+    vi.spyOn(providerService, "populateMap").mockRejectedValue(error);
+    const logError = vi.spyOn(logger, "error").mockImplementation(() => {});
     const exit = vi.spyOn(process, "exit").mockImplementation(() => {});
 
     await server.start();
+    await vi.waitFor(() => {
+      expect(logError).toHaveBeenCalledWith(
+        { err: error },
+        "Station map population failed after startup",
+      );
+    });
 
-    expect(listen).not.toHaveBeenCalled();
-    expect(exit).toHaveBeenCalledWith(1);
+    expect(listen).toHaveBeenCalledOnce();
+    expect(exit).not.toHaveBeenCalled();
   });
 
   it("serves the UI entrypoint", async () => {
