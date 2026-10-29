@@ -289,13 +289,19 @@
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="shell">
   <nav class="navigation-rail" aria-label="Main navigation">
-    <a class="nav-link" href="/" aria-label="Nearby stations"
-      ><AppIcon name="search" /></a
+    <a
+      class="nav-link"
+      href="/"
+      aria-label="Nearby stations"
+      title="Nearby stations"><AppIcon name="search" /></a
     >
-    <a class="nav-link" href="/favorites" aria-label="Favorite stations"
-      ><AppIcon name="favorite" /></a
+    <a
+      class="nav-link"
+      href="/favorites"
+      aria-label="Favorite stations"
+      title="Favorite stations"><AppIcon name="favorite" /></a
     >
-    <a class="nav-link" href="/map" aria-label="Station map"
+    <a class="nav-link" href="/map" aria-label="Station map" title="Station map"
       ><AppIcon name="map" /></a
     >
   </nav>
@@ -306,15 +312,20 @@
     <button
       class="icon-button"
       aria-label="Favorite stations"
+      title="Favorite stations"
       onclick={() => goto("/favorites")}><AppIcon name="favorite" /></button
     >
     <button
       class="icon-button refresh-button"
       aria-label="Refresh stations"
+      title="Refresh stations"
       onclick={loadStations}><AppIcon name="refresh" /></button
     >
-    <button class="icon-button" aria-label="Preferences" onclick={openSettings}
-      ><AppIcon name="more" /></button
+    <button
+      class="icon-button"
+      aria-label="Preferences"
+      title="Preferences"
+      onclick={openSettings}><AppIcon name="more" /></button
     >
   </header>
   <main id="main" class="content">
@@ -328,6 +339,7 @@
       {#if inputQuery}<button
           class="icon-button"
           aria-label="Clear search"
+          title="Clear search"
           onclick={() => (inputQuery = "")}><AppIcon name="clear" /></button
         >{/if}
       <button
@@ -335,6 +347,7 @@
         aria-label={locationEnabled
           ? "Using device location"
           : "Use my location"}
+        title={locationEnabled ? "Using device location" : "Use my location"}
         aria-pressed={locationEnabled}
         onclick={useLocation}><AppIcon name="pin" /></button
       >
@@ -368,6 +381,7 @@
             <button
               class="icon-button"
               aria-label={`${favorites.includes(station.id) ? "Remove from" : "Add to"} favorites: ${station.name}`}
+              title={`${favorites.includes(station.id) ? "Remove from" : "Add to"} favorites: ${station.name}`}
               aria-pressed={favorites.includes(station.id)}
               onclick={() => toggleFavorite(station)}
             >

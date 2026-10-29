@@ -62,6 +62,7 @@
     <button
       class="icon-button"
       aria-label="Back to search"
+      title="Back to search"
       onclick={() => goto("/")}><AppIcon name="back" /></button
     >
     <div class="appbar-title"><strong>Stations</strong></div>

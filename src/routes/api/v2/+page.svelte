@@ -6,8 +6,11 @@
 <svelte:head><title>API reference | Serbia++</title></svelte:head>
 <main class="api-page">
   <header class="appbar">
-    <a class="icon-button" href="/" aria-label="Back to stations"
-      ><AppIcon name="back" /></a
+    <a
+      class="icon-button"
+      href="/"
+      aria-label="Back to stations"
+      title="Back to stations"><AppIcon name="back" /></a
     >
     <div class="appbar-title"><strong>API reference</strong></div>
   </header>

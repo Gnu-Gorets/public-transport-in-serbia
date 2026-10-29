@@ -256,13 +256,19 @@
 <svelte:head><title>Arrivals | Serbia++</title></svelte:head>
 <div class="shell">
   <nav class="navigation-rail" aria-label="Main navigation">
-    <a class="nav-link" href="/" aria-label="Nearby stations"
-      ><AppIcon name="search" /></a
+    <a
+      class="nav-link"
+      href="/"
+      aria-label="Nearby stations"
+      title="Nearby stations"><AppIcon name="search" /></a
     >
-    <a class="nav-link" href="/favorites" aria-label="Favorite stations"
-      ><AppIcon name="favorite" /></a
+    <a
+      class="nav-link"
+      href="/favorites"
+      aria-label="Favorite stations"
+      title="Favorite stations"><AppIcon name="favorite" /></a
     >
-    <a class="nav-link" href="/map" aria-label="Station map"
+    <a class="nav-link" href="/map" aria-label="Station map" title="Station map"
       ><AppIcon name="map" /></a
     >
   </nav>
@@ -270,6 +276,7 @@
     <button
       class="icon-button"
       aria-label="Back to stations"
+      title="Back to stations"
       onclick={() => history.back()}><AppIcon name="back" /></button
     >
     <div class="appbar-title">
@@ -280,6 +287,7 @@
     <button
       class="icon-button"
       aria-label={favorite ? "Remove favorite" : "Add favorite"}
+      title={favorite ? "Remove favorite" : "Add favorite"}
       aria-pressed={favorite}
       onclick={toggleFavorite}
       ><AppIcon name="favorite" filled={favorite} /></button
@@ -287,6 +295,7 @@
     {#if city !== "bg"}<button
         class="icon-button"
         aria-label={`Arrival alerts, ${activeAlerts.length} active`}
+        title={`Arrival alerts, ${activeAlerts.length} active`}
         onclick={showAlerts}><AppIcon name="alerts" /></button
       >{/if}
   </header>
@@ -346,6 +355,7 @@
                     >{/if}<button
                     class="icon-button"
                     aria-label={`Create arrival alert for line ${line.lineNumber}`}
+                    title={`Create arrival alert for line ${line.lineNumber}`}
                     disabled={!vehicle.garageNo}
                     onclick={() => createAlertFor(vehicle)}
                     ><AppIcon name="alerts" /></button
@@ -418,6 +428,7 @@
                 type="button"
                 class="icon-button"
                 aria-label={`Remove alert for line ${alert.lineName}`}
+                title={`Remove alert for line ${alert.lineName}`}
                 onclick={() => deleteArrivalAlert(alert)}>×</button
               >
             </li>{/each}
@@ -439,7 +450,8 @@
 <a
   class="fab"
   href={`/map?city=${encodeURIComponent(city ?? "")}&station=${encodeURIComponent(uid ?? "")}`}
-  aria-label="Show station on map"><AppIcon name="map" /></a
+  aria-label="Show station on map"
+  title="Show station on map"><AppIcon name="map" /></a
 >
 
 <style>

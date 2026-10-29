@@ -52,16 +52,20 @@
 <svelte:head><title>Favorite stations | Serbia++</title></svelte:head>
 <div class="shell">
   <nav class="navigation-rail" aria-label="Main navigation">
-    <a class="nav-link" href="/" aria-label="Nearby stations"
-      ><AppIcon name="search" /></a
+    <a
+      class="nav-link"
+      href="/"
+      aria-label="Nearby stations"
+      title="Nearby stations"><AppIcon name="search" /></a
     >
     <a
       class="nav-link"
       href="/favorites"
       aria-label="Favorite stations"
+      title="Favorite stations"
       aria-current="page"><AppIcon name="favorite" /></a
     >
-    <a class="nav-link" href="/map" aria-label="Station map"
+    <a class="nav-link" href="/map" aria-label="Station map" title="Station map"
       ><AppIcon name="map" /></a
     >
   </nav>
@@ -69,6 +73,7 @@
     <button
       class="icon-button compact-back"
       aria-label="Back to search"
+      title="Back to search"
       onclick={() => goto("/")}><AppIcon name="back" /></button
     >
     <div class="appbar-title">

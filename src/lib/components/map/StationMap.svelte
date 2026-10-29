@@ -96,7 +96,7 @@
       iconCreateFunction: (cluster) =>
         leaflet!.divIcon({
           className: "station-cluster",
-          html: `<span>${cluster.getChildCount()}</span>`,
+          html: `<span title="${cluster.getChildCount()} stations">${cluster.getChildCount()}</span>`,
           iconSize: [44, 44],
         }),
     });
