@@ -134,7 +134,7 @@
       const mapBounds = leaflet!.latLngBounds(bounds);
       const zoom = Math.min(
         map.getBoundsZoom(mapBounds, false, leaflet!.point(0, 0)) +
-          Math.log2(0.92),
+          Math.log2(0.85),
         map.getMaxZoom(),
       );
       map.setView(mapBounds.getCenter(), zoom, { animate: false });
