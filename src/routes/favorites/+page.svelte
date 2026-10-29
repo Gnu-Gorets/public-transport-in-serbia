@@ -81,6 +81,12 @@
     <div class="appbar-title">
       <strong>Favorite stations</strong><small>{cityName}</small>
     </div>
+    <button
+      class="icon-button"
+      aria-label="Preferences"
+      title="Preferences"
+      onclick={() => goto("/?preferences=1")}><AppIcon name="more" /></button
+    >
   </header>
   <main id="main" class="content">
     {#if loading}<div class="empty" role="status">Loading favorites…</div>

@@ -8,6 +8,10 @@ export interface Preferences {
   accent: Accent;
 }
 
+export function shouldOpenPreferences(search: string): boolean {
+  return new URLSearchParams(search).has("preferences");
+}
+
 export const DEFAULT_PREFERENCES: Readonly<Preferences> = {
   cityId: null,
   rangeMeters: 400,
