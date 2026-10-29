@@ -4,7 +4,10 @@
   import { browser } from "$app/env";
   import AppIcon from "#lib/components/AppIcon.svelte";
   import type { Station } from "#lib/stations.ts";
-  import { nearbyStations, searchStations } from "#lib/stations.ts";
+  import {
+    searchStations,
+    visibleStations as getVisibleStations,
+  } from "#lib/stations.ts";
   import {
     getFavorites,
     setFavorite,
@@ -51,17 +54,15 @@
     ns: [45.267136, 19.833549],
     nis: [43.3209, 21.8958],
   };
-  let nearby = $derived(
-    nearbyStations(
-      stations,
-      origin || cityCenters[city] || cityCenters.ns,
-      rangeMeters,
-    ),
-  );
   let visibleStations = $derived(
     query
       ? filtered.map((station) => ({ ...station, distance: null }))
-      : nearby,
+      : getVisibleStations(
+          stations,
+          locationEnabled,
+          origin || cityCenters[city] || cityCenters.ns,
+          rangeMeters,
+        ),
   );
 
   $effect(() => {
@@ -365,7 +366,7 @@
       </div>
     {:else if query && filtered.length === 0}
       <div class="empty">No stations match your criteria.</div>
-    {:else if !query && nearby.length === 0}
+    {:else if !query && locationEnabled && visibleStations.length === 0}
       <div class="empty">No stations within range.</div>
     {:else}
       <div class="station-list" aria-label="Stations">

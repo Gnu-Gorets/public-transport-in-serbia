@@ -62,3 +62,14 @@ export function nearbyStations(
     .filter((station) => station.distance <= rangeMeters)
     .sort((a, b) => a.distance - b.distance);
 }
+
+export function visibleStations(
+  stations: Station[],
+  locationEnabled: boolean,
+  origin: [number, number],
+  rangeMeters: number,
+): Array<Station & { distance: number | null }> {
+  return locationEnabled
+    ? nearbyStations(stations, origin, rangeMeters)
+    : stations.map((station) => ({ ...station, distance: null }));
+}
