@@ -17,20 +17,29 @@ export function foldForSearch(value: string): string {
     .toLocaleLowerCase("sr-Latn");
 }
 
+export function sortStations(stations: Station[]): Station[] {
+  return [...stations].sort(
+    (a, b) =>
+      foldForSearch(a.name).localeCompare(foldForSearch(b.name), "sr-Latn", {
+        numeric: true,
+      }) || a.id.localeCompare(b.id, "sr-Latn", { numeric: true }),
+  );
+}
+
 export function searchStations(stations: Station[], query: string): Station[] {
   const folded = foldForSearch(query.trim());
   if (!folded) return [];
   const byId = stations
     .filter((station) => foldForSearch(station.id).startsWith(folded))
-    .sort((a, b) => a.id.localeCompare(b.id));
+    .sort((a, b) => a.id.localeCompare(b.id, "sr-Latn", { numeric: true }));
   const idSet = new Set(byId.map((station) => String(station.id)));
-  const byName = stations
-    .filter(
+  const byName = sortStations(
+    stations.filter(
       (station) =>
         foldForSearch(station.name).includes(folded) &&
         !idSet.has(String(station.id)),
-    )
-    .sort((a, b) => a.name.localeCompare(b.name, "sr-Latn"));
+    ),
+  );
   return [...byId, ...byName];
 }
 
@@ -71,5 +80,8 @@ export function visibleStations(
 ): Array<Station & { distance: number | null }> {
   return locationEnabled
     ? nearbyStations(stations, origin, rangeMeters)
-    : stations.map((station) => ({ ...station, distance: null }));
+    : sortStations(stations).map((station) => ({
+        ...station,
+        distance: null,
+      }));
 }
