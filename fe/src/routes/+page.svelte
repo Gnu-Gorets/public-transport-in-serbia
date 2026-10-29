@@ -20,11 +20,7 @@
     savePreferences,
   } from "#lib/state/preferences.ts";
   import type { Accent } from "#lib/state/preferences.ts";
-  import {
-    Hct,
-    SchemeTonalSpot,
-  } from "@ktibow/material-color-utilities-nightly";
-  import { colors, genCSS } from "m3-svelte/etc/colors";
+  import { applyAccentStyles, applyTheme } from "#lib/state/theme.ts";
 
   let cities: Record<string, string> = $state({});
   let city = $state("");
@@ -143,37 +139,12 @@
 
   function toggleTheme(value: string) {
     theme = value;
-    if (value === "system") delete document.documentElement.dataset.theme;
-    else document.documentElement.dataset.theme = value;
-    document.documentElement.style.colorScheme =
-      value === "system" ? "light dark" : value;
+    applyTheme(value);
   }
 
   function applyAccent(value: Accent) {
     accent = value;
-    const seedHue =
-      typeof value === "object"
-        ? value.hue
-        : value === "device-blue"
-          ? 200
-          : 176.5;
-    const source = Hct.from(seedHue, 36, 50);
-    const stylesheet = genCSS(
-      new SchemeTonalSpot(source, false, 0),
-      new SchemeTonalSpot(source, true, 0),
-      colors,
-    );
-    let style = document.getElementById(
-      "dynamic-accent",
-    ) as HTMLStyleElement | null;
-    if (!style) {
-      style = document.createElement("style");
-      style.id = "dynamic-accent";
-      document.head.append(style);
-    }
-    style.textContent = stylesheet;
-    document.documentElement.style.colorScheme =
-      theme === "system" ? "light dark" : theme;
+    applyAccentStyles(value, theme);
   }
 
   async function toggleFavorite(station: Station) {
