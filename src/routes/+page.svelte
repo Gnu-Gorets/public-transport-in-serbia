@@ -212,6 +212,12 @@
   }
 
   async function useLocation() {
+    if (locationEnabled) {
+      locationEnabled = false;
+      origin = null;
+      error = "";
+      return;
+    }
     if (!navigator.geolocation) {
       error = "Location is unavailable in this browser.";
       return;

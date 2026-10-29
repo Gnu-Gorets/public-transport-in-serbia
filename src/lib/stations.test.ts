@@ -18,4 +18,12 @@ describe("visible stations", () => {
       visibleStations(stations, true, [45, 19], 100).map(({ id }) => id),
     ).toEqual(["near"]);
   });
+
+  it("restores the full station list when leaving nearby mode", () => {
+    const location = [45, 19] as [number, number];
+    expect(visibleStations(stations, true, location, 100)).toHaveLength(1);
+    expect(
+      visibleStations(stations, false, location, 100).map(({ id }) => id),
+    ).toEqual(["near", "far"]);
+  });
 });
