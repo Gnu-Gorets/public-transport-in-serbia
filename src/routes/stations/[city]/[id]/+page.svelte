@@ -2,7 +2,12 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import AppIcon from "#lib/components/AppIcon.svelte";
-  import { getBelgradeStopArrivals, getStationArrivals } from "#lib/api.ts";
+  import {
+    getBelgradeStopArrivals,
+    getBelgradeStops,
+    getCatalogStopName,
+    getStationArrivals,
+  } from "#lib/api.ts";
   import type {
     BelgradeStopArrivals,
     StationArrivals,
@@ -23,6 +28,7 @@
 
   let arrivals: StationArrivals | null = $state(null);
   let belgrade: BelgradeStopArrivals | null = $state(null);
+  let catalogName = $state("");
   let error = $state("");
   let loading = $state(true);
   let expandedLine = $state("");
@@ -106,6 +112,18 @@
         if (active) loading = false;
       }
     };
+    if (city === "bg") {
+      void getBelgradeStops()
+        .then((catalog) => {
+          if (active)
+            catalogName = getCatalogStopName(
+              catalog.stops,
+              uid ?? "",
+              belgrade?.name,
+            );
+        })
+        .catch(() => {});
+    }
     void load();
     const timer = setInterval(() => {
       if (document.visibilityState === "visible") void load();
@@ -248,7 +266,7 @@
   }
 
   $effect(() => {
-    const title = arrivals?.name || "Arrivals";
+    const title = catalogName || arrivals?.name || belgrade?.name || "Arrivals";
     document.title = `${title} | Serbia++`;
   });
 </script>
@@ -280,9 +298,9 @@
       onclick={() => history.back()}><AppIcon name="back" /></button
     >
     <div class="appbar-title">
-      <strong>{arrivals?.name || belgrade?.name || "Arrivals"}</strong><small
-        >{city}</small
-      >
+      <strong
+        >{catalogName || arrivals?.name || belgrade?.name || "Arrivals"}</strong
+      ><small>{city}</small>
     </div>
     <button
       class="icon-button"

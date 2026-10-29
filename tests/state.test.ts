@@ -1,10 +1,23 @@
 import { describe, expect, it } from "vitest";
+import { getCatalogStopName } from "../src/lib/api.ts";
 import { hasFavorite, toggleFavorite } from "../src/lib/state/favorites.ts";
 import {
   DEFAULT_PREFERENCES,
   loadPreferences,
   savePreferences,
 } from "../src/lib/state/preferences.ts";
+
+describe("Belgrade catalog names", () => {
+  it("prefers catalog name over upstream name for the same stop ID", () => {
+    expect(
+      getCatalogStopName(
+        [{ id: "1555437089", name: "Železnički bulevar · 640" }],
+        "1555437089",
+        "Južni bulevar · 640",
+      ),
+    ).toBe("Železnički bulevar · 640");
+  });
+});
 
 describe("preferences state", () => {
   it("loads defaults when storage is empty or unavailable", () => {

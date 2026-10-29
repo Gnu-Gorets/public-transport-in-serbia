@@ -137,6 +137,14 @@ export function getBelgradeStops(signal?: AbortSignal): Promise<BelgradeStops> {
   return request<BelgradeStops>("/api/bg/stops", signal);
 }
 
+export function getCatalogStopName(
+  stops: BelgradeStop[],
+  id: string,
+  fallback = "",
+): string {
+  return stops.find((stop) => stop.id === id)?.name || fallback;
+}
+
 export type StationLookup = { uid: string } | { id: string };
 
 export function getStationArrivals(
