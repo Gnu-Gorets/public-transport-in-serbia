@@ -58,7 +58,12 @@
       aria-label="Favorite stations"
       aria-current="page">♡</a
     >
-    <a class="nav-link" href="/map" aria-label="Station map">⌖</a>
+    <a class="nav-link" href="/map" aria-label="Station map">
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z" />
+        <path d="M9 3v15m6-12v15" />
+      </svg>
+    </a>
   </nav>
   <header class="appbar">
     <button
