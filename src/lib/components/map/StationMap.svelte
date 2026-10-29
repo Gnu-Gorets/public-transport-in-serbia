@@ -11,6 +11,7 @@
   import { onDestroy, onMount } from "svelte";
   import type * as Leaflet from "leaflet";
   import { validMapCoords } from "./coordinates.ts";
+  import { vehicleMarkerWidth } from "./vehicle-marker.ts";
 
   interface Vehicle {
     lineNumber: string | number;
@@ -87,15 +88,20 @@
         "svg",
       );
       icon.classList.add("station-vehicle-marker");
-      icon.setAttribute("viewBox", "0 0 32 24");
+      const width = vehicleMarkerWidth(vehicle.lineNumber);
+      icon.setAttribute("viewBox", `0 0 ${width} 24`);
       icon.setAttribute("aria-hidden", "true");
-      icon.innerHTML =
-        '<rect x="2" y="0" width="28" height="20" rx="5"/><rect class="bus-sign" x="4" y="1" width="24" height="14" rx="1.5"/><rect class="bus-window" x="4" y="16" width="5" height="3" rx="1"/><rect class="bus-window" x="11" y="16" width="5" height="3" rx="1"/><rect class="bus-window" x="18" y="16" width="5" height="3" rx="1"/><rect class="bus-window" x="25" y="16" width="3" height="3" rx="1"/><circle class="bus-wheel" cx="8" cy="20" r="2.5"/><circle class="bus-wheel" cx="24" cy="20" r="2.5"/>';
+      const windows = Array.from(
+        { length: Math.ceil((width - 14) / 7) },
+        (_, index) =>
+          `<rect class="bus-window" x="${5 + index * 7}" y="16" width="5" height="3" rx="1"/>`,
+      ).join("");
+      icon.innerHTML = `<rect x="2" y="0" width="${width - 4}" height="20" rx="5"/><rect class="bus-sign" x="4" y="1" width="${width - 8}" height="14" rx="1.5"/>${windows}<circle class="bus-wheel" cx="8" cy="20" r="2.5"/><circle class="bus-wheel" cx="${width - 8}" cy="20" r="2.5"/>`;
       const routeNumber = document.createElementNS(
         "http://www.w3.org/2000/svg",
         "text",
       );
-      routeNumber.setAttribute("x", "16");
+      routeNumber.setAttribute("x", String(width / 2));
       routeNumber.setAttribute("y", "8.5");
       routeNumber.setAttribute("dominant-baseline", "middle");
       routeNumber.textContent = String(vehicle.lineNumber);
@@ -107,8 +113,8 @@
             icon: leaflet.divIcon({
               className: "station-vehicle-marker-wrapper",
               html: icon,
-              iconSize: [40, 30],
-              iconAnchor: [20, 15],
+              iconSize: [width * 1.25, 30],
+              iconAnchor: [width * 0.625, 15],
             }),
             title: description,
             alt: description,
