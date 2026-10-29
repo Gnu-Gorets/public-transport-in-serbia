@@ -201,10 +201,10 @@
   :global(.station-vehicle-marker) {
     min-width: 36px;
     padding: 6px 8px;
-    border: 2px solid var(--m3c-on-primary);
+    border: 2px solid #e3f2fd;
     border-radius: 12px;
-    color: var(--m3c-on-primary);
-    background: var(--m3c-primary);
+    color: #fff;
+    background: #1565c0;
     box-shadow: 0 2px 6px rgb(0 0 0 / 35%);
     font-size: 12px;
     font-weight: 700;
