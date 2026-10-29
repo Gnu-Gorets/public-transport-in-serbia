@@ -379,7 +379,7 @@
       <div class="empty">No stations within range.</div>
     {:else}
       <div class="station-list" aria-label="Stations">
-        {#each visibleStations as station (station.id)}
+        {#each visibleStations as station (station.uid)}
           <div class="station-row">
             <span class="station-pin"><AppIcon name="location" /></span>
             <button class="station-open" onclick={() => openStation(station)}>
