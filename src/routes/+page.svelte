@@ -35,6 +35,7 @@
   let rangeMeters = $state(400);
   let origin: [number, number] | null = $state(null);
   let locationEnabled = $state(false);
+  let locationMode = $state(false);
   let favorites: string[] = $state([]);
   let settingsOpen = $state(false);
   let settingsDialog = $state<HTMLDialogElement>();
@@ -212,12 +213,15 @@
   }
 
   async function useLocation() {
-    if (locationEnabled) {
+    if (locationMode) {
+      locationMode = false;
       locationEnabled = false;
       origin = null;
       error = "";
       return;
     }
+    locationMode = true;
+    error = "";
     if (!navigator.geolocation) {
       error = "Location is unavailable in this browser.";
       return;
@@ -265,6 +269,7 @@
     settingsSnapshot = null;
     if (cityChanged) {
       origin = null;
+      locationMode = false;
       locationEnabled = false;
       query = "";
       inputQuery = "";
@@ -351,11 +356,9 @@
         >{/if}
       <button
         class="icon-button"
-        aria-label={locationEnabled
-          ? "Using device location"
-          : "Use my location"}
-        title={locationEnabled ? "Using device location" : "Use my location"}
-        aria-pressed={locationEnabled}
+        aria-label={locationMode ? "Cancel nearby stations" : "Use my location"}
+        title={locationMode ? "Cancel nearby stations" : "Use my location"}
+        aria-pressed={locationMode}
         onclick={useLocation}><AppIcon name="pin" /></button
       >
     </div>
