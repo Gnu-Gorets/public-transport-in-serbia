@@ -18,6 +18,7 @@
   import { getFavorites, setFavorite } from "#lib/stations/storage.js";
   import StationMap from "#lib/components/map/StationMap.svelte";
   import type { Station } from "#lib/stations.ts";
+  import { getLiveBelgradeArrivals } from "#lib/stations/belgrade-arrivals.ts";
   import {
     listAlerts,
     removeAlert,
@@ -49,6 +50,12 @@
   let alertError = $state("");
   let city = $derived(page.params.city);
   let uid = $derived(page.params.id);
+  let liveBelgradeArrivals = $derived.by(() =>
+    getLiveBelgradeArrivals(belgrade ? belgrade.arrivals : []),
+  );
+  let liveBelgradeVehicles = $derived(
+    liveBelgradeArrivals.length ? belgradeVehicles : [],
+  );
   let lines = $derived.by(() => {
     const grouped = new Map<string, VehicleArrival[]>();
     for (const vehicle of arrivals?.vehicles || []) {
@@ -362,10 +369,10 @@
         <div class="station-meta">📍 {arrivals?.id || belgrade?.id}</div>
       </div>
       {#if belgrade}
-        {#if belgrade.arrivals.length === 0}<div class="empty">
-            No arrivals are scheduled.
+        {#if liveBelgradeArrivals.length === 0}<div class="empty">
+            No live arrival estimates are available for this stop.
           </div>{/if}
-        {#each belgrade.arrivals as item (item.lineNumber + item.scheduledAt)}
+        {#each liveBelgradeArrivals as item (item.lineNumber + item.scheduledAt)}
           <div class="arrival-row">
             <strong class="line-badge">{item.lineNumber}</strong><span
               >{arrivalTime(item.estimatedAt || item.scheduledAt)}</span
@@ -424,7 +431,7 @@
       <StationMap
         stations={mapStations}
         selectedStation={mapStation}
-        vehicles={arrivals?.vehicles || belgradeVehicles}
+        vehicles={arrivals?.vehicles || liveBelgradeVehicles}
       />
     {/if}
   </section>
