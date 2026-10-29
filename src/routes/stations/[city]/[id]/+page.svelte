@@ -391,8 +391,8 @@
                 <div class="arrival-row">
                   <span class="eta">{eta(vehicle.secondsLeft)}</span><span
                     class="vehicle"
-                    aria-label={`Vehicle ${vehicle.garageNo || "unknown"}`}
-                    >{vehicle.garageNo || "—"}</span
+                    aria-label={`Vehicle number ${vehicle.garageNo || "unknown"}`}
+                    >#{vehicle.garageNo || "—"}</span
                   ><span>{vehicle.stationsBetween} stops away</span
                   >{#if vehicle.stationName}<small
                       >Currently near {vehicle.stationName}</small
@@ -556,15 +556,15 @@
   }
   .arrival-row {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 12px;
     padding: 12px 16px;
     border-top: 1px solid var(--m3c-outline-variant);
   }
   .arrival-row small {
-    width: 100%;
     color: var(--m3c-on-surface-variant);
+    white-space: nowrap;
   }
   .vehicle {
     padding: 2px 8px;
