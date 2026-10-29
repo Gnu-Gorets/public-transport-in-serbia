@@ -83,16 +83,18 @@
     await import("leaflet.markercluster");
     if (destroyed) return;
 
-    leaflet = L;
-    map = L.map(mapElement).setView([44, 20], 7);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors",
-      maxZoom: 19,
-    }).addTo(map);
-    markerGroup = L.markerClusterGroup({
+    leaflet = L.default;
+    map = leaflet.map(mapElement).setView([44, 20], 7);
+    leaflet
+      .tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+        maxZoom: 19,
+      })
+      .addTo(map);
+    markerGroup = leaflet.markerClusterGroup({
       chunkedLoading: true,
       iconCreateFunction: (cluster) =>
-        L.divIcon({
+        leaflet!.divIcon({
           className: "station-cluster",
           html: `<span>${cluster.getChildCount()}</span>`,
           iconSize: [44, 44],
