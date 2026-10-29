@@ -770,6 +770,7 @@ describe("API routes", () => {
         headers: expect.objectContaining({
           "Content-Type": "application/json",
         }),
+        timeout: 75000,
       }),
     );
   });
