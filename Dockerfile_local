@@ -2,6 +2,7 @@ FROM node:26-alpine
 
 # Create a non-root user for the application
 RUN addgroup -S app && adduser -S -G app app
+RUN apk add --no-cache curl
 
 # Set the working directory
 WORKDIR /app
@@ -13,12 +14,10 @@ USER app
 COPY --chown=app:app package.json package-lock.json .npmrc ./
 RUN npm ci
 
-# Copy application files and build the SvelteKit app
+# Copy application files for development
 COPY --chown=app:app be ./be
 COPY --chown=app:app fe ./fe
 COPY --chown=app:app scripts ./scripts
 COPY --chown=app:app vite.config.mjs tsconfig.json ./
-RUN npm run build && npm prune --omit=dev
-
-# Run the project
-CMD ["node", "be/server/server.js"]
+# Start the development server
+CMD ["npm", "run", "dev"]

@@ -12,29 +12,27 @@ Node.js 26 and npm are required for local development and production builds.
 2. Run `npm run dev`.
 3. Open http://127.0.0.1:3000.
 
-`npm run dev` runs Fastify API on port 3001 and Vite development server on port 3000. To build and run production server locally, use `npm run build` followed by `npm start`.
+`npm run dev` runs Fastify API on port 3001 and Vite development server on port 3000; Vite proxies API requests to Fastify. Production uses one Fastify process for API and built UI on port 3000. Build and run it locally with `npm run build` followed by `npm start`.
 
 ### Docker
 
-Build and start local-source image:
+Build and start an image from current checkout:
 
 ```sh
 docker build -f Dockerfile_local -t public-transport-in-serbia .
 docker run --name public-transport-in-serbia -p 3000:3000 public-transport-in-serbia
 ```
 
-To build image from latest GitHub `master` source, use `Dockerfile`:
+To build an image from the latest GitHub `main` source, use `Dockerfile`:
 
 ```sh
 docker build -f Dockerfile -t public-transport-in-serbia .
 docker run --name public-transport-in-serbia -p 3000:3000 public-transport-in-serbia
 ```
 
-Both images build SvelteKit production handler and run it through Fastify server. Generated handler is scoped as ESM inside `build/`; CommonJS server retains package's default module behavior.
-
 ## Configuration, push, and persistent data
 
-Set provider credentials with supported environment variables (`NS_KEY`, `NS_URL`, `BG_KEY`, `BG_URL`, `BG_V2_KEY`, `BG_V2_IV`, `NIS_KEY`, and `NIS_URL`). Environment values override corresponding values in `be/server/apikeys.json`. Do not put secrets in source control or image layers; supply them at runtime through your deployment platform.
+Set active provider credentials with `NS_KEY`, `NS_URL`, `NIS_KEY`, and `NIS_URL`; environment values override corresponding values in `be/server/apikeys.json`. Belgrade (`BG_*`) configuration is currently filtered out because its provider API is unavailable, so those overrides have no effect. Do not put secrets in source control or image layers; supply them at runtime through your deployment platform.
 
 Web push is enabled when all three variables are supplied: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT`. Public key is exposed to clients; keep private key secret. Push subscriptions are stored in `data/alerts.json` under working directory by default. Set `ALERTS_DATA_DIR` to use a different directory. Mount persistent storage there, or at `/app/data` when using supplied Docker images, so subscriptions survive container replacement. For example:
 

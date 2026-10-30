@@ -1,19 +1,25 @@
+FROM node:26-alpine AS source
+
+RUN apk add --no-cache git
+RUN git clone --depth 1 --branch main https://github.com/Gnu-Gorets/public-transport-in-serbia.git /app
+RUN rm -rf /app/.git /app/tests
+
 FROM node:26-alpine
 
-RUN addgroup -S app \
-  && adduser -S -G app app \
-  && apk add --no-cache git \
-  && git clone --depth 1 https://github.com/Gnu-Gorets/public-transport-in-serbia.git /app \
-  && rm -rf /app/.git /app/tests \
-  && apk del git \
-  && chown -R app:app /app
+ENV NODE_ENV=production
 
-# Set the working directory
 WORKDIR /app
+
+RUN addgroup -S app && adduser -S -G app app && chown app:app /app
+
+COPY --from=source --chown=app:app /app/package.json /app/package-lock.json /app/.npmrc ./
+
 USER app
 
-# Install project dependencies and build the SvelteKit app
-RUN npm ci && npm run build && npm prune --omit=dev
+RUN npm ci --include=dev
 
-# Run the project
+COPY --from=source --chown=app:app /app/ ./
+
+RUN npm run build && npm prune --omit=dev
+
 CMD ["node", "be/server/server.js"]
