@@ -305,12 +305,6 @@
       <strong>Search stations</strong><small>{cities[city] || ""}</small>
     </div>
     <button
-      class="icon-button"
-      aria-label="Favorite stations"
-      title="Favorite stations"
-      onclick={() => goto("/favorites")}><AppIcon name="favorite" /></button
-    >
-    <button
       class="icon-button refresh-button"
       aria-label="Refresh stations"
       title="Refresh stations"
