@@ -3,12 +3,13 @@ import { vehicleMarkerLabel, vehicleMarkerWidth } from "./vehicle-marker.ts";
 
 describe("vehicle marker label", () => {
   it("shortens routes longer than four characters", () => {
-    expect(vehicleMarkerLabel("27N (Overnight)")).toBe("27N …");
+    expect(vehicleMarkerLabel("27N (Overnight)")).toBe("27N.");
+    expect(vehicleMarkerLabel("AB (route)")).toBe("AB.");
     expect(vehicleMarkerLabel("ВЗТ")).toBe("ВЗТ");
     expect(vehicleMarkerWidth("27N (Overnight)")).toBe(
       vehicleMarkerWidth("12345"),
     );
-    expect(vehicleMarkerWidth("12345")).toBe(72);
+    expect(vehicleMarkerWidth("12345")).toBe(62);
   });
 
   it("keeps short route labels unchanged", () => {
