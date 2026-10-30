@@ -545,6 +545,12 @@
       grid-column: 2 / -1;
     }
   }
+  @media (max-width: 839px) {
+    .overview {
+      margin: 4px 0;
+      padding: 8px 12px;
+    }
+  }
   .line-card {
     margin: 6px 0;
     overflow: hidden;
