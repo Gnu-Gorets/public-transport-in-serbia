@@ -121,7 +121,7 @@
             alt: description,
             zIndexOffset: 5000,
           })
-          .bindTooltip(description)
+          .bindTooltip(String(vehicle.lineNumber))
           .on("click", () => focusSelection(selectedStation, currentVehicles)),
       );
     }
