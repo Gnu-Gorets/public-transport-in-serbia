@@ -100,17 +100,15 @@
           belgradeVehicles = vehicleResult.vehicles;
           arrivals = null;
           error = "";
-          if (!mapStation) {
-            const station: Station = {
-              name: result.name,
-              uid: result.uid,
-              id: String(result.id),
-              coords: result.coords,
-              lines: [],
-            };
-            mapStation = station;
-            mapStations = [station];
-          }
+          const station: Station = {
+            name: result.name,
+            uid: result.uid,
+            id: String(result.id),
+            coords: result.coords,
+            lines: [],
+          };
+          mapStation = station;
+          mapStations = [station];
           favorite = (await getFavorites()).some(
             (item) => item.city === city && item.id === String(result.id),
           );
@@ -124,17 +122,15 @@
           if (!active) return;
           belgrade = null;
           error = "";
-          if (!mapStation) {
-            const station: Station = {
-              name: arrivals.name || "Station",
-              uid: arrivals.uid,
-              id: String(arrivals.id),
-              coords: arrivals.coords,
-              lines: [],
-            };
-            mapStation = station;
-            mapStations = [station];
-          }
+          const station: Station = {
+            name: arrivals.name || "Station",
+            uid: arrivals.uid,
+            id: String(arrivals.id),
+            coords: arrivals.coords,
+            lines: [],
+          };
+          mapStation = station;
+          mapStations = [station];
           favorite = (await getFavorites()).some(
             (item) => item.city === city && item.id === String(arrivals?.id),
           );
@@ -514,24 +510,27 @@
     </form>
   </dialog>
 {/if}
-<a
-  class="fab"
-  href={`/map?city=${encodeURIComponent(city ?? "")}&station=${encodeURIComponent(uid ?? "")}`}
-  aria-label="Show station on map"
-  title="Show station on map"><AppIcon name="map" /></a
->
 
 <style>
   .detail-pane {
     display: none;
   }
+  @media (min-width: 840px) {
+    .detail-pane {
+      display: block;
+    }
+  }
   .arrivals-content {
     padding-bottom: 96px;
   }
   @media (min-width: 840px) {
-    .detail-pane {
-      display: block;
-      height: calc(100dvh - 56px);
+    .appbar {
+      height: 56px;
+    }
+    .arrivals-content {
+      grid-row: 2;
+      align-self: start;
+      margin: 0;
     }
   }
   @media (min-width: 1200px) {

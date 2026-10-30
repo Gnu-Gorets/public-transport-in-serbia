@@ -1,23 +1,18 @@
 export type Theme = "system" | "light" | "dark";
-export type Accent = "bgpp-teal" | "device-blue" | { hue: number };
-
 export interface Preferences {
   cityId: string | null;
   rangeMeters: number;
   theme: Theme;
-  accent: Accent;
 }
 
 export const DEFAULT_PREFERENCES: Readonly<Preferences> = {
   cityId: null,
   rangeMeters: 400,
   theme: "system",
-  accent: "bgpp-teal",
 };
 
 const STORAGE_KEY = "bgpp:prefs:v1";
 const themes = new Set<Theme>(["system", "light", "dark"]);
-const accents = new Set(["bgpp-teal", "device-blue"]);
 
 function normalizePreferences(value: unknown): Preferences {
   if (typeof value !== "object" || value === null)
@@ -35,20 +30,7 @@ function normalizePreferences(value: unknown): Preferences {
   const theme = themes.has(candidate.theme as Theme)
     ? (candidate.theme as Theme)
     : DEFAULT_PREFERENCES.theme;
-  let accent: Accent = DEFAULT_PREFERENCES.accent;
-  if (typeof candidate.accent === "string" && accents.has(candidate.accent)) {
-    accent = candidate.accent as Accent;
-  } else if (
-    typeof candidate.accent === "object" &&
-    candidate.accent !== null
-  ) {
-    const hue = (candidate.accent as { hue?: unknown }).hue;
-    if (typeof hue === "number" && Number.isFinite(hue)) {
-      accent = { hue: Math.min(360, Math.max(0, Math.round(hue))) };
-    }
-  }
-
-  return { cityId, rangeMeters, theme, accent };
+  return { cityId, rangeMeters, theme };
 }
 
 export function loadPreferences(

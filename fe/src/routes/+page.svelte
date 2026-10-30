@@ -19,7 +19,6 @@
     loadPreferences,
     savePreferences,
   } from "#lib/state/preferences.ts";
-  import type { Accent } from "#lib/state/preferences.ts";
   import { applyAccentStyles, applyTheme } from "#lib/state/theme.ts";
 
   let cities: Record<string, string> = $state({});
@@ -40,12 +39,8 @@
     city: string;
     rangeMeters: number;
     theme: string;
-    accent: Accent;
-    hue: number;
   } | null = null;
   let theme = $state("system");
-  let accent: Accent = $state("bgpp-teal");
-  let hue = $state(176.5);
   let filtered = $derived(searchStations(stations, query));
   const cityCenters: Record<string, [number, number]> = {
     bg: [44.81254796404323, 20.46145496621977],
@@ -79,10 +74,8 @@
           : Object.keys(cities)[0] || "";
       rangeMeters = saved.rangeMeters || DEFAULT_PREFERENCES.rangeMeters;
       theme = saved.theme;
-      accent = saved.accent;
-      if (typeof accent === "object") hue = accent.hue;
       if (theme !== "system") document.documentElement.dataset.theme = theme;
-      applyAccent(accent);
+      applyAccentStyles(theme);
       await loadFavorites();
       await loadStations();
     } catch (cause) {
@@ -142,11 +135,6 @@
     applyTheme(value);
   }
 
-  function applyAccent(value: Accent) {
-    accent = value;
-    applyAccentStyles(value, theme);
-  }
-
   async function toggleFavorite(station: Station) {
     const key = station.id;
     const isFavorite = favorites.includes(key);
@@ -197,7 +185,7 @@
   }
 
   async function openSettings() {
-    settingsSnapshot = { city, rangeMeters, theme, accent, hue };
+    settingsSnapshot = { city, rangeMeters, theme };
     settingsOpen = true;
     await tick();
     settingsDialog?.showModal();
@@ -208,11 +196,9 @@
       city = settingsSnapshot.city;
       rangeMeters = settingsSnapshot.rangeMeters;
       theme = settingsSnapshot.theme;
-      accent = settingsSnapshot.accent;
-      hue = settingsSnapshot.hue;
       if (theme === "system") delete document.documentElement.dataset.theme;
       else document.documentElement.dataset.theme = theme;
-      applyAccent(accent);
+      applyAccentStyles(theme);
     }
     settingsSnapshot = null;
     settingsOpen = false;
@@ -234,7 +220,6 @@
       cityId: city,
       rangeMeters,
       theme: theme as "system" | "light" | "dark",
-      accent,
     });
     settingsOpen = false;
     await loadFavorites();
@@ -396,37 +381,10 @@
         value={theme}
         onchange={(event) => toggleTheme(event.currentTarget.value)}
       >
-        <option value="system">System</option><option value="light"
+        <option value="system">Device</option><option value="light"
           >Light</option
         ><option value="dark">Dark</option>
       </select>
-      <label for="accent">Accent</label>
-      <select
-        id="accent"
-        value={typeof accent === "object" ? "custom" : accent}
-        onchange={(event) =>
-          applyAccent(
-            event.currentTarget.value === "custom"
-              ? { hue }
-              : (event.currentTarget.value as Accent),
-          )}
-      >
-        <option value="bgpp-teal">BG++ teal</option><option value="device-blue"
-          >Device blue</option
-        ><option value="custom">Custom hue</option>
-      </select>
-      {#if typeof accent === "object"}
-        <label for="accentHue">Hue: {Math.round(hue)}°</label>
-        <input
-          id="accentHue"
-          type="range"
-          min="0"
-          max="360"
-          step="1"
-          bind:value={hue}
-          oninput={() => applyAccent({ hue })}
-        />
-      {/if}
       <div class="dialog-actions">
         <button
           type="button"

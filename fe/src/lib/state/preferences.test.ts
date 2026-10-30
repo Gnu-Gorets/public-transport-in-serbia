@@ -16,14 +16,12 @@ describe("preferences", () => {
       cityId: "ns",
       rangeMeters: 650,
       theme: "dark",
-      accent: "device-blue",
     });
 
     expect(loadPreferences(storage)).toEqual({
       cityId: "ns",
       rangeMeters: 650,
       theme: "dark",
-      accent: "device-blue",
     });
   });
 });

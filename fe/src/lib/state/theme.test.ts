@@ -9,16 +9,14 @@ afterEach(() => {
 });
 
 describe("theme helpers", () => {
-  it("reuses the accent stylesheet element when accent changes", () => {
-    applyAccentStyles("bgpp-teal", "system");
+  it("applies the fixed accent and selected color scheme", () => {
+    applyAccentStyles("dark");
     const style = document.getElementById("dynamic-accent");
-    const defaultStyles = style?.textContent;
 
-    applyAccentStyles({ hue: 240 }, "dark");
-
-    expect(document.querySelectorAll("#dynamic-accent")).toHaveLength(1);
-    expect(style?.textContent).not.toBe(defaultStyles);
+    expect(style?.textContent).toContain("--m3c-primary");
     expect(document.documentElement.style.colorScheme).toBe("dark");
+    applyAccentStyles("system");
+    expect(document.querySelectorAll("#dynamic-accent")).toHaveLength(1);
   });
 
   it("clears explicit theme when following system preference", () => {

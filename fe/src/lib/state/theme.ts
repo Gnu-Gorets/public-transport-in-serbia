@@ -1,7 +1,5 @@
 import { Hct, SchemeTonalSpot } from "@ktibow/material-color-utilities-nightly";
 import { colors, genCSS } from "m3-svelte/etc/colors";
-import type { Accent } from "./preferences.ts";
-
 export function applyTheme(theme: string) {
   if (theme === "system") delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = theme;
@@ -9,13 +7,8 @@ export function applyTheme(theme: string) {
     theme === "system" ? "light dark" : theme;
 }
 
-export function applyAccentStyles(accent: Accent, theme: string) {
-  const hue =
-    typeof accent === "object"
-      ? accent.hue
-      : accent === "device-blue"
-        ? 200
-        : 176.5;
+export function applyAccentStyles(theme: string) {
+  const hue = 200;
   const source = Hct.from(hue, 36, 50);
   const stylesheet = genCSS(
     new SchemeTonalSpot(source, false, 0),
