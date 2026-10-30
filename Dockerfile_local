@@ -2,6 +2,7 @@ FROM node:26-alpine
 
 # Create a non-root user for the application
 RUN addgroup -S app && adduser -S -G app app
+# The dev script uses curl to wait for the API.
 RUN apk add --no-cache curl
 
 # Set the working directory

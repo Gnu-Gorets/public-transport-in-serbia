@@ -1,3 +1,4 @@
+# Clone source in a temporary stage so Git stays out of the runtime image.
 FROM node:26-alpine AS source
 
 RUN apk add --no-cache git \
@@ -13,10 +14,12 @@ WORKDIR /app
 
 RUN addgroup -S app && adduser -S -G app app && chown app:app /app
 
+# Copy manifests first so source changes do not invalidate the dependency layer.
 COPY --from=source --chown=app:app /app/package.json /app/package-lock.json /app/.npmrc ./
 
 USER app
 
+# Build tools are needed despite NODE_ENV=production; prune them after the build.
 RUN npm ci --include=dev
 
 COPY --from=source --chown=app:app /app/ ./
