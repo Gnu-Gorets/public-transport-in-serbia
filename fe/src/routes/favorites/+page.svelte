@@ -173,11 +173,7 @@
               href={`/stations/${encodeURIComponent(city)}/${encodeURIComponent(String(station.uid))}`}
             >
               <span class="station-pin"><AppIcon name="location" /></span>
-              <span
-                ><strong>{station.name}</strong><span class="station-meta"
-                  >↔ {station.id}</span
-                ></span
-              >
+              <strong>{station.name}</strong>
               <AppIcon name="favorite" filled />
             </a>
           {/each}
