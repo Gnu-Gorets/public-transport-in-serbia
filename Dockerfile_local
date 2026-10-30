@@ -1,11 +1,11 @@
 FROM node:26-alpine
 
-# Create a non-root user for the application
+# Create non-root user for application
 RUN addgroup -S app && adduser -S -G app app
-# The dev script uses curl to wait for the API.
+# Dev script uses curl to wait for API.
 RUN apk add --no-cache curl
 
-# Set the working directory
+# Set working directory
 WORKDIR /app
 RUN chown app:app /app
 
@@ -20,5 +20,5 @@ COPY --chown=app:app be ./be
 COPY --chown=app:app fe ./fe
 COPY --chown=app:app scripts ./scripts
 COPY --chown=app:app vite.config.mjs tsconfig.json ./
-# Start the development server
+# Start development server
 CMD ["npm", "run", "dev"]

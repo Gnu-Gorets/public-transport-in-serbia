@@ -16,14 +16,14 @@ Node.js 26 and npm are required for local development and production builds.
 
 ### Docker
 
-Build and start an image from current checkout:
+Build and start local image from current checkout:
 
 ```sh
 docker build -f Dockerfile_local -t public-transport-in-serbia .
 docker run --name public-transport-in-serbia -p 3000:3000 public-transport-in-serbia
 ```
 
-To build an image from the latest GitHub `main` source, use `Dockerfile`:
+To build from latest GitHub `main` source, use `Dockerfile`:
 
 ```sh
 docker build -f Dockerfile -t public-transport-in-serbia .
@@ -32,9 +32,9 @@ docker run --name public-transport-in-serbia -p 3000:3000 public-transport-in-se
 
 ## Configuration, push, and persistent data
 
-Set active provider credentials with `NS_KEY`, `NS_URL`, `NIS_KEY`, and `NIS_URL`; environment values override corresponding values in `be/server/apikeys.json`. Belgrade (`BG_*`) configuration is currently filtered out because its provider API is unavailable, so those overrides have no effect. Do not put secrets in source control or image layers; supply them at runtime through your deployment platform.
+Set active provider credentials with `NS_KEY`, `NS_URL`, `NIS_KEY`, and `NIS_URL`; environment values override corresponding values in `be/server/apikeys.json`. Belgrade (`BG_*`) configuration is currently filtered out because its provider API is unavailable, so those overrides have no effect. Do not put secrets in source control or image layers; supply them at runtime through deployment platform.
 
-Web push is enabled when all three variables are supplied: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT`. Public key is exposed to clients; keep private key secret. Push subscriptions are stored in `data/alerts.json` under working directory by default. Set `ALERTS_DATA_DIR` to use a different directory. Mount persistent storage there, or at `/app/data` when using supplied Docker images, so subscriptions survive container replacement. For example:
+Web push is enabled when all three variables are set: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT`. Public key is exposed to clients; keep private key secret. Push subscriptions are stored at `data/alerts.json` by default. Set `ALERTS_DATA_DIR` to choose another location. Mount persistent storage there, or at `/app/data` when using supplied Docker images, so subscriptions survive container replacement. For example:
 
 ```sh
 docker run --name public-transport-in-serbia -p 3000:3000 \
