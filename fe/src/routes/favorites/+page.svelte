@@ -74,7 +74,6 @@
 
   function toggleTheme(value: string) {
     theme = value;
-    applyTheme(value);
   }
 
   async function openSettings() {
@@ -89,8 +88,6 @@
       city = settingsSnapshot.city;
       rangeMeters = settingsSnapshot.rangeMeters;
       theme = settingsSnapshot.theme;
-      toggleTheme(theme);
-      applyAccentStyles(theme);
     }
     settingsSnapshot = null;
     settingsOpen = false;
@@ -99,6 +96,7 @@
   function saveSettings() {
     settingsSnapshot = null;
     settingsDialog?.close();
+    applyTheme(theme);
     savePreferences(localStorage, {
       ...loadPreferences(localStorage),
       cityId: city,

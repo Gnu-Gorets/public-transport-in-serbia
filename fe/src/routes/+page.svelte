@@ -176,7 +176,6 @@
 
   function toggleTheme(value: string) {
     theme = value;
-    applyTheme(value);
   }
 
   async function toggleFavorite(station: Station) {
@@ -240,9 +239,6 @@
       city = settingsSnapshot.city;
       rangeMeters = settingsSnapshot.rangeMeters;
       theme = settingsSnapshot.theme;
-      if (theme === "system") delete document.documentElement.dataset.theme;
-      else document.documentElement.dataset.theme = theme;
-      applyAccentStyles(theme);
     }
     settingsSnapshot = null;
     settingsOpen = false;
@@ -261,6 +257,7 @@
       inputQuery = "";
     }
     settingsDialog?.close();
+    applyTheme(theme);
     savePreferences(localStorage, {
       ...loadPreferences(localStorage),
       cityId: city,
