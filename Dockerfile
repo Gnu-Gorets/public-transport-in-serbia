@@ -1,8 +1,9 @@
 FROM node:26-alpine AS source
 
-RUN apk add --no-cache git
-RUN git clone --depth 1 --branch main https://github.com/Gnu-Gorets/public-transport-in-serbia.git /app
-RUN rm -rf /app/.git /app/tests
+RUN apk add --no-cache git \
+  && git clone --depth 1 --branch main https://github.com/Gnu-Gorets/public-transport-in-serbia.git /app \
+  && rm -rf /app/.git /app/tests \
+  && apk del git
 
 FROM node:26-alpine
 
