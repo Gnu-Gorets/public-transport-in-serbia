@@ -65,7 +65,6 @@
       const marker = leaflet
         .marker(coords, {
           icon: createIcon(station.uid === currentSelection?.uid),
-          title: station.name,
           alt: station.name,
           keyboard: true,
           zIndexOffset: station.uid === currentSelection?.uid ? 10000 : 0,
@@ -117,7 +116,6 @@
               iconSize: [width * 1.25, 30],
               iconAnchor: [width * 0.625, 15],
             }),
-            title: description,
             alt: description,
             zIndexOffset: 5000,
           })
