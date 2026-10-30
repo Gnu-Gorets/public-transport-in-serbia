@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { goto } from "$app/navigation";
-  import { browser } from "$app/env";
   import AppIcon from "#lib/components/AppIcon.svelte";
   import {
     getBelgradeStops,
@@ -10,7 +9,9 @@
   } from "#lib/api.ts";
   import type { Station } from "#lib/stations.ts";
   import {
+    INITIAL_STATION_COUNT,
     searchStations,
+    sortStations,
     visibleStations as getVisibleStations,
   } from "#lib/stations.ts";
   import {
@@ -26,13 +27,18 @@
   } from "#lib/state/preferences.ts";
   import { applyAccentStyles, applyTheme } from "#lib/state/theme.ts";
 
-  let cities: Record<string, string> = $state({});
-  let city = $state("");
-  let stations: Station[] = $state([]);
+  let { data } = $props();
+  const initialData = untrack(() => data);
+  let cities: Record<string, string> = $state(initialData.cities);
+  let city = $state(initialData.city);
+  // Limit SSR output; client loads full catalog after hydration.
+  let stations: Station[] = $state(
+    sortStations(initialData.stations).slice(0, INITIAL_STATION_COUNT),
+  );
   let query = $state("");
   let inputQuery = $state("");
-  let loading = $state(false);
-  let error = $state("");
+  let loading = $state(initialData.stations.length === 0 && !initialData.error);
+  let error = $state(initialData.error);
   let rangeMeters = $state(400);
   let origin: [number, number] | null = $state(null);
   let locationEnabled = $state(false);
@@ -71,19 +77,29 @@
 
   onMount(() => {
     const saved = loadPreferences(localStorage);
-    city = saved.cityId || "bg";
+    const preferredCity = saved.cityId || city;
     rangeMeters = saved.rangeMeters || DEFAULT_PREFERENCES.rangeMeters;
     theme = saved.theme;
+    document.cookie = `bgpp-city=${encodeURIComponent(preferredCity)}; Path=/; Max-Age=31536000; SameSite=Lax`;
     if (theme !== "system") document.documentElement.dataset.theme = theme;
     applyAccentStyles(theme);
+    if (preferredCity !== city) {
+      city = preferredCity;
+      stations = [];
+      loading = true;
+    } else {
+      stations = initialData.stations;
+    }
     void loadFavorites();
     void loadStations();
     getCities()
       .then((availableCities) => {
         cities = availableCities;
-        if (!(city in cities)) {
+        if (!Object.hasOwn(cities, city)) {
           city = Object.keys(cities)[0] || "";
           stations = [];
+          loading = true;
+          document.cookie = `bgpp-city=${encodeURIComponent(city)}; Path=/; Max-Age=31536000; SameSite=Lax`;
           void loadStations();
         }
       })
@@ -236,6 +252,7 @@
     const cityChanged = settingsSnapshot?.city !== city;
     settingsSnapshot = null;
     if (cityChanged) {
+      document.cookie = `bgpp-city=${encodeURIComponent(city)}; Path=/; Max-Age=31536000; SameSite=Lax`;
       stations = [];
       origin = null;
       locationMode = false;
@@ -254,8 +271,6 @@
     await loadFavorites();
     await loadStations();
   }
-
-  if (!browser) loading = true;
 </script>
 
 <svelte:head>

@@ -7,6 +7,7 @@ export type Station = {
 };
 
 export type City = { id: string; name: string };
+export const INITIAL_STATION_COUNT = 40;
 
 export function foldForSearch(value: string): string {
   return value
@@ -17,13 +18,17 @@ export function foldForSearch(value: string): string {
     .toLocaleLowerCase("sr-Latn");
 }
 
+const stationCollator = new Intl.Collator("sr-Latn", { numeric: true });
+
 export function sortStations(stations: Station[]): Station[] {
-  return [...stations].sort(
-    (a, b) =>
-      foldForSearch(a.name).localeCompare(foldForSearch(b.name), "sr-Latn", {
-        numeric: true,
-      }) || a.id.localeCompare(b.id, "sr-Latn", { numeric: true }),
-  );
+  return stations
+    .map((station) => ({ station, name: foldForSearch(station.name) }))
+    .sort(
+      (a, b) =>
+        stationCollator.compare(a.name, b.name) ||
+        stationCollator.compare(a.station.id, b.station.id),
+    )
+    .map(({ station }) => station);
 }
 
 export function searchStations(stations: Station[], query: string): Station[] {
