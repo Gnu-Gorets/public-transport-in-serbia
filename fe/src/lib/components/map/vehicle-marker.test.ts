@@ -9,12 +9,12 @@ describe("vehicle marker label", () => {
     expect(vehicleMarkerWidth("27N (Overnight)")).toBe(
       vehicleMarkerWidth("12345"),
     );
-    expect(vehicleMarkerWidth("12345")).toBe(53);
+    expect(vehicleMarkerWidth("12345")).toBe(57);
   });
 
   it("keeps short route labels unchanged", () => {
     expect(vehicleMarkerLabel("12")).toBe("12");
-    expect(vehicleMarkerWidth("7")).toBe(32);
+    expect(vehicleMarkerWidth("7")).toBe(36);
     expect(vehicleMarkerWidth("12")).toBeGreaterThan(vehicleMarkerWidth("7"));
   });
 });
