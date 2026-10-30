@@ -266,15 +266,6 @@
     color: inherit;
     background: var(--m3c-surface);
   }
-  .settings-links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    margin-top: 20px;
-  }
-  .settings-links a {
-    color: var(--m3c-primary);
-  }
   .dialog-actions {
     display: flex;
     justify-content: flex-end;
