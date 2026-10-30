@@ -1,26 +1,24 @@
-FROM alpine:3.24.3
+FROM node:26-alpine
 
-# Install Node.js 26 and runtime packages
-RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/main >> /etc/apk/repositories \
-  && echo https://dl-cdn.alpinelinux.org/alpine/edge/community >> /etc/apk/repositories \
-  && apk add --no-cache nodejs-current npm
-
-# Create a non-root user for the application
+# Create non-root user for application
 RUN addgroup -S app && adduser -S -G app app
+# Dev script uses curl to wait for API.
+RUN apk add --no-cache curl
 
-# Set the working directory
+# Set working directory
 WORKDIR /app
 RUN chown app:app /app
 
 USER app
 
 # Install project dependencies
-COPY --chown=app:app package.json package-lock.json ./
-RUN npm ci --omit=dev
+COPY --chown=app:app package.json package-lock.json .npmrc ./
+RUN npm ci
 
-# Copy runtime application files
-COPY --chown=app:app server ./server
-COPY --chown=app:app static ./static
-
-# Run the project
-CMD ["node", "server/server.js"]
+# Copy application files for development
+COPY --chown=app:app be ./be
+COPY --chown=app:app fe ./fe
+COPY --chown=app:app scripts ./scripts
+COPY --chown=app:app vite.config.mjs tsconfig.json ./
+# Start development server
+CMD ["npm", "run", "dev"]

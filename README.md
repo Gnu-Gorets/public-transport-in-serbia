@@ -1,25 +1,49 @@
 # Public transport in Serbia
 
+## Requirements
+
+Node.js 26 and npm are required for local development and production builds.
+
 ## Local development
 
 ### Dockerless
 
-1. Install Node.js 26 and npm
-2. `npm ci` in root of project
-3. `npm run dev`
-4. Check 127.0.0.1:3000
+1. Run `npm ci` in project root.
+2. Run `npm run dev`.
+3. Open http://127.0.0.1:3000.
+
+`npm run dev` runs Fastify API on port 3001 and Vite development server on port 3000; Vite proxies API requests to Fastify. Production uses one Fastify process for API and built UI on port 3000. Build and run it locally with `npm run build` followed by `npm start`.
 
 ### Docker
 
-1. `docker buildx build --network=host -t public-transport-in-serbia -f Dockerfile_local .` in / of project
-2. `docker run --name public-transport-in-serbia --network=host -d public-transport-in-serbia`
-3. Check 127.0.0.1:3000
+Build and start local image from current checkout:
 
-## Docker container (from git master)
+```sh
+docker build -f Dockerfile_local -t public-transport-in-serbia .
+docker run --name public-transport-in-serbia -p 3000:3000 public-transport-in-serbia
+```
 
-1. `docker buildx build --network=host -t public-transport-in-serbia -f Dockerfile .` in / of project
-2. `docker run --name public-transport-in-serbia --network=host -d public-transport-in-serbia`
-3. Check 127.0.0.1:3000
+To build from latest GitHub `main` source, use `Dockerfile`:
+
+```sh
+docker build -f Dockerfile -t public-transport-in-serbia .
+docker run --name public-transport-in-serbia -p 3000:3000 public-transport-in-serbia
+```
+
+## Configuration, push, and persistent data
+
+Set active provider credentials with `NS_KEY`, `NS_URL`, `NIS_KEY`, and `NIS_URL`; environment values override corresponding values in `be/server/apikeys.json`. Belgrade (`BG_*`) configuration is currently filtered out because its provider API is unavailable, so those overrides have no effect. Do not put secrets in source control or image layers; supply them at runtime through deployment platform.
+
+Web push is enabled when all three variables are set: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT`. Public key is exposed to clients; keep private key secret. Push subscriptions are stored at `data/alerts.json` by default. Set `ALERTS_DATA_DIR` to choose another location. Mount persistent storage there, or at `/app/data` when using supplied Docker images, so subscriptions survive container replacement. For example:
+
+```sh
+docker run --name public-transport-in-serbia -p 3000:3000 \
+  -v public-transport-data:/app/data \
+  -e VAPID_PUBLIC_KEY -e VAPID_PRIVATE_KEY -e VAPID_SUBJECT \
+  public-transport-in-serbia
+```
+
+Run `npm run verify` before deployment to check types, lint, formatting, tests, and production build.
 
 ## Credits
 

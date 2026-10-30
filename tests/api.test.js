@@ -8,12 +8,15 @@ import {
   it,
   vi,
 } from "vitest";
-import server from "../server/server.js";
+import server from "../be/server/server.js";
 
 const require = createRequire(import.meta.url);
-const logger = require("../server/logger.js");
-const yandexBelgradeService = require("../server/services/yandexBelgradeService.js");
-const belgradeStops = require("../server/data/yandex-belgrade-bus-stops.json");
+const logger = require("../be/server/logger.js");
+const { state } = require("../be/server/state.js");
+const yandexBelgradeService = require("../be/server/services/yandexBelgradeService.js");
+const providerService = require("../be/server/services/providerService.js");
+const alertsService = require("../be/server/services/alertsService.js");
+const belgradeStops = require("../be/server/data/yandex-belgrade-bus-stops.json");
 const { fastify, _test } = server;
 
 const yandexStopPage = `<script type="application/json" class="state-view">${JSON.stringify(
@@ -86,16 +89,52 @@ describe("API routes", () => {
     await fastify.close();
   });
 
-  it("serves the UI entrypoint", async () => {
+  it("warms provider station caches before listening", async () => {
+    const order = [];
+    vi.spyOn(alertsService, "configureVapid").mockImplementation(() => {});
+    vi.spyOn(alertsService, "load").mockResolvedValue();
+    vi.spyOn(logger, "info").mockImplementation((message) => {
+      if (message === "Populating map finished for bg") order.push("bg");
+    });
+    vi.spyOn(fastify, "listen").mockImplementation(async () => {
+      order.push("listen");
+      return fastify;
+    });
+    vi.spyOn(providerService, "populateMap").mockImplementation(async () => {
+      order.push("populate");
+    });
+
+    await server.start();
+
+    expect(order).toEqual(["bg", "populate", "listen"]);
+  });
+
+  it("does not listen when provider station warmup fails", async () => {
+    vi.spyOn(alertsService, "configureVapid").mockImplementation(() => {});
+    vi.spyOn(alertsService, "load").mockResolvedValue();
+    const listen = vi.spyOn(fastify, "listen").mockResolvedValue(fastify);
+    const error = new Error("provider unavailable");
+    vi.spyOn(providerService, "populateMap").mockRejectedValue(error);
+    const logError = vi.spyOn(logger, "error").mockImplementation(() => {});
+    const exit = vi.spyOn(process, "exit").mockImplementation(() => {});
+
+    await server.start();
+
+    expect(logError).toHaveBeenCalledWith(
+      { err: error },
+      "Server startup failed",
+    );
+    expect(listen).not.toHaveBeenCalled();
+    expect(exit).toHaveBeenCalledWith(1);
+  });
+
+  it("does not serve an unbuilt UI in test mode", async () => {
     const response = await fastify.inject({
       method: "GET",
       url: "/",
     });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.headers["content-type"]).toContain("text/html");
-    expect(response.body).toContain("Serbia++");
-    expect(response.body).toContain("static/script.js?v=bg-yellow-vehicles-2");
+    expect(response.statusCode).toBe(404);
   });
 
   it("serves the checked-in Belgrade stop catalog locally", async () => {
@@ -145,6 +184,173 @@ describe("API routes", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json().message).toContain("must match a schema in anyOf");
+  });
+
+  it.each(["local", "push"])(
+    "creates %s alerts with server-owned lifecycle fields",
+    async (delivery) => {
+      _test.setState({
+        allStations: {
+          ns: {
+            4970: {
+              uid: "4970",
+              id: "42",
+              name: "Main Station",
+              coords: [44.8, 20.4],
+            },
+          },
+        },
+      });
+
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/api/v2/alerts/create",
+        payload: {
+          city: "ns",
+          stationId: "42",
+          stationName: "Untrusted station label",
+          lineNumber: "7",
+          lineName: "Line 7",
+          garageNo: "bus-1",
+          trigger: { kind: "minutes", value: 5 },
+          delivery,
+        },
+      });
+
+      const alert = response.json();
+      expect(response.statusCode).toBe(200);
+      expect(alert).toMatchObject({
+        city: "ns",
+        stationId: "4970",
+        stationName: "Main Station",
+        lineNumber: "7",
+        lineName: "Line 7",
+        garageNo: "bus-1",
+        trigger: { kind: "minutes", value: 5 },
+        delivery,
+        missingSince: null,
+        status: "active",
+      });
+      expect(alert.id).toMatch(/^[0-9a-f-]{36}$/);
+      expect(alert.expiresAt - alert.createdAt).toBe(2 * 60 * 60 * 1000);
+    },
+  );
+
+  it("rejects invalid alert creation fields and client lifecycle values", async () => {
+    const valid = {
+      city: "ns",
+      stationId: "4970",
+      stationName: "Main Station",
+      lineNumber: "7",
+      lineName: "Line 7",
+      garageNo: "bus-1",
+      trigger: { kind: "minutes", value: 5 },
+      delivery: "local",
+    };
+    for (const payload of [
+      { ...valid, trigger: { kind: "minutes", value: 0 } },
+      { ...valid, stationId: "unknown" },
+      { ...valid, status: "triggered" },
+    ]) {
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/api/v2/alerts/create",
+        payload,
+      });
+      expect(response.statusCode).toBe(400);
+    }
+  });
+
+  it("evaluates local alerts through the API", async () => {
+    _test.setState({
+      allStations: {
+        ns: {
+          4970: {
+            uid: "4970",
+            id: "42",
+            name: "Main Station",
+            coords: [44.8, 20.4],
+          },
+        },
+      },
+    });
+    const httpClient = {
+      get: vi.fn().mockResolvedValue({
+        status: 200,
+        data: [
+          { station_uid: "4970", station_name: "Main Station" },
+          {
+            line_number: "7",
+            line_title: "7",
+            seconds_left: "120",
+            stations_between: "2",
+            vehicles: [{ garageNo: "bus-1" }],
+          },
+        ],
+      }),
+      post: vi.fn(),
+    };
+    _test.setHttpClient(httpClient);
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/api/v2/alerts/evaluate",
+      payload: {
+        alerts: [
+          {
+            id: "alert-1",
+            city: "ns",
+            stationId: "4970",
+            stationName: "Main Station",
+            lineNumber: "7",
+            lineName: "7",
+            garageNo: "bus-1",
+            trigger: { kind: "minutes", value: 5 },
+            delivery: "local",
+            createdAt: 1,
+            expiresAt: Date.now() + 60_000,
+            missingSince: null,
+            status: "active",
+          },
+          {
+            id: "alert-2",
+            city: "ns",
+            stationId: "4970",
+            stationName: "Main Station",
+            lineNumber: "8",
+            lineName: "8",
+            garageNo: "bus-2",
+            trigger: { kind: "minutes", value: 5 },
+            delivery: "local",
+            createdAt: 1,
+            expiresAt: Date.now() + 60_000,
+            missingSince: null,
+            status: "active",
+          },
+        ],
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().results[0]).toMatchObject({
+      alert: { status: "triggered" },
+      notification: "Line 7 reaches Main Station in 2 min.",
+    });
+    expect(response.json().results[1].alert.missingSince).toEqual(
+      expect.any(Number),
+    );
+    expect(httpClient.get).toHaveBeenCalledOnce();
+  });
+
+  it("rejects invalid local alert evaluation requests", async () => {
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/api/v2/alerts/evaluate",
+      payload: { alerts: [{ status: "active", delivery: "push" }] },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "Invalid alert" });
   });
 
   it("lists Belgrade without enabling its provider endpoints", async () => {
@@ -612,6 +818,29 @@ describe("API routes", () => {
     expect(response.json()).toEqual({ error: "provider unavailable" });
   });
 
+  it("keeps station cache warmup alive when one provider fails", async () => {
+    const error = vi.spyOn(logger, "error").mockImplementation(() => {});
+    const post = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("provider unavailable"))
+      .mockResolvedValue({ status: 200, data: stationsResponse() });
+    _test.setHttpClient({ get: vi.fn(), post });
+
+    await expect(providerService.populateMap(true)).rejects.toThrow(
+      "Station map population failed",
+    );
+
+    const providerCities = Object.keys(
+      providerService.getAvailableCities(),
+    ).filter((city) => city !== "bg").length;
+    expect(post).toHaveBeenCalledTimes(providerCities);
+    expect(Object.keys(state.allStations)).not.toHaveLength(0);
+    expect(error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      expect.stringMatching(/^Populating map failed for /),
+    );
+  });
+
   it("uses fresh cached stations without calling provider", async () => {
     _test.setNow(() => 1_000);
     _test.setState({
@@ -712,6 +941,7 @@ describe("API routes", () => {
         headers: expect.objectContaining({
           "Content-Type": "application/json",
         }),
+        timeout: 75000,
       }),
     );
   });
@@ -843,6 +1073,46 @@ describe("API routes", () => {
 
     expect(response.statusCode).toBe(502);
     expect(response.json()).toEqual({ error: "provider unavailable" });
+  });
+
+  it("keeps the previous station cache when refresh transformation fails", async () => {
+    _test.setNow(() => 2 * 24 * 60 * 60 * 1000);
+    const loadedAt = 1_000;
+    _test.setState({
+      allStations: {
+        ns: { old: { uid: "old", id: "1", name: "Old", lines: [] } },
+      },
+      allLines: { ns: { old: ["old"] } },
+      id_uid_map: { ns: { 1: "old" } },
+      uid_id_map: { ns: { old: "1" } },
+      cacheMeta: { ns: { loadedAt } },
+    });
+    _test.setHttpClient({
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({
+        status: 200,
+        data: { stations: stationsResponse().stations, lines: {} },
+      }),
+    });
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/api/stations/ns/all",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject([
+      { uid: "old", id: "1", name: "Old", lines: [] },
+    ]);
+    expect(state).toMatchObject({
+      allStations: {
+        ns: { old: { uid: "old", id: "1", name: "Old", lines: [] } },
+      },
+      allLines: { ns: { old: ["old"] } },
+      idUidMap: { ns: { 1: "old" } },
+      uidIdMap: { ns: { old: "1" } },
+      cacheMeta: { ns: { loadedAt, lastError: expect.any(String) } },
+    });
   });
 
   it("refreshes stale station cache before serving lines", async () => {
@@ -1027,6 +1297,62 @@ describe("API routes", () => {
     expect(post).toHaveBeenCalledTimes(10);
     expect(maximum).toBeLessThanOrEqual(6);
     expect(response.json().schedule).toEqual({});
+  });
+
+  it("validates push alert subscriptions and trigger values", async () => {
+    vi.spyOn(alertsService, "configured").mockReturnValue(true);
+    vi.spyOn(alertsService, "configureVapid").mockImplementation(() => {});
+
+    const invalidSubscription = await fastify.inject({
+      method: "PUT",
+      url: "/api/v2/alerts",
+      payload: {
+        subscription: {
+          endpoint: "http://push.example/endpoint",
+          keys: { p256dh: "key", auth: "key" },
+        },
+        alerts: [],
+      },
+    });
+    expect(invalidSubscription.statusCode).toBe(400);
+
+    const invalidTrigger = await fastify.inject({
+      method: "PUT",
+      url: "/api/v2/alerts",
+      payload: {
+        subscription: {
+          endpoint: "https://push.example/endpoint",
+          keys: { p256dh: "key", auth: "key" },
+        },
+        alerts: [
+          {
+            id: "alert-1",
+            city: "ns",
+            stationId: "station-1",
+            stationName: "Main Station",
+            lineNumber: "7",
+            lineName: "7",
+            garageNo: "bus-1",
+            trigger: { kind: "minutes", value: 0, extra: "discard" },
+          },
+        ],
+      },
+    });
+    expect(invalidTrigger.statusCode).toBe(400);
+    const validated = alertsService._test.validateAlert({
+      id: "alert-1",
+      city: "ns",
+      stationId: "station-1",
+      stationName: "Main Station",
+      lineNumber: "7",
+      lineName: "7",
+      garageNo: "bus-1",
+      trigger: { kind: "minutes", value: 5, extra: "discard" },
+      createdAt: 0,
+      expiresAt: Number.MAX_SAFE_INTEGER,
+    });
+    expect(validated.trigger).toEqual({ kind: "minutes", value: 5 });
+    expect(validated.expiresAt - validated.createdAt).toBe(2 * 60 * 60 * 1000);
   });
 
   it("proxies route requests to OSRM", async () => {

@@ -1,0 +1,155 @@
+<script lang="ts">
+  import { onMount } from "svelte";
+  import { goto } from "$app/navigation";
+  import { page } from "$app/state";
+  import AppIcon from "#lib/components/AppIcon.svelte";
+  import StationMap, {
+    type Station as MapStation,
+  } from "#lib/components/map/StationMap.svelte";
+  import { getCities } from "#lib/api.ts";
+  import { loadPreferences } from "#lib/state/preferences.ts";
+  import { getStations, syncCity } from "#lib/stations/storage.js";
+  import type { Station } from "#lib/stations.ts";
+
+  let city = $state("");
+  let stations: Station[] = $state([]);
+  let selected = $state<Station | null>(null);
+  let error = $state("");
+  let loading = $state(true);
+
+  function selectStation(station: MapStation) {
+    selected =
+      stations.find((item) => String(item.uid) === String(station.uid)) || null;
+    const url = new URL(page.url.href);
+    if (selected) url.searchParams.set("station", String(selected.uid));
+    else url.searchParams.delete("station");
+    void goto(url, { replace: true, reset: false });
+  }
+
+  function setStations(items: Awaited<ReturnType<typeof getStations>>) {
+    stations = items.map((station) => ({
+      name: station.name,
+      uid: station.uid,
+      id: station.id,
+      coords: [station.lat, station.lon],
+    }));
+    const selectedId = page.url.searchParams.get("station");
+    selected =
+      stations.find((station) => String(station.uid) === selectedId) || null;
+  }
+
+  onMount(async () => {
+    try {
+      const preferredCity = loadPreferences(localStorage).cityId;
+      const requestedCity = page.url.searchParams.get("city");
+      const citiesPromise = getCities();
+      city = requestedCity || preferredCity || "";
+      let cached = city ? await getStations(city) : [];
+      if (cached.length) {
+        setStations(cached);
+        loading = false;
+      }
+      const cities = await citiesPromise;
+      city =
+        (requestedCity && requestedCity in cities && requestedCity) ||
+        (preferredCity && preferredCity in cities && preferredCity) ||
+        Object.keys(cities)[0] ||
+        "";
+      if (city !== requestedCity && city !== preferredCity) {
+        cached = await getStations(city);
+        if (cached.length) {
+          setStations(cached);
+          loading = false;
+        }
+      }
+      setStations(await syncCity(city));
+    } catch (cause) {
+      error =
+        cause instanceof Error ? cause.message : "Unable to load stations.";
+    } finally {
+      loading = false;
+    }
+  });
+</script>
+
+<svelte:head><title>Stations | Serbia++</title></svelte:head>
+<div class="map-shell">
+  <header class="appbar map-appbar">
+    <button
+      class="icon-button"
+      aria-label="Back to search"
+      title="Back to search"
+      onclick={() => goto("/")}><AppIcon name="back" /></button
+    >
+    <div class="appbar-title"><strong>Stations</strong></div>
+  </header>
+  <StationMap {stations} selectedStation={selected} onSelect={selectStation} />
+  {#if loading}<div class="map-state" role="status">Loading stations…</div>
+  {:else if error && !stations.length}<div class="map-state error" role="alert">
+      {error}<button class="primary-button" onclick={() => location.reload()}
+        >Retry</button
+      >
+    </div>{/if}
+  {#if selected}
+    <section class="selection-card surface-card" aria-label="Selected station">
+      <span class="station-pin"><AppIcon name="location" /></span>
+      <strong>{selected.name}</strong><span class="station-meta"
+        >ID: {selected.id}</span
+      >
+      <button
+        class="primary-button"
+        onclick={() =>
+          goto(
+            `/stations/${encodeURIComponent(city)}/${encodeURIComponent(String(selected?.uid))}`,
+          )}>Show arrivals →</button
+      >
+    </section>
+  {/if}
+</div>
+
+<style>
+  .map-shell {
+    position: fixed;
+    inset: 0;
+    background: var(--m3c-background);
+  }
+  .map-appbar {
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: 500;
+    background: color-mix(in srgb, var(--m3c-surface) 92%, transparent);
+  }
+  .map-shell :global(.station-map) {
+    position: absolute;
+    inset: 56px 0 0;
+  }
+  .map-state {
+    position: absolute;
+    z-index: 600;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 16px;
+    border-radius: 16px;
+    background: var(--m3c-surface-container);
+  }
+  .selection-card {
+    position: absolute;
+    z-index: 500;
+    right: 16px;
+    bottom: max(16px, env(safe-area-inset-bottom));
+    left: 16px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 8px;
+    box-shadow: var(--m3-elevation-3);
+  }
+  @media (min-width: 840px) {
+    .selection-card {
+      right: 24px;
+      left: auto;
+      width: 360px;
+    }
+  }
+</style>

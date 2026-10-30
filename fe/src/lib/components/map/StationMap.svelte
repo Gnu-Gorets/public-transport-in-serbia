@@ -1,0 +1,292 @@
+<script module lang="ts">
+  export interface Station {
+    uid: string | number;
+    id?: string | number;
+    name: string;
+    coords: [number, number];
+  }
+</script>
+
+<script lang="ts">
+  import { onDestroy, onMount } from "svelte";
+  import type * as Leaflet from "leaflet";
+  import { validMapCoords } from "./coordinates.ts";
+  import { vehicleMarkerLabel, vehicleMarkerWidth } from "./vehicle-marker.ts";
+
+  interface Vehicle {
+    lineNumber: string | number;
+    garageNo?: string | number;
+    coords: [number, number] | null;
+  }
+
+  interface Props {
+    stations?: Station[];
+    selectedStation?: Station | null;
+    vehicles?: Vehicle[];
+    onSelect?: (station: Station) => void;
+  }
+
+  let {
+    stations = [],
+    selectedStation = null,
+    vehicles = [],
+    onSelect = () => {},
+  }: Props = $props();
+
+  let mapElement: HTMLDivElement;
+  let map: Leaflet.Map | undefined;
+  let markerGroup: Leaflet.MarkerClusterGroup | undefined;
+  let vehicleGroup: Leaflet.LayerGroup | undefined;
+  let leaflet: typeof import("leaflet") | undefined;
+  let lastSelectedStation: Station | null = null;
+  let destroyed = false;
+
+  function createIcon(selected: boolean) {
+    return leaflet!.divIcon({
+      className: "station-marker-wrapper",
+      html: `<span class="station-marker${selected ? " selected" : ""}"></span>`,
+      iconSize: [44, 44],
+      iconAnchor: [22, 22],
+    });
+  }
+
+  function rebuildMarkers(
+    currentStations: Station[],
+    currentSelection: Station | null,
+    currentVehicles: Vehicle[],
+  ) {
+    if (!leaflet || !markerGroup || !vehicleGroup) return;
+    markerGroup.clearLayers();
+    vehicleGroup.clearLayers();
+    for (const station of currentStations) {
+      const coords = validMapCoords(station.coords);
+      if (!coords) continue;
+
+      const marker = leaflet
+        .marker(coords, {
+          icon: createIcon(station.uid === currentSelection?.uid),
+          alt: station.name,
+          keyboard: true,
+          zIndexOffset: station.uid === currentSelection?.uid ? 10000 : 0,
+        })
+        .on("click", () => onSelect(station));
+      const tooltip = document.createElement("span");
+      tooltip.textContent = station.name;
+      marker.bindTooltip(tooltip, {
+        permanent: station.uid === currentSelection?.uid,
+        direction: "top",
+        offset: [0, -12],
+      });
+      markerGroup.addLayer(marker);
+    }
+    for (const vehicle of currentVehicles) {
+      const coords = validMapCoords(vehicle.coords);
+      if (!coords) continue;
+      const icon = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "svg",
+      );
+      icon.classList.add("station-vehicle-marker");
+      const label = vehicleMarkerLabel(vehicle.lineNumber);
+      const width = vehicleMarkerWidth(vehicle.lineNumber);
+      icon.setAttribute("viewBox", `0 0 ${width} 24`);
+      icon.setAttribute("aria-hidden", "true");
+      const windows = Array.from(
+        { length: Math.ceil((width - 14) / 7) },
+        (_, index) =>
+          `<rect class="bus-window" x="${5 + index * 7}" y="16" width="5" height="3" rx="1"/>`,
+      ).join("");
+      icon.innerHTML = `<rect x="2" y="0" width="${width - 4}" height="20" rx="5"/><rect class="bus-sign" x="4" y="1" width="${width - 8}" height="14" rx="1.5"/>${windows}<circle class="bus-wheel" cx="8" cy="20" r="2.5"/><circle class="bus-wheel" cx="${width - 8}" cy="20" r="2.5"/>`;
+      const routeNumber = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "text",
+      );
+      routeNumber.setAttribute("x", String(width / 2));
+      routeNumber.setAttribute("y", "8.5");
+      routeNumber.setAttribute("dominant-baseline", "middle");
+      routeNumber.textContent = label;
+      icon.append(routeNumber);
+      const description = `Line ${vehicle.lineNumber}`;
+      vehicleGroup.addLayer(
+        leaflet
+          .marker(coords, {
+            icon: leaflet.divIcon({
+              className: "station-vehicle-marker-wrapper",
+              html: icon,
+              iconSize: [width * 1.25, 30],
+              iconAnchor: [width * 0.625, 15],
+            }),
+            alt: description,
+            zIndexOffset: 5000,
+          })
+          .bindTooltip(String(vehicle.lineNumber))
+          .on("click", () => focusSelection(selectedStation, currentVehicles)),
+      );
+    }
+    markerGroup.refreshClusters();
+  }
+
+  function focusSelection(
+    selection: Station | null,
+    currentVehicles: Vehicle[],
+  ) {
+    if (!map || !selection) return;
+    const bounds = [
+      validMapCoords(selection.coords),
+      ...currentVehicles.map((vehicle) => validMapCoords(vehicle.coords)),
+    ].filter((coords): coords is [number, number] => coords !== null);
+    if (bounds.length > 1) {
+      const mapBounds = leaflet!.latLngBounds(bounds);
+      const zoom = Math.min(
+        map.getBoundsZoom(mapBounds, false, leaflet!.point(0, 0)) +
+          Math.log2(0.85),
+        map.getMaxZoom(),
+      );
+      map.setView(mapBounds.getCenter(), zoom, { animate: false });
+    } else
+      map.setView(validMapCoords(selection.coords) || [44, 20], 12, {
+        animate: false,
+      });
+  }
+
+  $effect(() => {
+    const currentStations = stations;
+    const currentSelection = selectedStation;
+    const currentVehicles = vehicles;
+    if (map) {
+      rebuildMarkers(currentStations, currentSelection, currentVehicles);
+      if (currentSelection !== lastSelectedStation)
+        focusSelection(currentSelection, currentVehicles);
+      lastSelectedStation = currentSelection;
+    }
+  });
+
+  onMount(async () => {
+    const L = await import("leaflet");
+    await import("leaflet.markercluster");
+    if (destroyed) return;
+
+    leaflet = L.default;
+    map = leaflet.map(mapElement, { zoomSnap: 0 }).setView([44, 20], 7);
+    map.attributionControl.setPrefix(false);
+    leaflet
+      .tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+        maxZoom: 19,
+      })
+      .addTo(map);
+    markerGroup = leaflet.markerClusterGroup({
+      chunkedLoading: true,
+      iconCreateFunction: (cluster) =>
+        leaflet!.divIcon({
+          className: "station-cluster",
+          html: `<span title="${cluster.getChildCount()} stations">${cluster.getChildCount()}</span>`,
+          iconSize: [44, 44],
+        }),
+    });
+    map.addLayer(markerGroup);
+    vehicleGroup = leaflet.layerGroup().addTo(map);
+    rebuildMarkers(stations, selectedStation, vehicles);
+    focusSelection(selectedStation, vehicles);
+    lastSelectedStation = selectedStation;
+  });
+
+  onDestroy(() => {
+    destroyed = true;
+    map?.remove();
+    map = undefined;
+    markerGroup = undefined;
+    vehicleGroup = undefined;
+  });
+</script>
+
+<div
+  class="station-map"
+  bind:this={mapElement}
+  role="region"
+  aria-label="Station map"
+></div>
+
+<style>
+  @import "leaflet/dist/leaflet.css";
+  @import "leaflet.markercluster/dist/MarkerCluster.css";
+  @import "leaflet.markercluster/dist/MarkerCluster.Default.css";
+
+  .station-map {
+    width: 100%;
+    height: 100%;
+    min-height: 320px;
+  }
+
+  :global(.station-marker-wrapper),
+  :global(.station-vehicle-marker-wrapper) {
+    display: grid;
+    place-items: center;
+  }
+
+  :global(.station-vehicle-marker) {
+    overflow: visible;
+    fill: #1565c0;
+    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 40%));
+  }
+
+  :global(.station-vehicle-marker .bus-sign),
+  :global(.station-vehicle-marker .bus-window) {
+    fill: #fff;
+  }
+
+  :global(.station-vehicle-marker .bus-wheel) {
+    fill: #263238;
+  }
+
+  :global(.station-vehicle-marker text) {
+    fill: #1565c0;
+    font-size: 18px;
+    font-weight: 800;
+    text-anchor: middle;
+  }
+
+  :global(.station-marker-wrapper),
+  :global(.station-cluster) {
+    border: 0;
+    background: transparent;
+  }
+
+  :global(.station-marker) {
+    display: block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: #f57c00;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 45%);
+  }
+
+  :global(.station-marker.selected) {
+    transform: scale(1.3);
+    background: #e65100;
+  }
+
+  :global(.station-cluster) {
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: color-mix(
+      in srgb,
+      var(--m3c-primary-container) 70%,
+      transparent
+    );
+  }
+
+  :global(.station-cluster span) {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border: 2px solid var(--m3c-on-primary-container);
+    border-radius: 50%;
+    color: var(--m3c-on-primary-container);
+    background: var(--m3c-primary-container);
+    font-weight: 700;
+  }
+</style>

@@ -1,0 +1,16 @@
+{
+  "extends": "$app/tsconfig",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "strict": true,
+    "moduleResolution": "bundler"
+  },
+  "include": ["fe/src/**/*.js", "fe/src/**/*.ts", "fe/src/**/*.svelte"],
+  "exclude": ["node_modules/**", "be/server/**", "fe/static/**", "tests/**"]
+}

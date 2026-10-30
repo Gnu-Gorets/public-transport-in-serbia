@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f5fbf7" />
+    <link rel="icon" href="%sveltekit.assets%/favicon.png" />
+    <script>
+      try {
+        const preferences = JSON.parse(
+          localStorage.getItem("bgpp:prefs:v1") || "{}",
+        );
+        if (["light", "dark"].includes(preferences.theme)) {
+          document.documentElement.dataset.theme = preferences.theme;
+        }
+      } catch {
+        // Storage may be unavailable; the system preference still applies.
+      }
+    </script>
+    %sveltekit.head%
+  </head>
+  <body data-sveltekit-preload-data="hover">
+    <div style="display: contents">%sveltekit.body%</div>
+  </body>
+</html>

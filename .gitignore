@@ -38,6 +38,11 @@ bower_components
 # Compiled binary addons (https://nodejs.org/api/addons.html)
 build/Release
 
+# SvelteKit build output and persisted push subscriptions
+.svelte-kit/
+/build/
+/data/
+
 # Dependency directories
 node_modules/
 jspm_packages/

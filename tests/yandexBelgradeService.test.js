@@ -2,20 +2,26 @@ import { createRequire } from "node:module";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { resetHttpClient, setHttpClient } = require("../server/httpClient.js");
+const {
+  resetHttpClient,
+  setHttpClient,
+} = require("../be/server/httpClient.js");
 const {
   getBelgradeStop,
   getBelgradeRoute,
   getBelgradeVehicles,
   belgradeStops,
   _test,
-} = require("../server/services/yandexBelgradeService.js");
+} = require("../be/server/services/yandexBelgradeService.js");
 
 describe("Belgrade stop catalog", () => {
   it("validates and exports the Yandex transit catalog", () => {
-    const source = require("../server/data/yandex-belgrade-bus-stops.json");
+    const source = require("../be/server/data/yandex-belgrade-bus-stops.json");
     expect(belgradeStops).toBe(source);
     expect(belgradeStops.stops).toHaveLength(2125);
+    expect(belgradeStops.stops.find(({ id }) => id === "1555437089").name).toBe(
+      "Železnički bulevar · 640",
+    );
     expect(belgradeStops.routes).toHaveLength(92);
     expect(
       Object.fromEntries(
@@ -528,6 +534,26 @@ describe("Yandex Belgrade stop page", () => {
     expect(
       _test.toLatin("Ђорђе Љубавић, Његош, Џакарта, Шабац, Чукаричка падина"),
     ).toBe("Đorđe Ljubavić, Njegoš, Džakarta, Šabac, Čukarička padina");
+  });
+
+  it.each([
+    ["ID mismatch", (stop) => (stop.id = "1"), "id=mismatch"],
+    [
+      "invalid coordinates",
+      (stop) => (stop.coordinates = [20.4, NaN]),
+      "coordinates=non_finite_values",
+    ],
+    [
+      "missing transports",
+      (stop) => delete stop.transports,
+      "transports=invalid_type",
+    ],
+  ])("reports why stop data is invalid: %s", (_label, mutate, reason) => {
+    const state = structuredClone(stopState);
+    mutate(state.config.masstransitStop);
+    expect(() => _test.parseStopPage(routeHtml(state), "6739029064")).toThrow(
+      reason,
+    );
   });
 
   it.each([

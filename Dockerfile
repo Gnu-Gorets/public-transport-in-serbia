@@ -1,22 +1,29 @@
-FROM alpine:3.24.3
+# Clone source in temporary stage so Git stays out of runtime image.
+FROM node:26-alpine AS source
 
-# Install Node.js 26 and runtime packages
-RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/main >> /etc/apk/repositories \
-  && echo https://dl-cdn.alpinelinux.org/alpine/edge/community >> /etc/apk/repositories \
-  && apk add --no-cache git nodejs-current npm \
-  && addgroup -S app \
-  && adduser -S -G app app \
-  && git clone --depth 1 https://github.com/Gnu-Gorets/public-transport-in-serbia.git /app \
+RUN apk add --no-cache git \
+  && git clone --depth 1 --branch main https://github.com/Gnu-Gorets/public-transport-in-serbia.git /app \
   && rm -rf /app/.git /app/tests \
-  && apk del git \
-  && chown -R app:app /app
+  && apk del git
 
-# Set the working directory
+FROM node:26-alpine
+
+ENV NODE_ENV=production
+
 WORKDIR /app
+
+RUN addgroup -S app && adduser -S -G app app && chown app:app /app
+
+# Copy manifests first so source changes do not invalidate dependency layer.
+COPY --from=source --chown=app:app /app/package.json /app/package-lock.json /app/.npmrc ./
+
 USER app
 
-# Install project dependencies
-RUN npm ci --omit=dev
+# Build tools are needed despite NODE_ENV=production; prune them after build.
+RUN npm ci --include=dev
 
-# Run the project
-CMD ["node", "server/server.js"]
+COPY --from=source --chown=app:app /app/ ./
+
+RUN npm run build && npm prune --omit=dev
+
+CMD ["node", "be/server/server.js"]
