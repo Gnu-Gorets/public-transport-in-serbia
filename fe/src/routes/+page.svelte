@@ -69,23 +69,27 @@
     return () => clearTimeout(timeout);
   });
 
-  onMount(async () => {
-    try {
-      cities = await getCities();
-      const saved = loadPreferences(localStorage);
-      city =
-        saved.cityId && saved.cityId in cities
-          ? saved.cityId
-          : Object.keys(cities)[0] || "";
-      rangeMeters = saved.rangeMeters || DEFAULT_PREFERENCES.rangeMeters;
-      theme = saved.theme;
-      if (theme !== "system") document.documentElement.dataset.theme = theme;
-      applyAccentStyles(theme);
-      await loadFavorites();
-      await loadStations();
-    } catch (cause) {
-      error = message(cause);
-    }
+  onMount(() => {
+    const saved = loadPreferences(localStorage);
+    city = saved.cityId || "bg";
+    rangeMeters = saved.rangeMeters || DEFAULT_PREFERENCES.rangeMeters;
+    theme = saved.theme;
+    if (theme !== "system") document.documentElement.dataset.theme = theme;
+    applyAccentStyles(theme);
+    void loadFavorites();
+    void loadStations();
+    getCities()
+      .then((availableCities) => {
+        cities = availableCities;
+        if (!(city in cities)) {
+          city = Object.keys(cities)[0] || "";
+          stations = [];
+          void loadStations();
+        }
+      })
+      .catch((cause) => {
+        if (!stations.length) error = message(cause);
+      });
   });
 
   function message(cause: unknown): string {
