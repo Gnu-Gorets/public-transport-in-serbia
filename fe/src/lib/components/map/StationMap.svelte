@@ -11,7 +11,7 @@
   import { onDestroy, onMount } from "svelte";
   import type * as Leaflet from "leaflet";
   import { validMapCoords } from "./coordinates.ts";
-  import { vehicleMarkerWidth } from "./vehicle-marker.ts";
+  import { vehicleMarkerLabel, vehicleMarkerWidth } from "./vehicle-marker.ts";
 
   interface Vehicle {
     lineNumber: string | number;
@@ -88,6 +88,7 @@
         "svg",
       );
       icon.classList.add("station-vehicle-marker");
+      const label = vehicleMarkerLabel(vehicle.lineNumber);
       const width = vehicleMarkerWidth(vehicle.lineNumber);
       icon.setAttribute("viewBox", `0 0 ${width} 24`);
       icon.setAttribute("aria-hidden", "true");
@@ -104,7 +105,7 @@
       routeNumber.setAttribute("x", String(width / 2));
       routeNumber.setAttribute("y", "8.5");
       routeNumber.setAttribute("dominant-baseline", "middle");
-      routeNumber.textContent = String(vehicle.lineNumber);
+      routeNumber.textContent = label;
       icon.append(routeNumber);
       const description = `Line ${vehicle.lineNumber}`;
       vehicleGroup.addLayer(

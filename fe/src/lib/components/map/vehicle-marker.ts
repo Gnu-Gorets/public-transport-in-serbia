@@ -1,3 +1,8 @@
+export function vehicleMarkerLabel(lineNumber: string | number): string {
+  const label = String(lineNumber);
+  return label.length > 4 ? `${label.slice(0, 4)}…` : label;
+}
+
 export function vehicleMarkerWidth(lineNumber: string | number): number {
-  return 32 + Math.max(0, String(lineNumber).length - 1) * 6;
+  return 32 + Math.max(0, vehicleMarkerLabel(lineNumber).length - 1) * 6;
 }
