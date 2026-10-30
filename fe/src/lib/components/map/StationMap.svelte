@@ -168,6 +168,7 @@
 
     leaflet = L.default;
     map = leaflet.map(mapElement, { zoomSnap: 0 }).setView([44, 20], 7);
+    map.attributionControl.setPrefix(false);
     leaflet
       .tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap contributors",
