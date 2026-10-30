@@ -528,7 +528,7 @@
     }
   }
   .arrivals-content {
-    padding-bottom: 96px;
+    padding-bottom: 8px;
   }
   @media (min-width: 840px) {
     .appbar {
@@ -546,7 +546,7 @@
     }
   }
   .line-card {
-    margin: 12px 0;
+    margin: 6px 0;
     overflow: hidden;
     border-radius: 16px;
     background: var(--m3c-surface-container-low);
@@ -557,7 +557,7 @@
     grid-template-columns: auto 1fr auto auto;
     align-items: center;
     gap: 12px;
-    padding: 16px;
+    padding: 10px 12px;
     border: 0;
     background: transparent;
     text-align: left;
