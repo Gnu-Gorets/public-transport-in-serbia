@@ -3,7 +3,11 @@
   import { goto } from "$app/navigation";
   import { browser } from "$app/env";
   import AppIcon from "#lib/components/AppIcon.svelte";
-  import { getBelgradeStops, getCities, getStations } from "#lib/api.ts";
+  import {
+    getBelgradeStops,
+    getCities,
+    getStations as getStationsFromApi,
+  } from "#lib/api.ts";
   import type { Station } from "#lib/stations.ts";
   import {
     searchStations,
@@ -11,6 +15,7 @@
   } from "#lib/stations.ts";
   import {
     getFavorites,
+    getStations,
     setFavorite,
     syncCity,
   } from "#lib/stations/storage.js";
@@ -89,11 +94,13 @@
 
   async function loadStations() {
     if (!city) return;
-    loading = true;
+    const requestedCity = city;
+    loading = stations.length === 0;
     error = "";
     try {
-      try {
-        const cached = await syncCity(city);
+      const cached = await getStations(requestedCity);
+      if (requestedCity !== city) return;
+      if (cached.length) {
         stations = cached.map((station) => ({
           name: station.name,
           uid: station.uid,
@@ -101,22 +108,39 @@
           coords: [station.lat, station.lon],
           lines: [],
         }));
-      } catch {
-        if (city === "bg") {
-          const response = await getBelgradeStops();
-          stations = response.stops.map((stop) => ({
-            ...stop,
-            uid: stop.id,
+        loading = false;
+      }
+      try {
+        const refreshed = await syncCity(requestedCity);
+        if (requestedCity === city) {
+          stations = refreshed.map((station) => ({
+            name: station.name,
+            uid: station.uid,
+            id: station.id,
+            coords: [station.lat, station.lon],
             lines: [],
           }));
-        } else {
-          stations = await getStations(city);
         }
+      } catch (cause) {
+        if (cached.length) return;
+        if (requestedCity === "bg") {
+          const response = await getBelgradeStops();
+          if (requestedCity === city)
+            stations = response.stops.map((stop) => ({
+              ...stop,
+              uid: stop.id,
+              lines: [],
+            }));
+        } else {
+          const fallback = await getStationsFromApi(requestedCity);
+          if (requestedCity === city) stations = fallback;
+        }
+        if (!stations.length) throw cause;
       }
     } catch (cause) {
-      error = message(cause);
+      if (requestedCity === city && !stations.length) error = message(cause);
     } finally {
-      loading = false;
+      if (requestedCity === city) loading = false;
     }
   }
 
@@ -208,6 +232,7 @@
     const cityChanged = settingsSnapshot?.city !== city;
     settingsSnapshot = null;
     if (cityChanged) {
+      stations = [];
       origin = null;
       locationMode = false;
       locationEnabled = false;
