@@ -255,20 +255,17 @@
 
   :global(.station-marker) {
     display: block;
-    width: 20px;
-    height: 20px;
-    border: 2px solid var(--m3c-on-secondary-container);
+    width: 18px;
+    height: 18px;
+    border: 2px solid #fff;
     border-radius: 50%;
-    background: var(--m3c-secondary-container);
-    box-shadow: 0 1px 5px rgb(0 0 0 / 32%);
+    background: #f57c00;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 45%);
   }
 
   :global(.station-marker.selected) {
-    width: 34px;
-    height: 34px;
-    border-width: 3px;
-    border-color: var(--m3c-on-tertiary-container);
-    background: var(--m3c-tertiary-container);
+    transform: scale(1.3);
+    background: #e65100;
   }
 
   :global(.station-cluster) {
