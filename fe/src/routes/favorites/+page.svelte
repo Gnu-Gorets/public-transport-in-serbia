@@ -9,14 +9,24 @@
   } from "#lib/state/preferences.ts";
   import { applyAccentStyles, applyTheme } from "#lib/state/theme.ts";
   import { getCities } from "#lib/api.ts";
-  import { getFavorites, syncCity } from "#lib/stations/storage.js";
+  import { getFavorites } from "#lib/stations/storage.js";
+  import type { StationRecord } from "#lib/stations/storage.js";
   import { searchStations, type Station } from "#lib/stations.ts";
 
   let city = $state("");
   let cityName = $state("");
   let cities: Record<string, string> = $state({});
-  let stations: Station[] = $state([]);
-  let favorites: Station[] = $state([]);
+  let favoriteRecords: StationRecord[] = $state([]);
+  let favorites: Station[] = $derived(
+    favoriteRecords
+      .filter((favorite) => favorite.city === city)
+      .map((favorite) => ({
+        id: favorite.id,
+        uid: favorite.uid,
+        name: favorite.name,
+        coords: [favorite.lat, favorite.lon] as [number, number],
+      })),
+  );
   let error = $state("");
   let loading = $state(true);
   let query = $state("");
@@ -31,52 +41,36 @@
     theme: string;
   } | null = null;
 
-  onMount(async () => {
-    try {
-      const saved = loadPreferences(localStorage);
-      cities = await getCities();
-      city =
-        saved.cityId && saved.cityId in cities
-          ? saved.cityId
-          : Object.keys(cities)[0] || "";
-      cityName = cities[city] || "";
-      rangeMeters = saved.rangeMeters || DEFAULT_PREFERENCES.rangeMeters;
-      theme = saved.theme;
-      if (theme !== "system") document.documentElement.dataset.theme = theme;
-      applyAccentStyles(theme);
-      await loadFavorites();
-    } catch (cause) {
-      error =
-        cause instanceof Error ? cause.message : "Unable to load favorites.";
-    } finally {
-      loading = false;
-    }
-  });
+  onMount(() => {
+    const saved = loadPreferences(localStorage);
+    city = saved.cityId || "bg";
+    cityName = city === "bg" ? "Belgrade" : "";
+    rangeMeters = saved.rangeMeters || DEFAULT_PREFERENCES.rangeMeters;
+    theme = saved.theme;
+    if (theme !== "system") document.documentElement.dataset.theme = theme;
+    applyAccentStyles(theme);
 
-  async function loadFavorites() {
-    try {
-      const [rows, savedFavorites] = await Promise.all([
-        syncCity(city),
-        getFavorites(),
-      ]);
-      stations = rows.map((station) => ({
-        name: station.name,
-        uid: station.uid,
-        id: station.id,
-        coords: [station.lat, station.lon],
-      }));
-      const ids = new Set(
-        savedFavorites
-          .filter((station) => station.city === city)
-          .map((station) => station.id),
-      );
-      favorites = stations.filter((station) => ids.has(station.id));
-      error = "";
-    } catch (cause) {
-      error =
-        cause instanceof Error ? cause.message : "Unable to load favorites.";
-    }
-  }
+    void getFavorites()
+      .then((rows) => {
+        favoriteRecords = rows;
+        error = "";
+      })
+      .catch((cause) => {
+        error =
+          cause instanceof Error ? cause.message : "Unable to load favorites.";
+      })
+      .finally(() => (loading = false));
+
+    void getCities()
+      .then((availableCities) => {
+        cities = availableCities;
+        if (!Object.hasOwn(cities, city)) city = Object.keys(cities)[0] || "";
+        cityName = cities[city] || "";
+      })
+      .catch(() => {
+        // Favorite rows do not depend on city names.
+      });
+  });
 
   function toggleTheme(value: string) {
     theme = value;
@@ -102,7 +96,7 @@
     settingsOpen = false;
   }
 
-  async function saveSettings() {
+  function saveSettings() {
     settingsSnapshot = null;
     settingsDialog?.close();
     savePreferences(localStorage, {
@@ -113,7 +107,6 @@
     });
     cityName = cities[city] || "";
     settingsOpen = false;
-    await loadFavorites();
   }
 </script>
 

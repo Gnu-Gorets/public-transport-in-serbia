@@ -1,12 +1,32 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
-import { getStations, openDatabase, syncCity } from "./storage.js";
+import {
+  getFavorites,
+  getStations,
+  openDatabase,
+  setFavorite,
+  syncCity,
+} from "./storage.js";
 
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory();
 });
 
-describe("station catalog sync", () => {
+describe("station storage", () => {
+  it("round-trips complete favorite records from IndexedDB", async () => {
+    const favorite = {
+      city: "bg",
+      id: "42",
+      uid: "42",
+      name: "Centar",
+      lat: 44.8,
+      lon: 20.4,
+    };
+
+    await setFavorite(favorite);
+
+    expect(await getFavorites()).toEqual([favorite]);
+  });
   it("uses the versioned Belgrade stop catalog", async () => {
     const calls = [];
     const stations = await syncCity("bg", async (url) => {
