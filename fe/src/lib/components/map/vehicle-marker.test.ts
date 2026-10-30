@@ -8,6 +8,7 @@ describe("vehicle marker label", () => {
     expect(vehicleMarkerWidth("27N (Overnight)")).toBe(
       vehicleMarkerWidth("12345"),
     );
+    expect(vehicleMarkerWidth("12345")).toBe(72);
   });
 
   it("keeps short route labels unchanged", () => {

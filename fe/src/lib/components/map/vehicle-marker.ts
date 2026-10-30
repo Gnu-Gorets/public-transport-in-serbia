@@ -4,5 +4,5 @@ export function vehicleMarkerLabel(lineNumber: string | number): string {
 }
 
 export function vehicleMarkerWidth(lineNumber: string | number): number {
-  return 32 + Math.max(0, vehicleMarkerLabel(lineNumber).length - 1) * 6;
+  return 32 + Math.max(0, vehicleMarkerLabel(lineNumber).length - 1) * 10;
 }
