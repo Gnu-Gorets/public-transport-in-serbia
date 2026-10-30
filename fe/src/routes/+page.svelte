@@ -304,6 +304,12 @@
     <div class="appbar-title">
       <strong>Search stations</strong><small>{cities[city] || ""}</small>
     </div>
+    <a
+      class="icon-button compact-favorites"
+      href="/favorites"
+      aria-label="Favorite stations"
+      title="Favorite stations"><AppIcon name="favorite" /></a
+    >
     <button
       class="icon-button refresh-button"
       aria-label="Refresh stations"

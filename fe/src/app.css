@@ -177,6 +177,9 @@ select:focus-visible {
 .navigation-rail {
   display: none;
 }
+.compact-favorites {
+  display: inline-grid;
+}
 .map-screen {
   position: fixed;
   inset: 56px 0 0;
@@ -205,34 +208,39 @@ select:focus-visible {
 .skip-link:focus {
   top: 8px;
 }
+@media (min-width: 840px) {
+  .compact-favorites {
+    display: none;
+  }
+}
 @media (min-width: 600px) {
   .shell {
-    padding-left: 80px;
+    padding-left: 64px;
   }
   .navigation-rail {
     position: fixed;
     inset: 0 auto 0 0;
     z-index: 6;
     display: flex;
-    width: 80px;
+    width: 64px;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
-    padding: 20px 8px;
+    gap: 8px;
+    padding: 12px 4px;
     background: var(--m3c-surface-container);
   }
   .content {
     padding-top: 16px;
   }
   .map-screen {
-    left: 80px;
+    left: 64px;
   }
 }
 @media (min-width: 840px) {
   .shell {
     display: grid;
     grid-template-columns: 400px minmax(0, 1fr);
-    padding-left: 80px;
+    padding-left: 64px;
   }
   .appbar {
     grid-column: 1 / -1;
@@ -251,7 +259,7 @@ select:focus-visible {
   }
   .map-screen {
     position: absolute;
-    inset: 56px 0 0 480px;
+    inset: 56px 0 0 464px;
   }
 }
 @media (min-width: 1200px) {
@@ -265,7 +273,7 @@ select:focus-visible {
     grid-column: 2;
   }
   .map-screen {
-    left: 900px;
+    left: 884px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
