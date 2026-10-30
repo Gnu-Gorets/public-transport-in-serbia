@@ -427,18 +427,10 @@
           oninput={() => applyAccent({ hue })}
         />
       {/if}
-      <nav class="settings-links" aria-label="Information">
-        <a href="/api/v2">API reference</a>
-        <a
-          href="https://github.com/GnuGorets/public-transport-in-serbia"
-          target="_blank"
-          rel="noreferrer">Source code</a
-        >
-      </nav>
       <div class="dialog-actions">
         <button
           type="button"
-          class="icon-button"
+          class="secondary-button"
           onclick={() => settingsDialog?.close()}>Cancel</button
         ><button class="primary-button">Apply</button>
       </div>
