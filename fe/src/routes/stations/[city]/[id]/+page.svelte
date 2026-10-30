@@ -513,13 +513,13 @@
 
 <style>
   .detail-pane {
-    display: block;
-    height: 45dvh;
-    min-height: 320px;
+    display: none;
   }
-  @media (min-width: 840px) {
+  @media (max-width: 839px) {
     .detail-pane {
-      height: auto;
+      display: block;
+      height: 45dvh;
+      min-height: 320px;
     }
   }
   @media (min-width: 840px) {
