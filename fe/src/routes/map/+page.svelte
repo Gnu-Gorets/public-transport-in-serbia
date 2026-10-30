@@ -8,7 +8,7 @@
   } from "#lib/components/map/StationMap.svelte";
   import { getCities } from "#lib/api.ts";
   import { loadPreferences } from "#lib/state/preferences.ts";
-  import { syncCity } from "#lib/stations/storage.js";
+  import { getStations, syncCity } from "#lib/stations/storage.js";
   import type { Station } from "#lib/stations.ts";
 
   let city = $state("");
@@ -26,26 +26,43 @@
     void goto(url, { replace: true, reset: false });
   }
 
+  function setStations(items: Awaited<ReturnType<typeof getStations>>) {
+    stations = items.map((station) => ({
+      name: station.name,
+      uid: station.uid,
+      id: station.id,
+      coords: [station.lat, station.lon],
+    }));
+    const selectedId = page.url.searchParams.get("station");
+    selected =
+      stations.find((station) => String(station.uid) === selectedId) || null;
+  }
+
   onMount(async () => {
     try {
-      const cities = await getCities();
       const preferredCity = loadPreferences(localStorage).cityId;
       const requestedCity = page.url.searchParams.get("city");
+      const citiesPromise = getCities();
+      city = requestedCity || preferredCity || "";
+      let cached = city ? await getStations(city) : [];
+      if (cached.length) {
+        setStations(cached);
+        loading = false;
+      }
+      const cities = await citiesPromise;
       city =
-        requestedCity && requestedCity in cities
-          ? requestedCity
-          : preferredCity && preferredCity in cities
-            ? preferredCity
-            : Object.keys(cities)[0] || "";
-      stations = (await syncCity(city)).map((station) => ({
-        name: station.name,
-        uid: station.uid,
-        id: station.id,
-        coords: [station.lat, station.lon],
-      }));
-      const selectedId = page.url.searchParams.get("station");
-      selected =
-        stations.find((station) => String(station.uid) === selectedId) || null;
+        (requestedCity && requestedCity in cities && requestedCity) ||
+        (preferredCity && preferredCity in cities && preferredCity) ||
+        Object.keys(cities)[0] ||
+        "";
+      if (city !== requestedCity && city !== preferredCity) {
+        cached = await getStations(city);
+        if (cached.length) {
+          setStations(cached);
+          loading = false;
+        }
+      }
+      setStations(await syncCity(city));
     } catch (cause) {
       error =
         cause instanceof Error ? cause.message : "Unable to load stations.";
@@ -66,17 +83,13 @@
     >
     <div class="appbar-title"><strong>Stations</strong></div>
   </header>
+  <StationMap {stations} selectedStation={selected} onSelect={selectStation} />
   {#if loading}<div class="map-state" role="status">Loading stations…</div>
-  {:else if error}<div class="map-state error" role="alert">
+  {:else if error && !stations.length}<div class="map-state error" role="alert">
       {error}<button class="primary-button" onclick={() => location.reload()}
         >Retry</button
       >
-    </div>
-  {:else}<StationMap
-      {stations}
-      selectedStation={selected}
-      onSelect={selectStation}
-    />{/if}
+    </div>{/if}
   {#if selected}
     <section class="selection-card surface-card" aria-label="Selected station">
       <span class="station-pin"><AppIcon name="location" /></span>
