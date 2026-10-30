@@ -148,16 +148,26 @@ function parsePageState(html) {
 function parseStopPage(html, stopId) {
   const pageState = parsePageState(html);
   const stop = pageState.config?.masstransitStop;
-  if (
-    !stop ||
-    String(stop.id) !== stopId ||
-    typeof stop.name !== "string" ||
-    !Array.isArray(stop.coordinates) ||
-    stop.coordinates.length !== 2 ||
-    !stop.coordinates.every(Number.isFinite) ||
-    !Array.isArray(stop.transports)
-  ) {
-    throw upstreamError("Yandex stop data is invalid");
+  const invalidFields = [];
+  if (!stop) invalidFields.push("stop=missing");
+  else {
+    if (String(stop.id) !== stopId) invalidFields.push("id=mismatch");
+    if (typeof stop.name !== "string") invalidFields.push("name=invalid_type");
+    if (!Array.isArray(stop.coordinates)) {
+      invalidFields.push("coordinates=invalid_type");
+    } else {
+      if (stop.coordinates.length !== 2)
+        invalidFields.push("coordinates=invalid_length");
+      if (!stop.coordinates.every(Number.isFinite))
+        invalidFields.push("coordinates=non_finite_values");
+    }
+    if (!Array.isArray(stop.transports))
+      invalidFields.push("transports=invalid_type");
+  }
+  if (invalidFields.length) {
+    throw upstreamError(
+      `Yandex stop data is invalid (${invalidFields.join(", ")})`,
+    );
   }
 
   const arrivals = stop.transports.flatMap((transport) =>

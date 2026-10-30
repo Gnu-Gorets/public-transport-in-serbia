@@ -537,6 +537,26 @@ describe("Yandex Belgrade stop page", () => {
   });
 
   it.each([
+    ["ID mismatch", (stop) => (stop.id = "1"), "id=mismatch"],
+    [
+      "invalid coordinates",
+      (stop) => (stop.coordinates = [20.4, NaN]),
+      "coordinates=non_finite_values",
+    ],
+    [
+      "missing transports",
+      (stop) => delete stop.transports,
+      "transports=invalid_type",
+    ],
+  ])("reports why stop data is invalid: %s", (_label, mutate, reason) => {
+    const state = structuredClone(stopState);
+    mutate(state.config.masstransitStop);
+    expect(() => _test.parseStopPage(routeHtml(state), "6739029064")).toThrow(
+      reason,
+    );
+  });
+
+  it.each([
     ["missing state", "<html>captcha</html>"],
     [
       "invalid JSON",
