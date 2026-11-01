@@ -26,4 +26,4 @@ COPY --from=source --chown=app:app /app/ ./
 
 RUN npm run build && npm prune --omit=dev
 
-CMD ["node", "be/server/server.js"]
+ENTRYPOINT ["node", "be/server/server.js"]
