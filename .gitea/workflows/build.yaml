@@ -4,25 +4,16 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - labeled
-  workflow_dispatch: {}
 
 jobs:
   build:
     name: Build docker image
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'deploy-preview')
     uses: public/ci-templates/.gitea/workflows/docker_build.yaml@v7
     secrets:
       registry_access_token: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
 
   deploy:
     name: Deploy application
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'deploy-preview')
     uses: public/ci-templates/.gitea/workflows/helm_values_deploy.yaml@v7
     with:
       version: ${{ needs.build.outputs.version }}
