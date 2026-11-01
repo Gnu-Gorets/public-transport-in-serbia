@@ -19,6 +19,7 @@
   import StationMap from "#lib/components/map/StationMap.svelte";
   import type { Station } from "#lib/stations.ts";
   import { getLiveBelgradeArrivals } from "#lib/stations/belgrade-arrivals.ts";
+  import { groupArrivalLines } from "#lib/stations/arrival-lines.ts";
   import {
     listAlerts,
     removeAlert,
@@ -56,27 +57,9 @@
   let liveBelgradeVehicles = $derived(
     liveBelgradeArrivals.length ? belgradeVehicles : [],
   );
-  let lines = $derived.by(() => {
-    const grouped = new Map<string, VehicleArrival[]>();
-    for (const vehicle of arrivals?.vehicles || []) {
-      const line = String(vehicle.lineNumber);
-      grouped.set(line, [...(grouped.get(line) || []), vehicle]);
-    }
-    return [...grouped.entries()]
-      .map(([lineNumber, vehicles]) => ({
-        lineNumber,
-        name: vehicles[0]?.lineName || lineNumber,
-        vehicles: vehicles.sort(
-          (a, b) => Number(a.secondsLeft) - Number(b.secondsLeft),
-        ),
-      }))
-      .sort((a, b) =>
-        a.lineNumber.localeCompare(b.lineNumber, undefined, {
-          numeric: true,
-          sensitivity: "base",
-        }),
-      );
-  });
+  let lines = $derived.by(() =>
+    groupArrivalLines(arrivals ? arrivals.vehicles : []),
+  );
 
   onMount(() => {
     void refreshAlerts();
@@ -583,7 +566,7 @@
   }
   .arrival-row {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
     gap: 12px;
     padding: 12px 16px;
@@ -591,7 +574,11 @@
   }
   .arrival-row small {
     color: var(--m3c-on-surface-variant);
-    white-space: nowrap;
+    white-space: normal;
+  }
+  .arrival-row .icon-button {
+    flex: 0 0 48px;
+    margin-left: auto;
   }
   .vehicle {
     padding: 2px 8px;
