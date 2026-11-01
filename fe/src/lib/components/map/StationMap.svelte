@@ -11,6 +11,7 @@
   import { onDestroy, onMount } from "svelte";
   import type * as Leaflet from "leaflet";
   import { validMapCoords } from "./coordinates.ts";
+  import { type RouteSegments } from "./route-geometry.ts";
   import { vehicleMarkerLabel, vehicleMarkerWidth } from "./vehicle-marker.ts";
 
   interface Vehicle {
@@ -23,6 +24,7 @@
     stations?: Station[];
     selectedStation?: Station | null;
     vehicles?: Vehicle[];
+    routeSegments?: RouteSegments;
     onSelect?: (station: Station) => void;
   }
 
@@ -30,6 +32,7 @@
     stations = [],
     selectedStation = null,
     vehicles = [],
+    routeSegments = [],
     onSelect = () => {},
   }: Props = $props();
 
@@ -37,8 +40,10 @@
   let map: Leaflet.Map | undefined;
   let markerGroup: Leaflet.MarkerClusterGroup | undefined;
   let vehicleGroup: Leaflet.LayerGroup | undefined;
+  let routeGroup: Leaflet.FeatureGroup | undefined;
   let leaflet: typeof import("leaflet") | undefined;
-  let lastSelectedStation: Station | null = null;
+  let lastSelectedStationKey = "";
+  let lastRouteSegments: RouteSegments | undefined;
   let destroyed = false;
 
   function createIcon(selected: boolean) {
@@ -126,6 +131,19 @@
     markerGroup.refreshClusters();
   }
 
+  function updateRouteLayer(segments: RouteSegments) {
+    if (!map || !leaflet || !routeGroup) return;
+    routeGroup.clearLayers();
+    for (const segment of segments) {
+      if (segment.length > 1)
+        leaflet
+          .polyline(segment, { color: "blue", weight: 5 })
+          .addTo(routeGroup);
+    }
+    if (segments.some((segment) => segment.length > 1))
+      map.fitBounds(routeGroup.getBounds(), { padding: [40, 40] });
+  }
+
   function focusSelection(
     selection: Station | null,
     currentVehicles: Vehicle[],
@@ -153,11 +171,20 @@
     const currentStations = stations;
     const currentSelection = selectedStation;
     const currentVehicles = vehicles;
+    const currentRoute = routeSegments;
     if (map) {
       rebuildMarkers(currentStations, currentSelection, currentVehicles);
-      if (currentSelection !== lastSelectedStation)
+      const selectionKey = currentSelection
+        ? `${currentSelection.uid}:${currentSelection.coords.join(",")}`
+        : "";
+      if (selectionKey !== lastSelectedStationKey)
         focusSelection(currentSelection, currentVehicles);
-      lastSelectedStation = currentSelection;
+      lastSelectedStationKey = selectionKey;
+
+      if (currentRoute !== lastRouteSegments) {
+        updateRouteLayer(currentRoute);
+        lastRouteSegments = currentRoute;
+      }
     }
   });
 
@@ -186,9 +213,14 @@
     });
     map.addLayer(markerGroup);
     vehicleGroup = leaflet.layerGroup().addTo(map);
+    routeGroup = leaflet.featureGroup().addTo(map);
     rebuildMarkers(stations, selectedStation, vehicles);
     focusSelection(selectedStation, vehicles);
-    lastSelectedStation = selectedStation;
+    lastSelectedStationKey = selectedStation
+      ? `${selectedStation.uid}:${selectedStation.coords.join(",")}`
+      : "";
+    updateRouteLayer(routeSegments);
+    lastRouteSegments = routeSegments;
   });
 
   onDestroy(() => {
@@ -197,6 +229,7 @@
     map = undefined;
     markerGroup = undefined;
     vehicleGroup = undefined;
+    routeGroup = undefined;
   });
 </script>
 

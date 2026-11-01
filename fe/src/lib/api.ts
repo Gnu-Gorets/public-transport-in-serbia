@@ -87,6 +87,23 @@ export interface BelgradeStopArrivals {
   arrivals: BelgradeArrival[];
 }
 
+export interface BelgradeRoute {
+  lineId: string;
+  threadId: string;
+  name: string;
+  type: string;
+  stops: Array<{ id: string; name: string; coords: [number, number] }>;
+  segments: [number, number][][];
+}
+
+export interface RouteResponse {
+  routes: Array<{
+    geometry:
+      | { type: "LineString"; coordinates: [number, number][] }
+      | { type: "MultiLineString"; coordinates: [number, number][][] };
+  }>;
+}
+
 export class ApiError extends Error {
   readonly statusCode: number;
 
@@ -183,4 +200,26 @@ export function getBelgradeStopArrivals(
 ): Promise<BelgradeStopArrivals> {
   const query = new URLSearchParams({ stopId });
   return request<BelgradeStopArrivals>(`/api/bg/stop?${query}`, signal);
+}
+
+export function getBelgradeRoute(
+  lineId: string,
+  threadId: string,
+  stopId: string,
+  signal?: AbortSignal,
+): Promise<BelgradeRoute> {
+  const query = new URLSearchParams({ stopId });
+  return request<BelgradeRoute>(
+    `/api/bg/routes/${encodeURIComponent(lineId)}/${encodeURIComponent(threadId)}?${query}`,
+    signal,
+  );
+}
+
+export function getRoute(
+  coords: [number, number][],
+  signal?: AbortSignal,
+): Promise<RouteResponse> {
+  const coordinates = coords.map(([lat, lon]) => `${lon},${lat}`).join(";");
+  const query = new URLSearchParams({ coords: coordinates });
+  return request<RouteResponse>(`/api/route?${query}`, signal);
 }
