@@ -1,12 +1,12 @@
 # Clone source in temporary stage so Git stays out of runtime image.
-FROM node:26.13.0-alpine AS source
+FROM node:26-alpine AS source
 
 RUN apk add --no-cache git \
   && git clone --depth 1 --branch main https://github.com/Gnu-Gorets/public-transport-in-serbia.git /app \
   && rm -rf /app/.git /app/tests \
   && apk del git
 
-FROM node:26.13.0-alpine
+FROM node:26-alpine
 
 ENV NODE_ENV=production
 

@@ -1,4 +1,4 @@
-FROM node:26.13.0-alpine
+FROM node:26-alpine
 
 # Create non-root user for application
 RUN addgroup -S -g 10001 app && adduser -S -u 10001 -G app app
