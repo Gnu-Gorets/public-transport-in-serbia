@@ -2,31 +2,31 @@
 
 ## Requirements
 
-Node.js 26 and npm are required for local development and production builds.
+Node.js 26.13.0 and pnpm 12.16.1 are required for local development and production builds.
 
 ## Local development
 
 ### Dockerless
 
-1. Run `npm ci` in project root.
-2. Run `npm run dev`.
+1. Run `pnpm install --frozen-lockfile` in project root.
+2. Run `pnpm run dev`.
 3. Open http://127.0.0.1:3000.
 
-`npm run dev` runs Fastify API on port 3001 and Vite development server on port 3000; Vite proxies API requests to Fastify. Production uses one Fastify process for API and built UI on port 3000. Build and run it locally with `npm run build` followed by `npm start`.
+`pnpm run dev` runs Fastify API on port 3001 and Vite development server on port 3000; Vite proxies API requests to Fastify. Production uses one Fastify process for API and built UI on port 3000. Build and run it locally with `pnpm run build` followed by `pnpm start`.
 
 ### Docker
 
 Build and start local image from current checkout:
 
 ```sh
-docker build -f Dockerfile_local -t public-transport-in-serbia .
+docker buildx build --load -f Dockerfile_local -t public-transport-in-serbia .
 docker run --name public-transport-in-serbia -p 3000:3000 public-transport-in-serbia
 ```
 
 To build from latest GitHub `main` source, use `Dockerfile`:
 
 ```sh
-docker build -f Dockerfile -t public-transport-in-serbia .
+docker buildx build --load -f Dockerfile -t public-transport-in-serbia .
 docker run --name public-transport-in-serbia -p 3000:3000 public-transport-in-serbia
 ```
 
