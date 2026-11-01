@@ -1,7 +1,7 @@
 FROM node:26-alpine
 
 # Create non-root user for application
-RUN addgroup -S app && adduser -S -G app app
+RUN addgroup -S -g 10001 app && adduser -S -u 10001 -G app app
 # Dev script uses curl to wait for API.
 RUN apk add --no-cache curl
 
@@ -9,7 +9,7 @@ RUN apk add --no-cache curl
 WORKDIR /app
 RUN chown app:app /app
 
-USER app
+USER 10001
 
 # Install project dependencies
 COPY --chown=app:app package.json package-lock.json .npmrc ./

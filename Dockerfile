@@ -12,12 +12,12 @@ ENV NODE_ENV=production
 
 WORKDIR /app
 
-RUN addgroup -S app && adduser -S -G app app && chown app:app /app
+RUN addgroup -S -g 10001 app && adduser -S -u 10001 -G app app && chown app:app /app
 
 # Copy manifests first so source changes do not invalidate dependency layer.
 COPY --from=source --chown=app:app /app/package.json /app/package-lock.json /app/.npmrc ./
 
-USER app
+USER 10001
 
 # Build tools are needed despite NODE_ENV=production; prune them after build.
 RUN npm ci --include=dev
