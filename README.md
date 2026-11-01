@@ -19,14 +19,14 @@ Node.js 26.13.0 and pnpm 12.16.1 are required for local development and producti
 Build and start local image from current checkout:
 
 ```sh
-docker build -f Dockerfile_local -t public-transport-in-serbia .
+docker buildx build --load -f Dockerfile_local -t public-transport-in-serbia .
 docker run --name public-transport-in-serbia -p 3000:3000 public-transport-in-serbia
 ```
 
 To build from latest GitHub `main` source, use `Dockerfile`:
 
 ```sh
-docker build -f Dockerfile -t public-transport-in-serbia .
+docker buildx build --load -f Dockerfile -t public-transport-in-serbia .
 docker run --name public-transport-in-serbia -p 3000:3000 public-transport-in-serbia
 ```
 
