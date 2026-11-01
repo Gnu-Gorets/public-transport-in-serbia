@@ -1,4 +1,4 @@
-FROM node:26-alpine
+FROM node:26.13.0-alpine
 
 # Create non-root user for application
 RUN addgroup -S -g 10001 app && adduser -S -u 10001 -G app app
@@ -9,11 +9,14 @@ RUN apk add --no-cache curl
 WORKDIR /app
 RUN chown app:app /app
 
+# Install the pinned package manager before dropping privileges.
+RUN npm install --global --allow-scripts=pnpm pnpm@12.16.1
+
 USER 10001
 
 # Install project dependencies
-COPY --chown=app:app package.json package-lock.json .npmrc ./
-RUN npm ci
+COPY --chown=app:app package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
 
 # Copy application files for development
 COPY --chown=app:app be ./be
@@ -21,4 +24,4 @@ COPY --chown=app:app fe ./fe
 COPY --chown=app:app scripts ./scripts
 COPY --chown=app:app vite.config.mjs tsconfig.json ./
 # Start development server
-ENTRYPOINT ["npm", "run", "dev"]
+ENTRYPOINT ["pnpm", "run", "dev"]
