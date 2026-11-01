@@ -21,4 +21,4 @@ COPY --chown=app:app fe ./fe
 COPY --chown=app:app scripts ./scripts
 COPY --chown=app:app vite.config.mjs tsconfig.json ./
 # Start development server
-CMD ["npm", "run", "dev"]
+ENTRYPOINT ["npm", "run", "dev"]
