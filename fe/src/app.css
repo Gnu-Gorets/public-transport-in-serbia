@@ -111,7 +111,9 @@ select:focus-visible {
   background: var(--m3c-surface-container-low);
 }
 .station-list {
-  margin-top: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
 }
 .station-row {
   display: grid;

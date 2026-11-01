@@ -285,7 +285,8 @@
       class="nav-link"
       href="/"
       aria-label="Nearby stations"
-      title="Nearby stations"><AppIcon name="search" /></a
+      title="Nearby stations"
+      aria-current="page"><AppIcon name="search" /></a
     >
     <a
       class="nav-link"
@@ -358,9 +359,9 @@
     {:else if !query && locationEnabled && visibleStations.length === 0}
       <div class="empty">No stations within range.</div>
     {:else}
-      <div class="station-list" aria-label="Stations">
+      <ul class="station-list" aria-label="Stations">
         {#each visibleStations as station (station.uid)}
-          <div class="station-row">
+          <li class="station-row">
             <span class="station-pin"><AppIcon name="location" /></span>
             <button class="station-open" onclick={() => openStation(station)}>
               <strong>{station.name}</strong>
@@ -380,9 +381,9 @@
                 filled={favorites.includes(station.id)}
               />
             </button>
-          </div>
+          </li>
         {/each}
-      </div>
+      </ul>
     {/if}
   </main>
   <section class="detail-pane" aria-label="Station details"></section>

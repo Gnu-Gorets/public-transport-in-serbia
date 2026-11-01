@@ -5,11 +5,14 @@
   import {
     getBelgradeStopArrivals,
     getBelgradeStops,
+    getBelgradeRoute,
     getBelgradeVehicles,
+    getRoute,
     getCatalogStopName,
     getStationArrivals,
   } from "#lib/api.ts";
   import type {
+    BelgradeArrival,
     BelgradeStopArrivals,
     BelgradeVehicle,
     StationArrivals,
@@ -19,6 +22,12 @@
   import StationMap from "#lib/components/map/StationMap.svelte";
   import type { Station } from "#lib/stations.ts";
   import { getLiveBelgradeArrivals } from "#lib/stations/belgrade-arrivals.ts";
+  import { groupArrivalLines } from "#lib/stations/arrival-lines.ts";
+  import {
+    geoJsonRouteSegments,
+    type RouteSegments,
+    vehicleRouteSegments,
+  } from "#lib/components/map/route-geometry.ts";
   import {
     listAlerts,
     removeAlert,
@@ -40,6 +49,10 @@
   let error = $state("");
   let loading = $state(true);
   let expandedLine = $state("");
+  let selectedRouteKey = $state("");
+  let selectedRouteSegments = $state.raw<RouteSegments>([]);
+  let routeError = $state("");
+  let routeRequestId = 0;
   let favorite = $state(false);
   let alertDialog = $state<HTMLDialogElement>();
   let selectedVehicle: VehicleArrival | null = $state(null);
@@ -56,27 +69,67 @@
   let liveBelgradeVehicles = $derived(
     liveBelgradeArrivals.length ? belgradeVehicles : [],
   );
-  let lines = $derived.by(() => {
-    const grouped = new Map<string, VehicleArrival[]>();
-    for (const vehicle of arrivals?.vehicles || []) {
-      const line = String(vehicle.lineNumber);
-      grouped.set(line, [...(grouped.get(line) || []), vehicle]);
+  let lines = $derived.by(() =>
+    groupArrivalLines(arrivals ? arrivals.vehicles : []),
+  );
+
+  function selectCityRoute(vehicle: VehicleArrival) {
+    const key = `${city}:${vehicle.lineNumber}`;
+    if (selectedRouteKey === key) {
+      routeRequestId++;
+      selectedRouteKey = "";
+      selectedRouteSegments = [];
+      routeError = "";
+      return;
     }
-    return [...grouped.entries()]
-      .map(([lineNumber, vehicles]) => ({
-        lineNumber,
-        name: vehicles[0]?.lineName || lineNumber,
-        vehicles: vehicles.sort(
-          (a, b) => Number(a.secondsLeft) - Number(b.secondsLeft),
-        ),
-      }))
-      .sort((a, b) =>
-        a.lineNumber.localeCompare(b.lineNumber, undefined, {
-          numeric: true,
-          sensitivity: "base",
-        }),
+    const requestId = ++routeRequestId;
+    const fallback = vehicleRouteSegments(vehicle.allStations);
+    selectedRouteKey = key;
+    selectedRouteSegments = fallback;
+    routeError = "";
+    const points = fallback[0];
+    if (!points) {
+      routeError = "Route geometry is unavailable for this line.";
+      return;
+    }
+
+    void getRoute(points)
+      .then((response) => {
+        if (requestId !== routeRequestId) return;
+        const segments = geoJsonRouteSegments(response.routes?.[0]?.geometry);
+        if (segments.length) selectedRouteSegments = segments;
+      })
+      .catch(() => {});
+  }
+
+  async function selectBelgradeRoute(arrival: BelgradeArrival) {
+    const route = arrival.route;
+    if (!route) return;
+    const key = `bg:${route.lineId}:${route.threadId}`;
+    if (selectedRouteKey === key) {
+      routeRequestId++;
+      selectedRouteKey = "";
+      selectedRouteSegments = [];
+      routeError = "";
+      return;
+    }
+    const requestId = ++routeRequestId;
+    selectedRouteKey = key;
+    selectedRouteSegments = [];
+    routeError = "";
+    try {
+      const result = await getBelgradeRoute(
+        route.lineId,
+        route.threadId,
+        uid ?? "",
       );
-  });
+      if (requestId === routeRequestId) selectedRouteSegments = result.segments;
+    } catch (cause) {
+      if (requestId === routeRequestId)
+        routeError =
+          cause instanceof Error ? cause.message : "Unable to load route.";
+    }
+  }
 
   onMount(() => {
     void refreshAlerts();
@@ -166,6 +219,7 @@
     }, 10000);
     return () => {
       active = false;
+      routeRequestId++;
       controller?.abort();
       clearInterval(timer);
     };
@@ -370,11 +424,18 @@
             No live arrival estimates are available for this stop.
           </div>{/if}
         {#each liveBelgradeArrivals as item (item.lineNumber + item.scheduledAt)}
-          <div class="arrival-row">
+          <button
+            class="arrival-row route-arrival"
+            aria-label={`Show route ${item.lineNumber}${item.destination ? ` to ${item.destination}` : ""}`}
+            aria-pressed={selectedRouteKey ===
+              `bg:${item.route?.lineId}:${item.route?.threadId}`}
+            disabled={!item.route}
+            onclick={() => void selectBelgradeRoute(item)}
+          >
             <strong class="line-badge">{item.lineNumber}</strong><span
               >{arrivalTime(item.estimatedAt || item.scheduledAt)}</span
             ><span>{item.destination || ""}</span>
-          </div>
+          </button>
         {/each}
       {:else}
         {#if lines.length === 0}<div class="empty">
@@ -385,9 +446,12 @@
             <button
               class="line-heading"
               aria-expanded={expandedLine === line.lineNumber}
-              onclick={() =>
-                (expandedLine =
-                  expandedLine === line.lineNumber ? "" : line.lineNumber)}
+              aria-pressed={selectedRouteKey === `${city}:${line.lineNumber}`}
+              onclick={() => {
+                selectCityRoute(line.vehicles[0]);
+                expandedLine =
+                  expandedLine === line.lineNumber ? "" : line.lineNumber;
+              }}
             >
               <span class="line-badge">{line.lineNumber}</span><strong
                 >{line.name.split("-").at(-1)?.trim()}</strong
@@ -429,7 +493,9 @@
         stations={mapStations}
         selectedStation={mapStation}
         vehicles={arrivals?.vehicles || liveBelgradeVehicles}
+        routeSegments={selectedRouteSegments}
       />
+      {#if routeError}<p class="route-error" role="alert">{routeError}</p>{/if}
     {/if}
   </section>
 </div>
@@ -513,7 +579,35 @@
 
 <style>
   .detail-pane {
+    position: relative;
     display: none;
+  }
+  .route-arrival {
+    width: 100%;
+    border: 0;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .route-arrival:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  .route-arrival[aria-pressed="true"] {
+    background: var(--m3c-surface-container-high);
+  }
+  .route-error {
+    position: absolute;
+    z-index: 500;
+    top: 8px;
+    right: 8px;
+    max-width: min(360px, calc(100% - 16px));
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: var(--m3c-surface-container-high);
   }
   @media (max-width: 839px) {
     .detail-pane {
@@ -583,7 +677,7 @@
   }
   .arrival-row {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
     gap: 12px;
     padding: 12px 16px;
@@ -591,7 +685,11 @@
   }
   .arrival-row small {
     color: var(--m3c-on-surface-variant);
-    white-space: nowrap;
+    white-space: normal;
+  }
+  .arrival-row .icon-button {
+    flex: 0 0 48px;
+    margin-left: auto;
   }
   .vehicle {
     padding: 2px 8px;
