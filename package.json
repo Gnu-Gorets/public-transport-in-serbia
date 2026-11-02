@@ -5,7 +5,7 @@
   "main": "be/server/server.js",
   "packageManager": "pnpm@12.16.1",
   "scripts": {
-    "dev": "concurrently -k \"PORT=3001 node be/server/server.js\" \"until curl --fail --silent http://127.0.0.1:3001/health >/dev/null; do sleep 0.1; done; vite dev --host 0.0.0.0 --port 3000\"",
+    "dev": "concurrently -k \"PORT=3001 node be/server/server.js\" \"until curl --fail --silent http://127.0.0.1:3001/health >/dev/null; do sleep 2; done; vite dev --host 0.0.0.0 --port 3000\"",
     "start": "node be/server/server.js",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "build": "node scripts/gen-theme.mjs && vite build && node scripts/mark-build-esm.mjs",
