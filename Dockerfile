@@ -1,32 +1,36 @@
-# Clone source in temporary stage so Git stays out of runtime image.
+# Clone selected source ref in temporary stage so Git stays out of runtime image.
 FROM node:26-alpine AS source
+ARG SOURCE_REF=main
 
 RUN apk add --no-cache git \
-  && git clone --depth 1 --branch main https://github.com/Gnu-Gorets/public-transport-in-serbia.git /app \
+  && git clone --depth 1 --branch "$SOURCE_REF" https://github.com/Gnu-Gorets/public-transport-in-serbia.git /app \
   && rm -rf /app/.git /app/tests \
   && apk del git
 
 FROM node:26-alpine
 
-ENV NODE_ENV=production
+# Create non-root user for application
+RUN addgroup -S -g 10001 app && adduser -S -u 10001 -G app app
+# Dev script uses curl to wait for API.
+RUN apk add --no-cache curl
 
+# Set working directory
 WORKDIR /app
+RUN chown app:app /app
 
-RUN addgroup -S -g 10001 app && adduser -S -u 10001 -G app app && chown app:app /app
-
-# Install the pinned package manager before dropping privileges.
+# Install pinned package manager before dropping privileges.
 RUN npm install --global --allow-scripts=pnpm pnpm@12.16.1
-
-# Copy manifests first so source changes do not invalidate dependency layer.
-COPY --from=source --chown=app:app /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 
 USER 10001
 
-# Build tools are needed despite NODE_ENV=production; prune them after build.
-RUN pnpm install --frozen-lockfile --prod=false
+# Install project dependencies and copy application files.
+COPY --from=source --chown=app:app /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
 
-COPY --from=source --chown=app:app /app/ ./
+COPY --from=source --chown=app:app /app/be ./be
+COPY --from=source --chown=app:app /app/fe ./fe
+COPY --from=source --chown=app:app /app/scripts ./scripts
+COPY --from=source --chown=app:app /app/vite.config.mjs /app/tsconfig.json ./
 
-RUN pnpm run build && pnpm install --prod --frozen-lockfile
-
-ENTRYPOINT ["node", "be/server/server.js"]
+# Start server.
+ENTRYPOINT ["pnpm", "run", "dev"]
