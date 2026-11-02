@@ -32,5 +32,5 @@ COPY --from=source --chown=app:app /app/fe ./fe
 COPY --from=source --chown=app:app /app/scripts ./scripts
 COPY --from=source --chown=app:app /app/vite.config.mjs /app/tsconfig.json ./
 
-# Start development server.
+# Start server.
 ENTRYPOINT ["pnpm", "run", "dev"]
