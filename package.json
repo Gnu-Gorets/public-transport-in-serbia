@@ -39,6 +39,7 @@
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
     "m3-svelte": "7.2.1",
+    "pino": "^10.4.0",
     "pino-pretty": "^13.2.0",
     "svelte": "^5.57.3",
     "vite": "^8.3.5",
