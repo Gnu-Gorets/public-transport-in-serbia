@@ -5,18 +5,18 @@ RUN addgroup -S -g 10001 app && adduser -S -u 10001 -G app app
 # Dev script uses curl to wait for API.
 RUN apk add --no-cache curl
 
-# Set working directory
 WORKDIR /app
 RUN chown app:app /app
-
-# Install the pinned package manager before dropping privileges.
-RUN npm install --global --allow-scripts=pnpm pnpm@12.16.1
-
+ENV NPM_CONFIG_PREFIX=/home/app/.npm-global
+ENV PATH=/home/app/.npm-global/bin:$PATH
 USER 10001
 
-# Install project dependencies
 COPY --chown=app:app package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN npm install --global --allow-scripts=pnpm pnpm@12.16.1 \
+  && pnpm install --frozen-lockfile --store-dir=/tmp/pnpm-store \
+  && rm -rf /tmp/pnpm-store \
+  && npm uninstall --global pnpm \
+  && npm cache clean --force
 
 # Copy application files for development
 COPY --chown=app:app be ./be
@@ -24,4 +24,4 @@ COPY --chown=app:app fe ./fe
 COPY --chown=app:app scripts ./scripts
 COPY --chown=app:app vite.config.mjs tsconfig.json ./
 # Start development server
-ENTRYPOINT ["pnpm", "run", "dev"]
+CMD ["npm", "run", "dev"]

@@ -1,36 +1,29 @@
-# Clone selected source ref in temporary stage so Git stays out of runtime image.
-FROM node:26-alpine AS source
-ARG SOURCE_REF=main
-
-RUN apk add --no-cache git \
-  && git clone --depth 1 --branch "$SOURCE_REF" https://github.com/Gnu-Gorets/public-transport-in-serbia.git /app \
-  && rm -rf /app/.git /app/tests \
-  && apk del git
-
-FROM node:26-alpine
-
-# Create non-root user for application
-RUN addgroup -S -g 10001 app && adduser -S -u 10001 -G app app
-# Dev script uses curl to wait for API.
-RUN apk add --no-cache curl
-
-# Set working directory
+FROM node:26-alpine AS build
 WORKDIR /app
-RUN chown app:app /app
-
-# Install pinned package manager before dropping privileges.
 RUN npm install --global --allow-scripts=pnpm pnpm@12.16.1
-
-USER 10001
-
-# Install project dependencies and copy application files.
-COPY --from=source --chown=app:app /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
+COPY be ./be
+COPY fe ./fe
+COPY scripts ./scripts
+COPY vite.config.mjs tsconfig.json ./
+ENV NODE_OPTIONS=--max-old-space-size=1536
+RUN pnpm run build
 
-COPY --from=source --chown=app:app /app/be ./be
-COPY --from=source --chown=app:app /app/fe ./fe
-COPY --from=source --chown=app:app /app/scripts ./scripts
-COPY --from=source --chown=app:app /app/vite.config.mjs /app/tsconfig.json ./
+FROM node:26-alpine AS production-deps
+WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+RUN npm install --global --allow-scripts=pnpm pnpm@12.16.1 \
+  && pnpm install --prod --frozen-lockfile
 
-# Start server.
-ENTRYPOINT ["pnpm", "run", "dev"]
+FROM node:26-alpine AS runtime
+ENV NODE_ENV=production PORT=3000
+WORKDIR /app
+RUN addgroup -S -g 10001 app && adduser -S -u 10001 -G app app
+COPY --from=production-deps --chown=app:app /app/node_modules ./node_modules
+COPY --chown=app:app be ./be
+COPY --chown=app:app fe/static ./fe/static
+COPY --from=build --chown=app:app /app/build ./build
+USER 10001
+EXPOSE 3000
+CMD ["node", "be/server/server.js"]
