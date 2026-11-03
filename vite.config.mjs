@@ -16,6 +16,7 @@ export default defineConfig({
     functionsMixins({ deps: ["m3-svelte"] }),
   ],
   server: {
+    allowedHosts: ["bus-rs.gts.org.ua"],
     proxy: {
       "/api": "http://localhost:3001",
       "/health": "http://localhost:3001",
