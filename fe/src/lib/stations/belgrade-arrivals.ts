@@ -1,5 +1,11 @@
 import type { BelgradeArrival } from "../api.ts";
 
+export function getBelgradeArrivalKey(arrival: BelgradeArrival): string {
+  return String(
+    arrival.vehicleId ?? `${arrival.lineNumber}:${arrival.estimatedAt}`,
+  );
+}
+
 export function getLiveBelgradeArrivals(
   arrivals: BelgradeArrival[],
   now = Date.now(),
