@@ -21,7 +21,10 @@
   import { getFavorites, setFavorite } from "#lib/stations/storage.js";
   import StationMap from "#lib/components/map/StationMap.svelte";
   import type { Station } from "#lib/stations.ts";
-  import { getLiveBelgradeArrivals } from "#lib/stations/belgrade-arrivals.ts";
+  import {
+    getBelgradeArrivalKey,
+    getLiveBelgradeArrivals,
+  } from "#lib/stations/belgrade-arrivals.ts";
   import { groupArrivalLines } from "#lib/stations/arrival-lines.ts";
   import {
     geoJsonRouteSegments,
@@ -423,7 +426,7 @@
         {#if liveBelgradeArrivals.length === 0}<div class="empty">
             No live arrival estimates are available for this stop.
           </div>{/if}
-        {#each liveBelgradeArrivals as item (item.lineNumber + item.scheduledAt)}
+        {#each liveBelgradeArrivals as item (getBelgradeArrivalKey(item))}
           <button
             class="arrival-row route-arrival"
             aria-label={`Show route ${item.lineNumber}${item.destination ? ` to ${item.destination}` : ""}`}

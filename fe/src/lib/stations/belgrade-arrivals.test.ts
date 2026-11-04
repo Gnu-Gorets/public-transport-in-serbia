@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { getLiveBelgradeArrivals } from "./belgrade-arrivals.ts";
+import {
+  getBelgradeArrivalKey,
+  getLiveBelgradeArrivals,
+} from "./belgrade-arrivals.ts";
 import type { BelgradeArrival } from "../api.ts";
 
 const arrival = (
@@ -18,6 +21,23 @@ const arrival = (
 });
 
 describe("getLiveBelgradeArrivals", () => {
+  it("uses distinct keys for vehicles without scheduled times", () => {
+    const first = {
+      ...arrival("77", "2026-10-29T12:02:00.000Z", true),
+      scheduledAt: null,
+      vehicleId: "vehicle-1",
+    };
+    const second = {
+      ...arrival("77", "2026-10-29T12:03:00.000Z", true),
+      scheduledAt: null,
+      vehicleId: "vehicle-2",
+    };
+
+    expect(getBelgradeArrivalKey(first)).not.toBe(
+      getBelgradeArrivalKey(second),
+    );
+  });
+
   it("keeps recent estimates and excludes scheduled or stale arrivals", () => {
     const now = Date.parse("2026-10-29T12:00:00.000Z");
     const soon = arrival("31", "2026-10-29T12:02:00.000Z", true);
