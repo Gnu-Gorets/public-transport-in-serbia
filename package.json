@@ -34,7 +34,7 @@
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "axios": "^1.21.0",
     "crypto-js": "^4.2.0",
-    "fastify": "^5.12.7",
+    "fastify": "^5.12.8",
     "idb": "^8.0.4",
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
