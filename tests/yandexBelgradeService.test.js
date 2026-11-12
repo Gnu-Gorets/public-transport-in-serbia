@@ -18,11 +18,11 @@ describe("Belgrade stop catalog", () => {
   it("validates and exports the Yandex transit catalog", () => {
     const source = require("../be/server/data/yandex-belgrade-bus-stops.json");
     expect(belgradeStops).toBe(source);
-    expect(belgradeStops.stops).toHaveLength(2125);
+    expect(belgradeStops.stops).toHaveLength(2342);
     expect(belgradeStops.stops.find(({ id }) => id === "1555437089").name).toBe(
       "Železnički bulevar · 640",
     );
-    expect(belgradeStops.routes).toHaveLength(92);
+    expect(belgradeStops.routes).toHaveLength(110);
     expect(
       Object.fromEntries(
         ["bus", "tram", "minibus", "trolleybus"].map((type) => [
@@ -30,7 +30,7 @@ describe("Belgrade stop catalog", () => {
           belgradeStops.routes.filter((route) => route.type === type).length,
         ]),
       ),
-    ).toEqual({ bus: 77, tram: 9, minibus: 3, trolleybus: 3 });
+    ).toEqual({ bus: 92, tram: 9, minibus: 3, trolleybus: 6 });
     const routeNames = new Set(belgradeStops.routes.map(({ route }) => route));
     expect(
       belgradeStops.stops.every(
@@ -48,8 +48,84 @@ describe("Belgrade stop catalog", () => {
         type: "bus",
       }),
     );
+    expect(belgradeStops.routes).toContainEqual(
+      expect.objectContaining({
+        route: "38L",
+        lineId: "4688691614",
+        type: "bus",
+      }),
+    );
+    expect(belgradeStops.routes).toContainEqual(
+      expect.objectContaining({
+        route: "19",
+        lineId: "1704910974",
+        type: "trolleybus",
+      }),
+    );
+    expect(
+      belgradeStops.stops.find(({ id }) => id === "4971508096"),
+    ).toMatchObject({
+      name: "Preka kaldrma",
+      coords: [44.805726775, 20.099704176],
+    });
+    expect(
+      belgradeStops.stops
+        .filter(({ id }) =>
+          [
+            "2530616646",
+            "3354038865",
+            "3354039435",
+            "4892631146",
+            "5972822267",
+            "5972822897",
+            "7146713500",
+          ].includes(id),
+        )
+        .map(({ id, name, coords, routes }) => [id, name, coords, routes]),
+    ).toEqual([
+      [
+        "2530616646",
+        "Дорћол – Дунавска · 2110",
+        [44.82812093, 20.461237229],
+        ["26"],
+      ],
+      ["3354038865", "Batutova · 2542", [44.795175521, 20.499395333], ["64"]],
+      ["3354039435", "Batutova · 91", [44.795382737, 20.499731951], ["64"]],
+      [
+        "4892631146",
+        "Војно медицински центар · 1028",
+        [44.746368178, 20.428372595],
+        ["23", "37", "50", "53", "89", "minibus:E2"],
+      ],
+      ["5972822267", "Дескашева 1", [44.794087668, 20.513429347], ["64"]],
+      ["5972822897", "Дескашева 1", [44.793917689, 20.513560775], ["64"]],
+      [
+        "7146713500",
+        "Вождовачки кружни пут",
+        [44.761060644, 20.492123],
+        ["25", "25P", "39"],
+      ],
+    ]);
+    expect(
+      belgradeStops.stops.find(({ id }) => id === "7147545960").routes,
+    ).toEqual(["105L", "85"]);
     expect(belgradeStops.remainingRoutes).toEqual([]);
     expect(belgradeStops.complete).toBe(false);
+  });
+
+  it("accepts Yandex stops just west of the previous city bound", () => {
+    expect(
+      _test.validateStops({
+        updatedAt: "2026-10-26",
+        stops: [
+          {
+            id: "1",
+            name: "Preka kaldrma",
+            coords: [44.805726775, 20.099704176],
+          },
+        ],
+      }).stops,
+    ).toHaveLength(1);
   });
 
   it("rejects duplicate IDs and invalid coordinates", () => {
