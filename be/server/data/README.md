@@ -1,10 +1,15 @@
 # Yandex Belgrade Transit Data
 
-## Route and stop extraction
+`yandex-belgrade-bus-stops.json` contains 110 Yandex routes and 2,335 unique Yandex stops. The catalog includes buses, trams, minibuses, and trolleybuses. `updatedAt` records the last refresh. `complete` stays `false` because Yandex does not expose a documented complete route index.
 
-1. Fetch `buses`, `trolleybuses`, `minibuses`, and `trams` category pages as anonymous GETs. Parse `state-view` JSON and collect route metadata from `masstransit.vehicles`. This is live, viewport-sensitive data, not complete route index; compare multiple map centers.
-2. Fetch each public route page at `/maps/10522/belgrade/routes/{type}_{seoname}/{Buffer.from(uri).toString("hex")}/`.
-3. Parse `config.masstransitLine.features`. Match directions by `ThreadMetaData.lineId`; `ThreadMetaData.id` identifies direction. Stop features contain `{id, name, coordinates: [longitude, latitude]}`; geometry features contain `points`.
-4. Merge stops by ID, preserve existing records, store coordinates as `[latitude, longitude]`, and add route references. Keep `complete: false` unless source coverage is independently proven complete.
+## Collection and merge
+
+1. Query the public Yandex transport category pages for buses, trolleybuses, minibuses, and trams at multiple map centers. The 2026-11-12 refresh checked 16 centers: central Belgrade, Novi Beograd, Zemun, Surčin, Zvezdara, Palilula, Voždovac, Rakovica, Čukarica, Grocka, Obrenovac, Barajevo, Sopot, Mladenovac, Lazarevac, and Mali Požarevac. Category results can vary by viewport, so a center is a discovery sample, not a completeness guarantee.
+2. Deduplicate routes by Yandex `lineId` and transport type. For each new route, fetch its public route page at `/maps/10522/belgrade/routes/{type}_{seoname}/{Buffer.from(uri).toString("hex")}/`.
+3. Parse `config.masstransitLine.features`. Each direction is identified by `ThreadMetaData.id`; `ThreadMetaData.lineId` identifies the route. Stop features contain `{id, name, coordinates: [longitude, latitude]}`. Geometry features contain `points`.
+4. Merge stops by Yandex stop ID. Keep existing names and coordinates. Add new route references to existing stops, and append previously unseen stops. Store coordinates as `[latitude, longitude]`.
+5. Check duplicate IDs, route references, coordinate bounds, and all collected directions. Keep `complete: false` unless Yandex coverage can be independently proven complete.
+
+The 2026-11-12 refresh added 18 route IDs and 210 unique stops. It scanned 16 centers, but the map's category data is not a complete, documented route index. Other routes may still be missing.
 
 Never store Yandex cookies, session IDs, or CSRF tokens.
