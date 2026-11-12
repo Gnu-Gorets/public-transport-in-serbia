@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { Hct, SchemeTonalSpot } from "@ktibow/material-color-utilities-nightly";
 import { colors } from "m3-svelte/etc/colors";
 
-const source = Hct.from(176.5, 36, 50);
+const source = Hct.from(210, 28, 50);
 const light = new SchemeTonalSpot(source, false, 0);
 const dark = new SchemeTonalSpot(source, true, 0);
 const hex = (argb) => `#${(argb & 0xffffff).toString(16).padStart(6, "0")}`;

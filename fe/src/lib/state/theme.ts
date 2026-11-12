@@ -8,8 +8,7 @@ export function applyTheme(theme: string) {
 }
 
 export function applyAccentStyles(theme: string) {
-  const hue = 200;
-  const source = Hct.from(hue, 36, 50);
+  const source = Hct.from(210, 28, 50);
   const stylesheet = genCSS(
     new SchemeTonalSpot(source, false, 0),
     new SchemeTonalSpot(source, true, 0),

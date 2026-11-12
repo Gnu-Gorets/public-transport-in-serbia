@@ -111,7 +111,7 @@
   .map-shell {
     position: fixed;
     inset: 0;
-    background: var(--m3c-background);
+    background: var(--m3c-surface);
   }
   .map-appbar {
     position: absolute;
