@@ -24,7 +24,7 @@ function validateStops(value) {
       !stop.coords.every(Number.isFinite) ||
       stop.coords[0] < 44.35 ||
       stop.coords[0] > 45.1 ||
-      stop.coords[1] < 20.1 ||
+      stop.coords[1] < 20.09 ||
       stop.coords[1] > 20.8
     ) {
       throw new Error("Belgrade stop catalog contains invalid stop");

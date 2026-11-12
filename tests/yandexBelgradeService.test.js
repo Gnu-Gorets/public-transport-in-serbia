@@ -18,11 +18,11 @@ describe("Belgrade stop catalog", () => {
   it("validates and exports the Yandex transit catalog", () => {
     const source = require("../be/server/data/yandex-belgrade-bus-stops.json");
     expect(belgradeStops).toBe(source);
-    expect(belgradeStops.stops).toHaveLength(2125);
+    expect(belgradeStops.stops).toHaveLength(2335);
     expect(belgradeStops.stops.find(({ id }) => id === "1555437089").name).toBe(
       "Železnički bulevar · 640",
     );
-    expect(belgradeStops.routes).toHaveLength(92);
+    expect(belgradeStops.routes).toHaveLength(110);
     expect(
       Object.fromEntries(
         ["bus", "tram", "minibus", "trolleybus"].map((type) => [
@@ -30,7 +30,7 @@ describe("Belgrade stop catalog", () => {
           belgradeStops.routes.filter((route) => route.type === type).length,
         ]),
       ),
-    ).toEqual({ bus: 77, tram: 9, minibus: 3, trolleybus: 3 });
+    ).toEqual({ bus: 92, tram: 9, minibus: 3, trolleybus: 6 });
     const routeNames = new Set(belgradeStops.routes.map(({ route }) => route));
     expect(
       belgradeStops.stops.every(
@@ -48,8 +48,43 @@ describe("Belgrade stop catalog", () => {
         type: "bus",
       }),
     );
+    expect(belgradeStops.routes).toContainEqual(
+      expect.objectContaining({
+        route: "38L",
+        lineId: "4688691614",
+        type: "bus",
+      }),
+    );
+    expect(belgradeStops.routes).toContainEqual(
+      expect.objectContaining({
+        route: "19",
+        lineId: "1704910974",
+        type: "trolleybus",
+      }),
+    );
+    expect(
+      belgradeStops.stops.find(({ id }) => id === "4971508096"),
+    ).toMatchObject({
+      name: "Preka kaldrma",
+      coords: [44.805726775, 20.099704176],
+    });
     expect(belgradeStops.remainingRoutes).toEqual([]);
     expect(belgradeStops.complete).toBe(false);
+  });
+
+  it("accepts Yandex stops just west of the previous city bound", () => {
+    expect(
+      _test.validateStops({
+        updatedAt: "2026-10-26",
+        stops: [
+          {
+            id: "1",
+            name: "Preka kaldrma",
+            coords: [44.805726775, 20.099704176],
+          },
+        ],
+      }).stops,
+    ).toHaveLength(1);
   });
 
   it("rejects duplicate IDs and invalid coordinates", () => {
